@@ -158,6 +158,11 @@ final class AppModel {
                 guard let self, self.workspace.git.repo != nil else { return }
                 self.branchSheetOpen = true
             },
+            Command(id: "git.undo", title: "Undo last git operation", menu: "Git",
+                    shortcut: Shortcut("z", [.command, .option]), keywords: ["revert", "reset", "uncommit"]) { [weak self] in
+                guard let self else { return }
+                Task { await self.workspace.git.undo() }
+            },
             Command(id: "git.clone", title: "Clone repository", menu: "Git", keywords: ["download", "checkout"]) { [weak self] in
                 self?.cloneSheetOpen = true
             },

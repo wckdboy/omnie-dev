@@ -78,7 +78,16 @@ extension Repository {
     /// Switches branches without a stash (PLAN.md §9.6). Uncommitted work on the current branch is
     /// saved to refs/wip/<current> and the working tree is switched cleanly; if the target branch has
     /// saved work, it's put back on top. Nothing is ever discarded: a checkpoint is taken first.
-    public func switchBranch(to target: String) throws {
+    public func switchBranch(to target: String, recordUndo: Bool = true) throws {
+        if try head().branch == target { return }
+        if recordUndo {
+            try recordingUndo(.switchBranch, "Switch to \(target)", switchedTo: target) { try performSwitch(to: target) }
+        } else {
+            try performSwitch(to: target)
+        }
+    }
+
+    private func performSwitch(to target: String) throws {
         guard let targetTip = try resolveReference("refs/heads/\(target)") else { throw BranchError.notFound(target) }
         let head = try head()
         if head.branch == target { return }

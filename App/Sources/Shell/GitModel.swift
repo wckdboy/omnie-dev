@@ -26,6 +26,8 @@ final class GitModel {
     private(set) var syncMessage: String?
     private(set) var queuedPushes: [PushIntent] = []
     private(set) var branches: [BranchInfo] = []
+    /// What Undo would reverse, e.g. "Commit “Add page style”".
+    private(set) var undoTitle: String?
     /// A merge waiting for you to resolve conflicts (PLAN.md §9.7).
     var mergeSession: MergeSession?
     @ObservationIgnored private(set) var mergeTitle = ""
@@ -235,6 +237,47 @@ final class GitModel {
         }
     }
 
+    // MARK: Undo and revert
+
+    func undo() async {
+        guard let repo else { return }
+        beforeWorktreeChange?()
+        do {
+            let entry = try await repo.undo()
+            syncMessage = "Undid: \(entry.title)"
+        } catch let e as UndoError {
+            error = switch e {
+            case .nothingToUndo: "Nothing to undo."
+            case .changedSince: "Can't undo: the branch changed since. Use the timeline to restore a checkpoint."
+            case .alreadyPushed: "Already pushed, so undo would rewrite shared history. Use Revert on the commit instead."
+            case .uncommittedChanges(let n): "Undo would overwrite \(n) \(n == 1 ? "edit" : "edits") made since. Commit or restore them first."
+            }
+        } catch {
+            self.error = describe(error)
+        }
+        afterWorktreeChange?()
+        await refresh()
+    }
+
+    func revert(_ commit: CommitInfo) async {
+        guard let repo, let author = await author() else {
+            error = "Set your name and email (Commit asks for them) first."
+            return
+        }
+        beforeWorktreeChange?()
+        do {
+            try await repo.revert(commit.id, author: author)
+        } catch MergeError.uncommittedChanges(let n) {
+            error = "Commit your \(n) \(n == 1 ? "change" : "changes") first, then revert."
+        } catch MergeError.conflicts(let paths) {
+            error = "Reverting conflicts with later changes in \(paths.joined(separator: ", ")). Nothing was changed."
+        } catch {
+            self.error = describe(error)
+        }
+        afterWorktreeChange?()
+        await refresh()
+    }
+
     // MARK: Branches
 
     func switchBranch(_ name: String) async {
@@ -307,6 +350,7 @@ final class GitModel {
         do {
             status = try await repo.status()
             branches = try await repo.branches()
+            undoTitle = await repo.undoStack().last?.title
             log = try await repo.log(limit: 200)
             checkpoints = try await repo.checkpointsSinceHead()
         } catch {

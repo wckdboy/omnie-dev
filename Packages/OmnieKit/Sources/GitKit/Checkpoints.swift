@@ -10,6 +10,7 @@ public enum CheckpointReason: String, Sendable, CaseIterable {
     case interval
     case restore
     case sync
+    case undo
     case manual
 }
 
@@ -81,30 +82,7 @@ extension Repository {
     /// never destructive, and leaves HEAD and the index alone (the index is reset to HEAD).
     public func restore(_ checkpoint: Checkpoint) throws {
         try self.checkpoint(.restore)
-
-        var treeOid = checkpoint.tree.oid
-        var tree: OpaquePointer?
-        try check(git_tree_lookup(&tree, pointer, &treeOid), "read checkpoint tree")
-        defer { git_tree_free(tree) }
-
-        var opts = git_checkout_options()
-        git_checkout_options_init(&opts, UInt32(GIT_CHECKOUT_OPTIONS_VERSION))
-        opts.checkout_strategy = GIT_CHECKOUT_FORCE.rawValue | GIT_CHECKOUT_REMOVE_UNTRACKED.rawValue
-        try check(git_checkout_tree(pointer, tree, &opts), "restore checkpoint")
-
-        // checkout_tree also rewrote the index; point it back at HEAD so nothing looks staged.
-        let index = try repositoryIndex()
-        defer { git_index_free(index) }
-        if let headCommit = try head().commit {
-            var headTreeOid = try treeOf(headCommit).oid
-            var headTree: OpaquePointer?
-            try check(git_tree_lookup(&headTree, pointer, &headTreeOid), "read HEAD tree")
-            defer { git_tree_free(headTree) }
-            try check(git_index_read_tree(index, headTree), "reset index")
-        } else {
-            try check(git_index_clear(index), "reset index")
-        }
-        try check(git_index_write(index), "write index")
+        try restoreWorkingTree(to: checkpoint.tree)
     }
 
     func checkpointInfo(_ id: ObjectID) throws -> Checkpoint {

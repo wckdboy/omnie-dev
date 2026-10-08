@@ -87,6 +87,14 @@ extension Repository {
     @discardableResult
     public func completeMerge(_ session: MergeSession, resolutions: [String: String], message: String,
                               author: Signature, asMergeCommit: Bool, date: Date = .now) throws -> CommitInfo {
+        try recordingUndo(.merge, message.split(separator: "\n").first.map(String.init) ?? "Merge") {
+            try completeMergeUnrecorded(session, resolutions: resolutions, message: message, author: author,
+                                        asMergeCommit: asMergeCommit, date: date)
+        }
+    }
+
+    private func completeMergeUnrecorded(_ session: MergeSession, resolutions: [String: String], message: String,
+                                         author: Signature, asMergeCommit: Bool, date: Date) throws -> CommitInfo {
         guard try head().commit == session.ours else { throw ResolveError.stale }
         let missing = session.conflicts.map(\.path).filter { resolutions[$0] == nil }
         guard missing.isEmpty else { throw ResolveError.unresolved(paths: missing) }

@@ -48,6 +48,16 @@ struct TimelineView: View {
                 }
                 .disabled(git.isSyncing)
                 .listRowBackground(Color.clear)
+                if let undo = git.undoTitle {
+                    Button {
+                        model.registry.run("git.undo")
+                    } label: {
+                        Label("Undo \(undo)", systemImage: "arrow.uturn.backward")
+                            .font(.system(size: 13))
+                            .lineLimit(1)
+                    }
+                    .listRowBackground(Color.clear)
+                }
             }
 
             if !git.checkpoints.isEmpty {
@@ -87,6 +97,14 @@ struct TimelineView: View {
                 ForEach(git.log) { commit in
                     CommitRow(commit: commit)
                         .listRowBackground(Color.clear)
+                        .contextMenu {
+                            Button("Revert", systemImage: "arrow.uturn.backward") {
+                                Task { await git.revert(commit) }
+                            }
+                            Button("Copy commit ID", systemImage: "doc.on.doc") {
+                                UIPasteboard.general.string = commit.id.hex
+                            }
+                        }
                 }
             }
         }
@@ -156,6 +174,7 @@ extension CheckpointReason {
         case .interval: "5 min"
         case .restore: "before restore"
         case .sync: "before sync"
+        case .undo: "before undo"
         case .manual: "manual"
         }
     }

@@ -172,6 +172,13 @@ public actor Repository {
     /// Commits everything that changed, with no staging step (PLAN.md §9.1 opinion 3).
     @discardableResult
     public func commitAll(message: String, author: Signature, date: Date = .now) throws -> CommitInfo {
+        let summary = message.split(separator: "\n").first.map(String.init) ?? ""
+        return try recordingUndo(.commit, "Commit “\(summary)”") {
+            try commitAllUnrecorded(message: message, author: author, date: date)
+        }
+    }
+
+    private func commitAllUnrecorded(message: String, author: Signature, date: Date) throws -> CommitInfo {
         let head = try head()
         let index = try repositoryIndex()
         defer { git_index_free(index) }

@@ -40,6 +40,10 @@ extension Repository {
     /// Fetch, integrate, push (PLAN.md §9.8). Fast-forwards when possible; otherwise rebases your
     /// unpushed commits onto upstream. Never leaves a half-done rebase behind.
     public func sync(auth: RemoteAuth, committer: Signature) throws -> SyncResult {
+        try recordingUndo(.sync, "Sync") { try syncUnrecorded(auth: auth, committer: committer) }
+    }
+
+    private func syncUnrecorded(auth: RemoteAuth, committer: Signature) throws -> SyncResult {
         guard let branch = try head().branch else { throw GitKitError.detachedHead }
         let remoteName: String
         if let configured = try upstreamRemoteName(of: branch) {

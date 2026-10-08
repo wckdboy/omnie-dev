@@ -79,6 +79,13 @@ extension Repository {
     @discardableResult
     public func squashMerge(_ branch: String, message: String, author: Signature,
                             assistedBy model: String?, date: Date = .now) throws -> CommitInfo {
+        try recordingUndo(.merge, "Merge \(branch)") {
+            try squashMergeUnrecorded(branch, message: message, author: author, assistedBy: model, date: date)
+        }
+    }
+
+    private func squashMergeUnrecorded(_ branch: String, message: String, author: Signature,
+                                       assistedBy model: String?, date: Date) throws -> CommitInfo {
         guard let ours = try head().commit else { throw GitKitError.nothingToCommit }
         guard let theirs = try resolveReference("refs/heads/\(branch)") else { throw BranchError.notFound(branch) }
         let tracked = try status().entries.filter { $0.kind != .untracked }
