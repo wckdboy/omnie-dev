@@ -15,6 +15,7 @@ struct StatusStrip: View {
             if model.workspace.isDirty {
                 Text("Unsaved")
             }
+            SyncLabel()
             Spacer()
             AgentPill(state: .idle)
             if model.isOffline {
@@ -66,6 +67,24 @@ struct GitStatusLabel: View {
         if status.conflictCount > 0 { return palette.status.error.color }
         if status.head.isDetached { return palette.status.warn.color }
         return palette.text.secondary.color
+    }
+}
+
+/// Sync progress and result: "Syncing" in Ion, "Queued, sends when online" in grey.
+struct SyncLabel: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        let git = model.workspace.git
+        if git.isSyncing {
+            Label("Syncing", systemImage: "arrow.triangle.2.circlepath")
+                .foregroundStyle(palette.accent.ion.color)
+        } else if !git.queuedPushes.isEmpty {
+            Label("Queued, sends when online", systemImage: "clock")
+        } else if let message = git.syncMessage {
+            Text(message)
+        }
     }
 }
 

@@ -58,8 +58,12 @@ struct EmptyProject: View {
                 .font(.system(size: 13))
                 .foregroundStyle(palette.text.secondary.color)
                 .multilineTextAlignment(.center)
-            Button("Open folder") { model.workspace.isPickingFolder = true }
-                .buttonStyle(.borderedProminent)
+            HStack {
+                Button("Open folder") { model.workspace.isPickingFolder = true }
+                    .buttonStyle(.borderedProminent)
+                Button("Clone") { model.registry.run("git.clone") }
+                    .buttonStyle(.bordered)
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

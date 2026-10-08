@@ -76,7 +76,7 @@ struct VibeShell: View {
             }
         }
         .folderPicker()
-        .sheet(isPresented: Bindable(model).commitSheetOpen) { CommitSheet() }
+        .gitSheets(model)
     }
 
     @ToolbarContentBuilder
@@ -84,6 +84,9 @@ struct VibeShell: View {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button("Open folder", systemImage: "folder.badge.plus") { model.registry.run("file.openFolder") }
+                Button("Clone repository", systemImage: "square.and.arrow.down") { model.registry.run("git.clone") }
+                Button("Sync", systemImage: "arrow.triangle.2.circlepath") { model.registry.run("git.sync") }
+                Button("SSH key", systemImage: "key") { model.registry.run("git.sshKey") }
                 Button("Commands", systemImage: "command") { model.registry.run("palette.open") }
             } label: {
                 Image(systemName: "ellipsis.circle")

@@ -1000,7 +1000,7 @@ Durations are deliberately left off after P0. They depend on team size, which is
 - All speed numbers (tok/s, prefill, TTFT) and the ~6.5 to 7.5 GB working-set ceiling. These are FORGE estimates, unbenchmarked on M5.
 - Exact memory granted by the `increased-memory-limit` entitlement on the 12 GB M5.
 - WebGPU behavior inside a **third-party** `WKWebView`, as opposed to Safari.
-- End-to-end SSH auth with a **Secure Enclave key** via libgit2's custom sign callback and libssh2, and which forges accept `ecdsa-sha2-nistp256`.
+- End-to-end SSH auth with a **Secure Enclave key**. *Partly verified (8 Oct 2026):* the custom sign callback path (libgit2 v1.9.7 + libssh2 1.11.1 + OpenSSL 3.6.5) authenticates `ecdsa-sha2-nistp256` against OpenSSH for clone, fetch and push, from macOS tests and from the iOS app in the simulator. The simulator has no Secure Enclave, so it used a software P-256 key through the same callback. **Still to verify:** a real Secure Enclave key on device, and which hosted forges accept `ecdsa-sha2-nistp256` keys.
 - Coverage of three.js's USDZ *loader*. The USDZ *exporter* is the path we rely on for AR Quick Look.
 - MLX weight residency (whether weights are evictable like mmap'd GGUF).
 - Whether Apple Foundation Models are good enough for commit-message polish.

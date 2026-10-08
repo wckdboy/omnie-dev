@@ -46,6 +46,8 @@ final class AppModel {
     // Layout
     var paletteOpen = false
     var commitSheetOpen = false
+    var sshKeySheetOpen = false
+    var cloneSheetOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -85,7 +87,13 @@ final class AppModel {
     private func startMonitors() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             let offline = path.status != .satisfied
-            Task { @MainActor in self?.isOffline = offline }
+            Task { @MainActor in
+                guard let self else { return }
+                let cameOnline = self.isOffline && !offline
+                self.isOffline = offline
+                // Queued pushes were authorized when queued; send them without asking again.
+                if cameOnline { await self.workspace.git.flushQueue() }
+            }
         }
         pathMonitor.start(queue: DispatchQueue(label: "ai.wckd.omniedev.network"))
 
@@ -136,6 +144,19 @@ final class AppModel {
                     shortcut: Shortcut("c", [.command, .shift]), keywords: ["save", "snapshot"]) { [weak self] in
                 guard let self, self.workspace.git.repo != nil else { return }
                 self.commitSheetOpen = true
+            },
+            Command(id: "git.sync", title: "Sync", menu: "Git",
+                    shortcut: Shortcut("s", [.command, .shift]), tier: .askBiometric,
+                    keywords: ["push", "pull", "fetch"]) { [weak self] in
+                guard let self else { return }
+                self.workspace.saveCurrent()
+                Task { await self.workspace.git.sync(isOffline: self.isOffline) }
+            },
+            Command(id: "git.clone", title: "Clone repository", menu: "Git", keywords: ["download", "checkout"]) { [weak self] in
+                self?.cloneSheetOpen = true
+            },
+            Command(id: "git.sshKey", title: "SSH key", menu: "Git", keywords: ["public key", "forge", "secure enclave"]) { [weak self] in
+                self?.sshKeySheetOpen = true
             },
             Command(id: "git.checkpoint", title: "Take checkpoint now", menu: "Git", keywords: ["snapshot", "backup"]) { [weak self] in
                 guard let self else { return }

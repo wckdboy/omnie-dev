@@ -40,6 +40,14 @@ struct TimelineView: View {
                 }
                 .disabled(git.status?.isClean ?? true)
                 .listRowBackground(Color.clear)
+                Button {
+                    model.registry.run("git.sync")
+                } label: {
+                    Label(syncLabel(git), systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 13))
+                }
+                .disabled(git.isSyncing)
+                .listRowBackground(Color.clear)
             }
 
             if !git.checkpoints.isEmpty {
@@ -87,6 +95,15 @@ struct TimelineView: View {
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, density.row)
         .refreshable { await git.refresh() }
+    }
+
+    private func syncLabel(_ git: GitModel) -> String {
+        if model.isOffline { return "Queue push for when online" }
+        guard let status = git.status else { return "Sync" }
+        var parts: [String] = []
+        if let ahead = status.ahead, ahead > 0 { parts.append("push \(ahead)") }
+        if let behind = status.behind, behind > 0 { parts.append("pull \(behind)") }
+        return parts.isEmpty ? "Sync" : "Sync: " + parts.joined(separator: ", ")
     }
 
     private func commitLabel(_ git: GitModel) -> String {
