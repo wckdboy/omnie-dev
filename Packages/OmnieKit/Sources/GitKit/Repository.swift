@@ -155,7 +155,7 @@ public actor Repository {
         return .modified
     }
 
-    private func upstreamCommit(of branch: String) throws -> ObjectID? {
+    func upstreamCommit(of branch: String) throws -> ObjectID? {
         var local: OpaquePointer?
         try check(git_branch_lookup(&local, pointer, branch, GIT_BRANCH_LOCAL), "find branch \(branch)")
         defer { git_reference_free(local) }

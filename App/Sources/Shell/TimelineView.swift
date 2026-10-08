@@ -138,6 +138,7 @@ extension CheckpointReason {
         case .branchSwitch: "branch switch"
         case .interval: "5 min"
         case .restore: "before restore"
+        case .sync: "before sync"
         case .manual: "manual"
         }
     }

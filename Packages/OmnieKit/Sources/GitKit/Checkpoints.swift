@@ -9,6 +9,7 @@ public enum CheckpointReason: String, Sendable, CaseIterable {
     case branchSwitch = "branch-switch"
     case interval
     case restore
+    case sync
     case manual
 }
 
