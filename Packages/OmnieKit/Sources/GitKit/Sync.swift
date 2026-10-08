@@ -185,6 +185,10 @@ extension Repository {
     func conflictedPaths() throws -> [String] {
         let index = try repositoryIndex()
         defer { git_index_free(index) }
+        return try conflictedPaths(in: index)
+    }
+
+    func conflictedPaths(in index: OpaquePointer) throws -> [String] {
         guard git_index_has_conflicts(index) == 1 else { return [] }
         var iterator: OpaquePointer?
         try check(git_index_conflict_iterator_new(&iterator, index), "read conflicts")
