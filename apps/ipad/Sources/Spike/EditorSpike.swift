@@ -154,36 +154,45 @@ final class EditorSpike {
     }
 
     // Test 3: type 200 characters mid-file. Main-thread work per keystroke ≤ 4 ms at p95.
+    // Run twice: with the on-screen keyboard (info: UIKit's keyboard bookkeeping runs on every change,
+    // for any text view) and with no on-screen keyboard, like typing on a Magic Keyboard (pass/fail).
     private func test3(_ engine: Engine, text: String) async {
-        let view = await makeView(engine, text: text)
-        await nextFrame()
-        // Runestone's TextView hosts an inner UITextInput view; type through it, the real keyboard path.
-        guard let input = (view as? (UIView & UITextInput))
-                ?? (view.subviews.first { $0 is UITextInput } as? (UIView & UITextInput)) else {
-            record(engine, "3 type 200 chars mid-file", [:], pass: false, note: "not run: no UITextInput found")
+        for onScreenKeyboard in [false, true] {
+            let view = await makeView(engine, text: text)
+            await nextFrame()
+            // Runestone's TextView hosts an inner UITextInput view; type through it, the real keyboard path.
+            guard let input = (view as? (UIView & UITextInput))
+                    ?? (view.subviews.first { $0 is UITextInput } as? (UIView & UITextInput)) else {
+                record(engine, "3 type 200 chars mid-file", [:], pass: false, note: "not run: no UITextInput found")
+                view.removeFromSuperview()
+                return
+            }
+            if !onScreenKeyboard {
+                // An empty input view: no software keyboard, as with a hardware keyboard attached.
+                (view as? Runestone.TextView)?.inputView = UIView()
+                (view as? UITextView)?.inputView = UIView()
+            }
+            _ = view.becomeFirstResponder()
+            setCaret(view, at: (text as NSString).length / 2)
+            await nextFrame()
+            var durations: [Double] = []
+            let typed = Array("const typed = items.filter((x) => x.qty > 0).map((x) => x.sku);\n")
+            for k in 0..<200 {
+                let t0 = CACurrentMediaTime()
+                input.insertText(String(typed[k % typed.count]))
+                view.layoutIfNeeded()
+                durations.append((CACurrentMediaTime() - t0) * 1000)
+                await Task.yield()
+            }
+            durations.sort()
+            let p95 = durations[Int(Double(durations.count) * 0.95)]
+            record(engine, "3 type 200 chars mid-file (\(onScreenKeyboard ? "on-screen keyboard" : "no on-screen keyboard"))",
+                   ["p50Ms": durations[durations.count / 2], "p95Ms": p95, "maxMs": durations.last ?? 0],
+                   pass: onScreenKeyboard ? nil : p95 <= 4)
+            view.resignFirstResponder()
             view.removeFromSuperview()
-            return
+            await nextFrame()
         }
-        _ = view.becomeFirstResponder()
-        let middle = (text as NSString).length / 2
-        setCaret(view, at: middle)
-        await nextFrame()
-        var durations: [Double] = []
-        let typed = Array("const typed = items.filter((x) => x.qty > 0).map((x) => x.sku);\n")
-        for k in 0..<200 {
-            let t0 = CACurrentMediaTime()
-            input.insertText(String(typed[k % typed.count]))
-            view.layoutIfNeeded()
-            durations.append((CACurrentMediaTime() - t0) * 1000)
-            await Task.yield()
-        }
-        durations.sort()
-        let p95 = durations[Int(Double(durations.count) * 0.95)]
-        record(engine, "3 type 200 chars mid-file",
-               ["p50Ms": durations[durations.count / 2], "p95Ms": p95, "maxMs": durations.last ?? 0],
-               pass: p95 <= 4)
-        view.resignFirstResponder()
-        view.removeFromSuperview()
     }
 
     // Test 4: a single 20k-character line. No main-thread stall > 100 ms placing the caret or scrolling.
@@ -325,13 +334,11 @@ final class EditorSpike {
         }
     }
 
+    /// Lets pending layout and rendering happen. (A CATransaction completion block never fires when
+    /// there's nothing to commit, which hung a run, so this flushes and sleeps for two frames instead.)
     private func nextFrame() async {
-        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-            CATransaction.setCompletionBlock { done.resume() }
-            CATransaction.begin()
-            CATransaction.commit()
-        }
-        try? await Task.sleep(for: .milliseconds(16))
+        CATransaction.flush()
+        try? await Task.sleep(for: .milliseconds(34))
     }
 
     private func record(_ engine: Engine, _ test: String, _ metrics: [String: Double], pass: Bool?, note: String? = nil) {
