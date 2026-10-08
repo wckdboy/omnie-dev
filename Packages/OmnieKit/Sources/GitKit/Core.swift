@@ -1,9 +1,14 @@
+import CGitSSH
 import Clibgit2
 import Foundation
 
 /// libgit2 must be initialized once per process before any other call.
 enum Libgit2 {
-    static let initialize: Void = { git_libgit2_init(); return () }()
+    static let initialize: Void = {
+        git_libgit2_init()
+        omnie_ssh_set_sign_function(sshSignFunction)
+        return ()
+    }()
 }
 
 public struct GitError: Error, Sendable, Equatable, CustomStringConvertible {
@@ -24,6 +29,17 @@ public struct GitError: Error, Sendable, Equatable, CustomStringConvertible {
 public enum GitKitError: Error, Sendable, Equatable {
     case nothingToCommit
     case notACheckpoint(ObjectID)
+    case detachedHead
+    /// The server's host key isn't known yet. Show the fingerprint, then trust it and retry.
+    case unknownHostKey(HostKey)
+    /// The server's host key differs from the one trusted before. Possible interception; never auto-accept.
+    case hostKeyChanged(HostKey, expected: String)
+    case hostKeyUnverifiable
+    case noCredential(String)
+    case credentialNotAccepted(String)
+    case authenticationFailed(String)
+    case signingFailed(String)
+    case pushRejected(ref: String, reason: String)
 }
 
 @discardableResult

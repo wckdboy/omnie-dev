@@ -10,8 +10,9 @@ struct PaletteTests {
     ]
 
     @Test("Every text and syntax color meets its contrast target on the editor surface",
-          arguments: themes)
-    func contrastTargets(name: String, palette: Palette, target: Double) {
+          arguments: ["dark", "light", "highContrast"])
+    func contrastTargets(name: String) {
+        let (_, palette, target) = Self.themes.first { $0.0 == name }!
         let bg = palette.surface.editor
         let foregrounds: [(String, RGBA)] = [
             ("text.primary", palette.text.primary),

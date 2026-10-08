@@ -16,7 +16,8 @@ let package = Package(
         .target(name: "WorkspaceKit"),
         // Built by scripts/build-libgit2.sh.
         .binaryTarget(name: "Clibgit2", path: "Vendor/Clibgit2.xcframework"),
-        .target(name: "GitKit", dependencies: ["Clibgit2"]),
+        .target(name: "CGitSSH", dependencies: ["Clibgit2"]),
+        .target(name: "GitKit", dependencies: ["Clibgit2", "CGitSSH"]),
         .testTarget(name: "DesignKitTests", dependencies: ["DesignKit"]),
         .testTarget(name: "CommandKitTests", dependencies: ["CommandKit"]),
         .testTarget(name: "WorkspaceKitTests", dependencies: ["WorkspaceKit"]),

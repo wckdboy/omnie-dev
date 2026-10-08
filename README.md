@@ -9,7 +9,7 @@ Bundle ID: `ai.wckd.omniedev` · iPadOS / iOS 26+
 | Path | What |
 |---|---|
 | `App/Sources` | The app target. `IDE/` is the iPad shell, `Vibe/` the iPhone shell, `Shell/` is shared |
-| `Packages/OmnieKit` | Swift packages: `DesignKit` (theme, density, metrics), `CommandKit` (command registry + palette search), `WorkspaceKit` (file tree, text files), `GitKit` (libgit2: status, commits, checkpoints, restore) |
+| `Packages/OmnieKit` | Swift packages: `DesignKit` (theme, density, metrics), `CommandKit` (command registry + palette search), `WorkspaceKit` (file tree, text files), `GitKit` (libgit2: status, commits, checkpoints, restore, SSH/HTTPS clone, fetch, push), `CGitSSH` (C shim for the SSH signing callback) |
 | `design/tokens.json` | Design tokens. `DesignKit/Tokens+Generated.swift` is generated from it |
 | `project.yml` | XcodeGen spec. The `.xcodeproj` is generated and not committed |
 
@@ -17,7 +17,7 @@ Bundle ID: `ai.wckd.omniedev` · iPadOS / iOS 26+
 
 ```sh
 brew install xcodegen cmake ninja   # once
-scripts/build-libgit2.sh       # once; builds Packages/OmnieKit/Vendor/Clibgit2.xcframework (pinned libgit2 v1.9.7)
+scripts/build-git-deps.sh      # once (~2 min); OpenSSL libcrypto + libssh2 + libgit2 -> Packages/OmnieKit/Vendor/Clibgit2.xcframework
 xcodegen generate              # after adding files or editing project.yml
 open OmnieDev.xcodeproj
 

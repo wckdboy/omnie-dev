@@ -50,6 +50,11 @@ public actor Repository {
     private let handle: Handle
     public nonisolated let workdir: URL
 
+    /// libgit2 calls block (network, disk), so each repository runs on its own serial queue
+    /// rather than on Swift's shared cooperative pool.
+    private nonisolated let queue = DispatchSerialQueue(label: "ai.wckd.omniedev.git")
+    public nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
+
     /// Owns the git_repository and frees it. Only ever used from the actor, hence @unchecked.
     private final class Handle: @unchecked Sendable {
         let raw: OpaquePointer
@@ -59,7 +64,7 @@ public actor Repository {
 
     var pointer: OpaquePointer { handle.raw }
 
-    private init(pointer: OpaquePointer) {
+    init(adopting pointer: OpaquePointer) {
         self.handle = Handle(pointer)
         let path = git_repository_workdir(pointer).map { String(cString: $0) } ?? ""
         self.workdir = URL(filePath: path, directoryHint: .isDirectory)
@@ -69,7 +74,7 @@ public actor Repository {
         Libgit2.initialize
         var repo: OpaquePointer?
         try check(git_repository_open(&repo, url.path(percentEncoded: false)), "open \(url.lastPathComponent)")
-        return Repository(pointer: repo!)
+        return Repository(adopting: repo!)
     }
 
     /// `git init` with `initialBranch` as the unborn HEAD.
@@ -83,7 +88,7 @@ public actor Repository {
             opts.initial_head = branch
             try check(git_repository_init_ext(&repo, url.path(percentEncoded: false), &opts), "init \(url.lastPathComponent)")
         }
-        return Repository(pointer: repo!)
+        return Repository(adopting: repo!)
     }
 
     // MARK: HEAD and status
