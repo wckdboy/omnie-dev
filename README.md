@@ -28,7 +28,6 @@ Follows PLAN §27.3: one monorepo for the app and every Kit.
 brew install xcodegen cmake ninja   # once
 scripts/build-git-deps.sh      # once (~2 min): OpenSSL libcrypto + libssh2 + libgit2 -> packages/GitKit/Vendor/
 python3 scripts/vendor-grammars.py   # once: tree-sitter grammars -> packages/LangKit
-git clone <omnie-dev-editor-engine> ../omnie-dev-editor-engine   # sibling checkout, until it's published
 xcodegen generate              # after adding files or editing project.yml
 open OmnieDev.xcodeproj
 
