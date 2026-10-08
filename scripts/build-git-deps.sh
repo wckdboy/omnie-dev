@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
+# SPDX-License-Identifier: Apache-2.0
 # Builds GitKit's native dependencies as one static XCFramework (iOS device, iOS simulator, macOS):
 #   OpenSSL (libcrypto only) -> libssh2 -> libgit2 (SSH via libssh2, HTTPS via SecureTransport)
 # The three static libraries are merged into a single libgit2 archive.
-# Output: Packages/OmnieKit/Vendor/Clibgit2.xcframework (gitignored; re-run this script to recreate it).
+# Output: packages/GitKit/Vendor/Clibgit2.xcframework (gitignored; re-run this script to recreate it).
 set -euo pipefail
 
 OPENSSL_VERSION="3.6.5"
@@ -15,7 +17,7 @@ DEPLOYMENT_TARGET="26.0"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$ROOT/.build/vendor"
-OUT="$ROOT/Packages/OmnieKit/Vendor/Clibgit2.xcframework"
+OUT="$ROOT/packages/GitKit/Vendor/Clibgit2.xcframework"
 JOBS="$(sysctl -n hw.ncpu)"
 mkdir -p "$WORK"
 cd "$WORK"

@@ -1,0 +1,13 @@
+# Default owner for everything.
+*                                   @wckdboy
+
+# Policy-sensitive paths need an explicit owner review (PLAN §27.3).
+/packages/GitKit/Sources/GitKit/Remote.swift   @wckdboy
+/packages/GitKit/Sources/GitKit/SSH.swift      @wckdboy
+/packages/GitKit/Sources/CGitSSH/              @wckdboy
+/apps/ipad/Sources/Shell/Secrets.swift         @wckdboy
+/scripts/build-git-deps.sh                     @wckdboy
+/LICENSE                                       @wckdboy
+/LICENSES/                                     @wckdboy
+/NOTICE                                        @wckdboy
+/TRADEMARKS.md                                 @wckdboy

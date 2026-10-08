@@ -10,6 +10,18 @@
 
 **Devices:** one universal app. **iPad is the full IDE** (everything in this doc). **iPhone is for vibecoding** (§13.2): agent-first, so you describe, review, preview and sync, with light editing only. The experience is picked by device, not window width.
 
+> **Superseded in part (9 Oct 2026).** The newer *Omnie-dev: complete plan* (94-page PDF, 9 Oct 2026; not stored in this repo) adds the final icon (the seamed O), ten UI mockups, §5.1 (editor engine), §9 LinuxKit (emulated Alpine via iSH, first-class), §10 HarnessKit (Pi, DSH), §12 RemoteKit (SSH, tmux control mode, mosh), §27 open source and licensing, and §28 decisions. Where they differ, the PDF wins. Its decided items, as applied to this repo:
+>
+> - **Who and how:** a personal tool for its author's daily use, shared openly. No business model. Install by Xcode sideload or TestFlight; the App Store is optional later.
+> - **License:** Apache-2.0 for our code. Once iSH is vendored, the shipped binary is a GPLv3 combined work carrying iSH's LICENSE.IOS. DCO sign-off, no CLA. Name and icon under TRADEMARKS.md.
+> - **Repos:** GitHub `wckdboy` is canonical. This monorepo holds the app and every Kit (`apps/ipad`, `packages/*Kit`, `brand/`); six satellites are planned (`omnie-dev-editor-engine`, `-ish`, `-native-deps`, `-harness`, `-runner`, `-packs`).
+> - **Editor:** a Runestone-derived Core Text engine we own for code; TextKit 2 for prose. Locked after the P0 spike.
+> - **Remote terminal:** RemoteKit on libssh2 (shared with GitKit), SwiftTerm, tmux -CC, mosh.
+> - **Routing:** Auto by default (local offline, API online, always labeled); per-project Local-only.
+> - **Runners:** single-tenant, Hetzner plus your Mac over Tailscale, gVisor under rootless Podman.
+>
+> **Difference from the PDF:** the PDF describes an iPad-only app. This repo builds a universal app (iPhone gets the agent-first vibecoding shell, §13.2 below), per the author's instruction on 8 Oct 2026.
+
 ---
 
 ## 0. TL;DR: the plan in ten lines

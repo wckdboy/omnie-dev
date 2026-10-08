@@ -5,8 +5,8 @@ xcuserdata/
 DerivedData/
 .build/
 .swiftpm/
-Packages/*/.build/
-Packages/*/.swiftpm/
+packages/*/.build/
+packages/*/.swiftpm/
 
-# Built by scripts/build-libgit2.sh
-Packages/OmnieKit/Vendor/
+# Built by scripts/build-git-deps.sh
+packages/GitKit/Vendor/

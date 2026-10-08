@@ -7,8 +7,14 @@ options:
   developmentLanguage: en
 
 packages:
-  OmnieKit:
-    path: Packages/OmnieKit
+  DesignKit:
+    path: packages/DesignKit
+  CommandKit:
+    path: packages/CommandKit
+  WorkspaceKit:
+    path: packages/WorkspaceKit
+  GitKit:
+    path: packages/GitKit
 
 settings:
   base:
@@ -22,16 +28,12 @@ targets:
     type: application
     platform: iOS
     sources:
-      - App/Sources
+      - apps/ipad/Sources
     dependencies:
-      - package: OmnieKit
-        product: DesignKit
-      - package: OmnieKit
-        product: CommandKit
-      - package: OmnieKit
-        product: WorkspaceKit
-      - package: OmnieKit
-        product: GitKit
+      - package: DesignKit
+      - package: CommandKit
+      - package: WorkspaceKit
+      - package: GitKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.wckd.omniedev

@@ -1,0 +1,21 @@
+Omnie-dev
+Copyright 2026 wckdboy and Omnie-dev contributors
+
+Omnie-dev's own source code is licensed under the Apache License, Version 2.0
+(see LICENSE and LICENSES/Apache-2.0.txt).
+
+Native dependencies are not stored in this repository. scripts/build-git-deps.sh
+builds them from hash-pinned upstream sources into
+packages/GitKit/Vendor/Clibgit2.xcframework, which is statically linked into the app:
+
+  libgit2 1.9.7    GPL-2.0 with the libgit2 linking exception
+                   https://github.com/libgit2/libgit2
+  libssh2 1.11.1   BSD-3-Clause      https://libssh2.org
+  OpenSSL 3.6.5    Apache-2.0 (libcrypto only)   https://www.openssl.org
+
+libgit2 is linked unmodified, as its linking exception allows. Fixes to it go upstream.
+
+When iSH-based components (LinuxKit, vendor/ish) are added, the distributed app becomes a
+GPLv3 combined work; COPYING.app will then describe that combination (PLAN §27).
+
+"Omnie-dev" and the Omnie-dev app icon are not licensed under Apache-2.0. See TRADEMARKS.md.
