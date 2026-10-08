@@ -20,6 +20,13 @@ final class GitModel {
     let knownHosts = KnownHosts(fileURL: AppPaths.support.appendingPathComponent("known_hosts.json"))
     /// A host key waiting for you to compare and trust; set when a connection hit an unknown host.
     var pendingHostKey: HostKey?
+    /// An HTTPS host that needs a token before the operation can be retried.
+    var pendingTokenHost: TokenRequest?
+    struct TokenRequest: Identifiable, Equatable {
+        let host: String
+        let rejected: Bool
+        var id: String { host }
+    }
     @ObservationIgnored private var retryAfterTrust: (() async -> Void)?
     private(set) var isSyncing = false
     /// The last Sync's one-line result, shown in the status strip.
@@ -82,13 +89,38 @@ final class GitModel {
         retryAfterTrust = nil
     }
 
+    func saveToken(_ token: HTTPSToken) async {
+        guard let request = pendingTokenHost else { return }
+        do { try HTTPSToken.save(token, host: request.host) } catch {
+            self.error = "Can't save token: \(error.localizedDescription)"
+            return
+        }
+        pendingTokenHost = nil
+        let retry = retryAfterTrust
+        retryAfterTrust = nil
+        await retry?()
+    }
+
+    func cancelTokenRequest() {
+        pendingTokenHost = nil
+        retryAfterTrust = nil
+    }
+
+    nonisolated static func host(of url: String) -> String? {
+        URL(string: url)?.host()
+    }
+
     var remoteAuth: RemoteAuth {
         let signer = identity?.signer
         let hosts = knownHosts
         return RemoteAuth(
             credential: { url in
-                guard let signer, Self.isSSH(url) else { return nil }
-                return .sshSigner(username: "git", signer: signer)
+                if Self.isSSH(url) {
+                    return signer.map { .sshSigner(username: "git", signer: $0) }
+                }
+                // HTTPS: a per-host token from the Keychain. Read here, used for this operation only.
+                guard let host = Self.host(of: url), let token = HTTPSToken.load(host: host) else { return nil }
+                return .token(username: token.username, token: token.token)
             },
             checkHostKey: { hosts.check($0) })
     }
@@ -107,9 +139,19 @@ final class GitModel {
         } catch GitKitError.hostKeyChanged(let key, let expected) {
             error = "Host key for \(key.host) changed (now \(key.fingerprint), was \(expected)). Not connecting; this can mean the connection is being intercepted."
         } catch GitKitError.noCredential(let url) {
-            error = Self.isSSH(url) ? "No SSH key yet. Create one in SSH key, add it to your forge, then retry." : "HTTPS remotes need a token, which isn't supported yet. Use an SSH URL."
+            if Self.isSSH(url) {
+                error = "No SSH key yet. Create one in SSH key, add it to your forge, then retry."
+            } else if let host = Self.host(of: url) {
+                pendingTokenHost = TokenRequest(host: host, rejected: false)
+                retryAfterTrust = retry
+            }
         } catch GitKitError.authenticationFailed(let url) {
-            error = "\(url) refused the SSH key. Add the key shown in SSH key to your forge account."
+            if !Self.isSSH(url), let host = Self.host(of: url) {
+                pendingTokenHost = TokenRequest(host: host, rejected: true)
+                retryAfterTrust = retry
+            } else {
+                error = "\(url) refused the SSH key. Add the key shown in SSH key to your forge account."
+            }
         } catch let e as SyncError {
             error = Self.describe(e)
         } catch {

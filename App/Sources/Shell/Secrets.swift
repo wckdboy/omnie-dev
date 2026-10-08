@@ -91,6 +91,33 @@ struct SSHIdentity {
     }
 }
 
+/// HTTPS credentials per host, e.g. a GitHub or Forgejo personal access token.
+struct HTTPSToken: Codable, Equatable {
+    var username: String
+    var token: String
+
+    private static func account(_ host: String) -> String { "https.token.\(host.lowercased())" }
+
+    static func load(host: String) -> HTTPSToken? {
+        Keychain.data(for: account(host)).flatMap { try? JSONDecoder().decode(HTTPSToken.self, from: $0) }
+    }
+
+    static func save(_ token: HTTPSToken, host: String) throws {
+        try Keychain.set(try JSONEncoder().encode(token), for: account(host))
+    }
+
+    static func delete(host: String) { Keychain.delete(account(host)) }
+
+    /// The username convention each forge expects with a token.
+    static func usernameHint(for host: String) -> String {
+        switch host.lowercased() {
+        case "github.com": "Any name works with a GitHub token, e.g. your username."
+        case "gitlab.com": "Use oauth2 as the username with a GitLab token."
+        default: "Your account name on this forge."
+        }
+    }
+}
+
 enum HumanCheck {
     /// Face ID (or passcode) before an outward action like push. One check covers a whole Sync.
     /// Devices with no passcode can't authenticate anyone, so the check passes there.

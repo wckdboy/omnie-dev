@@ -76,9 +76,7 @@ struct CloneSheet: View {
                 } header: {
                     Text("Repository URL")
                 } footer: {
-                    Text(git.identity == nil
-                         ? "SSH needs a key. Create one in SSH key first."
-                         : "Any SSH remote works: Forgejo, Gitea, GitLab, GitHub, Cursor Origin or your own server.")
+                    Text("SSH (git@host:owner/repo.git) or HTTPS (https://host/owner/repo.git). HTTPS asks for a token the first time.")
                 }
                 if git.isBusy {
                     HStack { ProgressView(); Text("Cloning…") }
@@ -103,6 +101,48 @@ struct CloneSheet: View {
                 }
             }
         }
+    }
+}
+
+/// Asks for an HTTPS username and token for one host, then retries the operation.
+struct TokenSheet: View {
+    @Environment(AppModel.self) private var model
+    let request: GitModel.TokenRequest
+    @State private var username = ""
+    @State private var token = ""
+
+    var body: some View {
+        let git = model.workspace.git
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Username", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textContentType(.username)
+                    SecureField("Token", text: $token)
+                        .textContentType(.password)
+                } header: {
+                    Text(request.host)
+                } footer: {
+                    Text((request.rejected ? "\(request.host) refused the saved token. " : "")
+                         + HTTPSToken.usernameHint(for: request.host)
+                         + " Stored in the Keychain on this device only; never sent to the agent.")
+                }
+            }
+            .navigationTitle(request.rejected ? "Token refused" : "Sign in")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { git.cancelTokenRequest() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save and retry") {
+                        Task { await git.saveToken(HTTPSToken(username: username, token: token)) }
+                    }
+                    .disabled(username.isEmpty || token.isEmpty)
+                }
+            }
+        }
+        .onAppear { username = HTTPSToken.load(host: request.host)?.username ?? "" }
     }
 }
 
@@ -150,6 +190,7 @@ extension View {
             .sheet(isPresented: $model.cloneSheetOpen) { CloneSheet() }
             .sheet(item: $git.pendingHostKey) { HostKeySheet(key: $0) }
             .sheet(isPresented: $model.branchSheetOpen) { BranchSheet() }
+            .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }
 }
