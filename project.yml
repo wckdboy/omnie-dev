@@ -1,0 +1,49 @@
+name: OmnieDev
+options:
+  bundleIdPrefix: ai.wckd
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+packages:
+  OmnieKit:
+    path: Packages/OmnieKit
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  OmnieDev:
+    type: application
+    platform: iOS
+    sources:
+      - App/Sources
+    dependencies:
+      - package: OmnieKit
+        product: DesignKit
+      - package: OmnieKit
+        product: CommandKit
+      - package: OmnieKit
+        product: WorkspaceKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.wckd.omniedev
+        PRODUCT_NAME: OmnieDev
+        # 1 = iPhone (vibecoding), 2 = iPad (full IDE)
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Omnie-dev
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: YES
