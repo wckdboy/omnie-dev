@@ -260,3 +260,18 @@ extension Repository {
         return .pushed
     }
 }
+
+extension Repository {
+    /// The current branch's upstream tip (after a fetch), falling back to origin/<branch>.
+    public func upstreamTip() throws -> ObjectID? {
+        guard let branch = try head().branch else { return nil }
+        if let tip = try upstreamCommit(of: branch) { return tip }
+        return try remoteBranchTip(try upstreamRemoteName(of: branch) ?? "origin", branch)
+    }
+
+    /// "origin/main", for messages.
+    public func upstreamName() throws -> String? {
+        guard let branch = try head().branch else { return nil }
+        return "\(try upstreamRemoteName(of: branch) ?? "origin")/\(branch)"
+    }
+}

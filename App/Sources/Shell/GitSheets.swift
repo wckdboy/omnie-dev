@@ -149,6 +149,8 @@ extension View {
             .sheet(isPresented: $model.sshKeySheetOpen) { SSHKeySheet() }
             .sheet(isPresented: $model.cloneSheetOpen) { CloneSheet() }
             .sheet(item: $git.pendingHostKey) { HostKeySheet(key: $0) }
+            .sheet(isPresented: $model.branchSheetOpen) { BranchSheet() }
+            .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }
 }
 

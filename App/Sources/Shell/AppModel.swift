@@ -48,6 +48,7 @@ final class AppModel {
     var commitSheetOpen = false
     var sshKeySheetOpen = false
     var cloneSheetOpen = false
+    var branchSheetOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -151,6 +152,11 @@ final class AppModel {
                 guard let self else { return }
                 self.workspace.saveCurrent()
                 Task { await self.workspace.git.sync(isOffline: self.isOffline) }
+            },
+            Command(id: "git.branches", title: "Switch branch", menu: "Git",
+                    shortcut: Shortcut("b", [.command, .shift]), keywords: ["checkout", "new branch"]) { [weak self] in
+                guard let self, self.workspace.git.repo != nil else { return }
+                self.branchSheetOpen = true
             },
             Command(id: "git.clone", title: "Clone repository", menu: "Git", keywords: ["download", "checkout"]) { [weak self] in
                 self?.cloneSheetOpen = true

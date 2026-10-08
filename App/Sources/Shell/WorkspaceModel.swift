@@ -92,9 +92,19 @@ final class WorkspaceModel {
     }
 
     /// Restores a checkpoint and reloads the editor and navigator from disk.
+    init() {
+        // Git operations that rewrite files (sync, branch switch, merge, restore) save the editor
+        // first and reload it after, so a stale buffer never overwrites what git just wrote.
+        git.beforeWorktreeChange = { [weak self] in self?.saveCurrent() }
+        git.afterWorktreeChange = { [weak self] in self?.reloadFromDisk() }
+    }
+
     func restore(_ checkpoint: Checkpoint) async {
-        saveCurrent()
-        guard await git.restore(checkpoint) else { return }
+        _ = await git.restore(checkpoint)
+    }
+
+    /// Re-reads the navigator and the open file after something other than the editor changed files.
+    func reloadFromDisk() {
         reload()
         if let openFile {
             if FileManager.default.fileExists(atPath: openFile.path(percentEncoded: false)),

@@ -110,11 +110,16 @@ final class SSHTests {
             addr.sin_family = sa_family_t(AF_INET)
             addr.sin_port = in_port_t(UInt16(port).bigEndian)
             addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-            let ok = withUnsafePointer(to: &addr) {
+            let connected = withUnsafePointer(to: &addr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
             } == 0
+            // Ready means sshd sends its "SSH-2.0-…" banner, not just that the port accepts.
+            var banner = [UInt8](repeating: 0, count: 4)
+            var timeout = timeval(tv_sec: 1, tv_usec: 0)
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+            let ready = connected && recv(fd, &banner, 4, MSG_WAITALL) == 4 && banner == Array("SSH-".utf8)
             close(fd)
-            if ok { return }
+            if ready { return }
             usleep(50_000)
         }
         throw GitKitTests.CLIError(message: "sshd did not start on port \(port)")

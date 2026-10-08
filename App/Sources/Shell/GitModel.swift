@@ -25,6 +25,13 @@ final class GitModel {
     /// The last Sync's one-line result, shown in the status strip.
     private(set) var syncMessage: String?
     private(set) var queuedPushes: [PushIntent] = []
+    private(set) var branches: [BranchInfo] = []
+    /// A merge waiting for you to resolve conflicts (PLAN.md §9.7).
+    var mergeSession: MergeSession?
+    @ObservationIgnored private(set) var mergeTitle = ""
+    /// Set by WorkspaceModel: save the editor before git rewrites files, reload it after.
+    @ObservationIgnored var beforeWorktreeChange: (() -> Void)?
+    @ObservationIgnored var afterWorktreeChange: (() -> Void)?
 
     /// Author to use when the repo has no user.name/user.email (iOS has no global gitconfig).
     var fallbackName: String {
@@ -132,10 +139,18 @@ final class GitModel {
         isSyncing = true
         defer { isSyncing = false }
         let auth = remoteAuth
+        beforeWorktreeChange?()
         await network({ [weak self] in await self?.sync(isOffline: false) }) {
-            let result = try await repo.sync(auth: auth, committer: committer)
-            syncMessage = result.summary
+            do {
+                let result = try await repo.sync(auth: auth, committer: committer)
+                syncMessage = result.summary
+            } catch SyncError.conflicts {
+                // Fetched already; open the resolver against upstream instead of a dead end.
+                try await startResolving(against: try await repo.upstreamTip(),
+                                         title: "Merge \(try await repo.upstreamName() ?? "upstream")")
+            }
         }
+        afterWorktreeChange?()
         await refresh()
     }
 
@@ -185,6 +200,69 @@ final class GitModel {
         return name.isEmpty ? "project" : name
     }
 
+    // MARK: Conflicts
+
+    private func startResolving(against theirs: ObjectID?, title: String) async throws {
+        guard let repo, let theirs else { return }
+        let session = try await repo.prepareMerge(with: theirs)
+        guard !session.conflicts.isEmpty else { return }
+        mergeTitle = title
+        mergeSession = session
+    }
+
+    /// Writes the resolved merge, then syncs again to push it.
+    func completeResolution(_ resolutions: [String: String]) async -> Bool {
+        guard let repo, let session = mergeSession, let author = await author() else { return false }
+        beforeWorktreeChange?()
+        defer { afterWorktreeChange?() }
+        do {
+            try await repo.completeMerge(session, resolutions: resolutions, message: mergeTitle,
+                                         author: author, asMergeCommit: true)
+            mergeSession = nil
+            syncMessage = "Merged. Sync to push."
+            await refresh()
+            return true
+        } catch let e as ResolveError {
+            error = switch e {
+            case .stale: "The branch changed while resolving. Sync again."
+            case .stillHasMarkers(let path): "\(path) still has conflict markers."
+            case .unresolved(let paths): "Still unresolved: \(paths.joined(separator: ", "))."
+            }
+            return false
+        } catch {
+            self.error = describe(error)
+            return false
+        }
+    }
+
+    // MARK: Branches
+
+    func switchBranch(_ name: String) async {
+        guard let repo else { return }
+        beforeWorktreeChange?()
+        do {
+            try await repo.switchBranch(to: name)
+        } catch BranchError.workInProgressDidNotApply(let branch) {
+            error = "Switched to \(branch), but its saved changes no longer apply cleanly. They're kept on refs/wip/\(branch)."
+        } catch {
+            self.error = describe(error)
+        }
+        afterWorktreeChange?()
+        await refresh()
+    }
+
+    func createBranch(_ name: String, switchTo: Bool) async {
+        guard let repo else { return }
+        do {
+            try await repo.createBranch(name)
+            if switchTo { await switchBranch(name) } else { await refresh() }
+        } catch BranchError.alreadyExists(let n) {
+            error = "A branch named \(n) already exists."
+        } catch {
+            self.error = describe(error)
+        }
+    }
+
     // Queue persistence, per repository.
     private var queueURL: URL? {
         // A stable digest of the path; hashValue is reseeded on every launch.
@@ -210,7 +288,7 @@ final class GitModel {
         case .noRemote: "No remote to sync with. Add one, or clone from a forge."
         case .localChangesBlock(let paths): "Upstream changed \(paths.joined(separator: ", ")), which you've edited. Commit first, then sync."
         case .uncommittedChanges(let n): "Commit your \(n) \(n == 1 ? "change" : "changes") first, then sync."
-        case .conflicts(let paths): "Your commits conflict with upstream in \(paths.joined(separator: ", ")). Nothing was changed. Conflict resolution arrives next."
+        case .conflicts(let paths): "Your commits conflict with upstream in \(paths.joined(separator: ", "))."
         }
     }
 
@@ -228,6 +306,7 @@ final class GitModel {
         guard let repo else { return }
         do {
             status = try await repo.status()
+            branches = try await repo.branches()
             log = try await repo.log(limit: 200)
             checkpoints = try await repo.checkpointsSinceHead()
         } catch {
@@ -250,8 +329,10 @@ final class GitModel {
         guard let repo else { return false }
         isBusy = true
         defer { isBusy = false }
+        beforeWorktreeChange?()
         do {
             try await repo.restore(checkpoint)
+            afterWorktreeChange?()
             await refresh()
             return true
         } catch {

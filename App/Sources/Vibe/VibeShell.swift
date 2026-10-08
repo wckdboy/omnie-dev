@@ -86,6 +86,7 @@ struct VibeShell: View {
                 Button("Open folder", systemImage: "folder.badge.plus") { model.registry.run("file.openFolder") }
                 Button("Clone repository", systemImage: "square.and.arrow.down") { model.registry.run("git.clone") }
                 Button("Sync", systemImage: "arrow.triangle.2.circlepath") { model.registry.run("git.sync") }
+                Button("Branches", systemImage: "arrow.triangle.branch") { model.registry.run("git.branches") }
                 Button("SSH key", systemImage: "key") { model.registry.run("git.sshKey") }
                 Button("Commands", systemImage: "command") { model.registry.run("palette.open") }
             } label: {

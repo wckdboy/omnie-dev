@@ -52,7 +52,7 @@ struct GitStatusLabel: View {
             Label("\(model.workspace.rootURL!.lastPathComponent) · not a git repo", systemImage: "folder")
         } else if let status = git.status {
             Button {
-                model.registry.run("git.timeline")
+                model.registry.run("git.branches")
             } label: {
                 Label(status.plainLanguage, systemImage: status.head.isDetached ? "exclamationmark.triangle" : "arrow.triangle.branch")
                     .foregroundStyle(color(status))
