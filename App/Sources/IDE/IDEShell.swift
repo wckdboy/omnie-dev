@@ -54,6 +54,7 @@ struct IDEShell: View {
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .folderPicker()
+        .sheet(isPresented: Bindable(model).commitSheetOpen) { CommitSheet() }
         .onAppear { applyInitialLayout() }
     }
 

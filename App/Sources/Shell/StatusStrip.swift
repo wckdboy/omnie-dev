@@ -1,5 +1,6 @@
 import SwiftUI
 import DesignKit
+import GitKit
 
 /// One line, grey unless something needs you. Left to right: git, diagnostics, agent, network, cursor.
 struct StatusStrip: View {
@@ -10,9 +11,7 @@ struct StatusStrip: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // GitKit isn't built yet, so there is no branch to show.
-            Label(model.workspace.rootURL == nil ? "No project" : model.workspace.rootURL!.lastPathComponent,
-                  systemImage: "folder")
+            GitStatusLabel()
             if model.workspace.isDirty {
                 Text("Unsaved")
             }
@@ -36,6 +35,37 @@ struct StatusStrip: View {
         .overlay(alignment: .top) {
             Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
         }
+    }
+}
+
+/// Plain-language git state (PLAN.md §9.9). Color only when something needs you.
+struct GitStatusLabel: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        let git = model.workspace.git
+        if model.workspace.rootURL == nil {
+            Label("No project", systemImage: "folder")
+        } else if git.isNotARepo {
+            Label("\(model.workspace.rootURL!.lastPathComponent) · not a git repo", systemImage: "folder")
+        } else if let status = git.status {
+            Button {
+                model.registry.run("git.timeline")
+            } label: {
+                Label(status.plainLanguage, systemImage: status.head.isDetached ? "exclamationmark.triangle" : "arrow.triangle.branch")
+                    .foregroundStyle(color(status))
+            }
+            .buttonStyle(.plain)
+        } else {
+            Label(model.workspace.rootURL!.lastPathComponent, systemImage: "folder")
+        }
+    }
+
+    private func color(_ status: RepoStatus) -> Color {
+        if status.conflictCount > 0 { return palette.status.error.color }
+        if status.head.isDetached { return palette.status.warn.color }
+        return palette.text.secondary.color
     }
 }
 

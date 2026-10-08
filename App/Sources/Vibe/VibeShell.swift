@@ -24,9 +24,8 @@ struct VibeShell: View {
             }
             Tab("Changes", systemImage: "plusminus", value: .changes) {
                 NavigationStack {
-                    NotYet(title: "No changes to review",
-                           detail: "Agent changesets show up here as violet hunks. Swipe right to accept, left to reject.")
-                        .background(palette.surface.pane.color)
+                    // Agent changesets (violet hunks, swipe to accept or reject) join this list in P2.
+                    TimelineView()
                         .navigationTitle("Changes")
                         .navigationBarTitleDisplayMode(.inline)
                 }
@@ -77,6 +76,7 @@ struct VibeShell: View {
             }
         }
         .folderPicker()
+        .sheet(isPresented: Bindable(model).commitSheetOpen) { CommitSheet() }
     }
 
     @ToolbarContentBuilder

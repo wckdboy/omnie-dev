@@ -1,5 +1,6 @@
 import SwiftUI
 import WorkspaceKit
+import GitKit
 
 /// The open project folder and the file in the editor.
 /// Security-scoped bookmarks (reopen on launch) come with WorkspaceKit proper in P1.
@@ -7,13 +8,19 @@ import WorkspaceKit
 @Observable
 final class WorkspaceModel {
     var isPickingFolder = false
+    let git = GitModel()
+    @ObservationIgnored private var autosaveTask: Task<Void, Never>?
     private(set) var root: FileNode?
     private(set) var rootURL: URL?
     private var isAccessingRoot = false
 
     private(set) var openFile: URL?
     var text: String = "" {
-        didSet { if text != savedText { isDirty = true } }
+        didSet {
+            guard text != savedText else { return }
+            isDirty = true
+            scheduleAutosave()
+        }
     }
     private(set) var isDirty = false
     private var savedText = ""
@@ -32,6 +39,7 @@ final class WorkspaceModel {
         savedText = ""
         isDirty = false
         reload()
+        Task { await git.attach(url) }
     }
 
     func reload() {
@@ -58,7 +66,9 @@ final class WorkspaceModel {
         }
     }
 
+    /// Saves the open file, then checkpoints the project so nothing typed is ever lost (PLAN.md §9.3).
     func saveCurrent() {
+        autosaveTask?.cancel()
         guard let openFile, isDirty else { return }
         do {
             try TextFile.save(text, to: openFile)
@@ -66,6 +76,38 @@ final class WorkspaceModel {
             isDirty = false
         } catch {
             banner = "Save failed: \(error.localizedDescription). Try again."
+            return
+        }
+        Task { await git.checkpoint(.save) }
+    }
+
+    /// Save after 3 s without typing.
+    private func scheduleAutosave() {
+        autosaveTask?.cancel()
+        autosaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self?.saveCurrent()
+        }
+    }
+
+    /// Restores a checkpoint and reloads the editor and navigator from disk.
+    func restore(_ checkpoint: Checkpoint) async {
+        saveCurrent()
+        guard await git.restore(checkpoint) else { return }
+        reload()
+        if let openFile {
+            if FileManager.default.fileExists(atPath: openFile.path(percentEncoded: false)),
+               let loaded = try? TextFile.load(openFile) {
+                savedText = loaded
+                text = loaded
+                isDirty = false
+            } else {
+                self.openFile = nil
+                savedText = ""
+                text = ""
+                isDirty = false
+            }
         }
     }
 

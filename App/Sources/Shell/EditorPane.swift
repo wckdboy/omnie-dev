@@ -35,8 +35,11 @@ struct EditorPane: View {
                 }
             }
 
-            if let banner = workspace.banner {
-                Banner(text: banner) { workspace.banner = nil }
+            if let banner = workspace.banner ?? workspace.git.error {
+                Banner(text: banner) {
+                    workspace.banner = nil
+                    workspace.git.error = nil
+                }
             }
 
             if workspace.openFile != nil {

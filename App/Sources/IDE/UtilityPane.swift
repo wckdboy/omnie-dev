@@ -37,6 +37,7 @@ struct UtilityPane: View {
             Group {
                 switch model.utilityTab {
                 case .agent: AgentPanel()
+                case .timeline: TimelineView()
                 case .terminal: NotYet(title: "Terminal", detail: "Shell built-ins and WASI tools arrive with RunKit and TermKit in P3.")
                 case .preview: NotYet(title: "Preview", detail: "Web previews arrive with RunKit in P3.")
                 case .stage: NotYet(title: "Stage", detail: "The three.js viewer and playground arrive in P3.")

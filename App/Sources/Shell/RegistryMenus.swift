@@ -14,6 +14,7 @@ struct RegistryMenus: Commands {
 
         CommandMenu("File") { MenuItems(model: model, menu: "File") }
         CommandMenu("View") { MenuItems(model: model, menu: "View") }
+        CommandMenu("Git") { MenuItems(model: model, menu: "Git") }
         CommandMenu("Agent") { MenuItems(model: model, menu: "Agent") }
     }
 }

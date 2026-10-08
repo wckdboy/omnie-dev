@@ -30,6 +30,8 @@ targets:
         product: CommandKit
       - package: OmnieKit
         product: WorkspaceKit
+      - package: OmnieKit
+        product: GitKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.wckd.omniedev

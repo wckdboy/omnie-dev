@@ -7,3 +7,6 @@ DerivedData/
 .swiftpm/
 Packages/*/.build/
 Packages/*/.swiftpm/
+
+# Built by scripts/build-libgit2.sh
+Packages/OmnieKit/Vendor/

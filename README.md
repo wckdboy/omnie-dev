@@ -9,14 +9,15 @@ Bundle ID: `ai.wckd.omniedev` · iPadOS / iOS 26+
 | Path | What |
 |---|---|
 | `App/Sources` | The app target. `IDE/` is the iPad shell, `Vibe/` the iPhone shell, `Shell/` is shared |
-| `Packages/OmnieKit` | Swift packages: `DesignKit` (theme, density, metrics), `CommandKit` (command registry + palette search), `WorkspaceKit` (file tree, text files) |
+| `Packages/OmnieKit` | Swift packages: `DesignKit` (theme, density, metrics), `CommandKit` (command registry + palette search), `WorkspaceKit` (file tree, text files), `GitKit` (libgit2: status, commits, checkpoints, restore) |
 | `design/tokens.json` | Design tokens. `DesignKit/Tokens+Generated.swift` is generated from it |
 | `project.yml` | XcodeGen spec. The `.xcodeproj` is generated and not committed |
 
 ## Build
 
 ```sh
-brew install xcodegen          # once
+brew install xcodegen cmake ninja   # once
+scripts/build-libgit2.sh       # once; builds Packages/OmnieKit/Vendor/Clibgit2.xcframework (pinned libgit2 v1.9.7)
 xcodegen generate              # after adding files or editing project.yml
 open OmnieDev.xcodeproj
 
@@ -24,4 +25,6 @@ swift scripts/gen-theme.swift  # after editing design/tokens.json
 cd Packages/OmnieKit && swift test
 ```
 
-Debug builds accept `-OmnieOpenFolder /path` to open a folder at launch, which is handy in the simulator.
+Debug builds accept `-OmnieOpenFolder /path` to open a folder at launch and `-OmnieRunCommand <command id>` (repeatable) to run commands, which is handy in the simulator.
+
+GitKit tests are differential: each operation is checked against the `git` CLI on the same repo.

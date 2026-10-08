@@ -16,6 +16,7 @@ enum Experience {
 
 enum UtilityTab: String, CaseIterable, Identifiable {
     case agent = "Agent"
+    case timeline = "Timeline"
     case terminal = "Terminal"
     case preview = "Preview"
     case stage = "Stage"
@@ -26,6 +27,7 @@ enum UtilityTab: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .agent: "text.bubble"
+        case .timeline: "clock.arrow.trianglehead.counterclockwise.rotate.90"
         case .terminal: "terminal"
         case .preview: "safari"
         case .stage: "cube"
@@ -43,6 +45,7 @@ final class AppModel {
 
     // Layout
     var paletteOpen = false
+    var commitSheetOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -129,6 +132,26 @@ final class AppModel {
                     shortcut: Shortcut("s")) { [weak self] in
                 self?.workspace.saveCurrent()
             },
+            Command(id: "git.commit", title: "Commit", menu: "Git",
+                    shortcut: Shortcut("c", [.command, .shift]), keywords: ["save", "snapshot"]) { [weak self] in
+                guard let self, self.workspace.git.repo != nil else { return }
+                self.commitSheetOpen = true
+            },
+            Command(id: "git.checkpoint", title: "Take checkpoint now", menu: "Git", keywords: ["snapshot", "backup"]) { [weak self] in
+                guard let self else { return }
+                self.workspace.saveCurrent()
+                Task { await self.workspace.git.checkpoint(.manual) }
+            },
+            Command(id: "git.timeline", title: "Show timeline", menu: "Git",
+                    shortcut: Shortcut("t", [.command, .shift]), keywords: ["history", "log"]) { [weak self] in
+                guard let self else { return }
+                self.showUtility(true)
+                self.utilityTab = .timeline
+            },
+            Command(id: "git.init", title: "Initialize git repository", menu: "Git") { [weak self] in
+                guard let self, let root = self.workspace.rootURL else { return }
+                Task { await self.workspace.git.initialize(root) }
+            },
             Command(id: "agent.ask", title: "Ask agent", menu: "Agent",
                     shortcut: Shortcut("i"), keywords: ["ai", "prompt"]) { [weak self] in
                 guard let self else { return }
@@ -144,7 +167,7 @@ final class AppModel {
             Command(id: "density.touch", title: "Density: touch", menu: "View", surfaces: .ide) { [weak self] in
                 self?.densityOverride = .touch
             },
-        ] + UtilityTab.allCases.map { tab in
+        ] + UtilityTab.allCases.filter { $0 != .timeline }.map { tab in
             Command(id: CommandID(rawValue: "utility.\(tab.rawValue.lowercased())"), title: "Show \(tab.rawValue.lowercased())",
                     menu: "View", surfaces: .ide) { [weak self] in
                 guard let self else { return }

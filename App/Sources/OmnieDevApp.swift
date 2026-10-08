@@ -12,10 +12,14 @@ struct OmnieDevApp: App {
                 .environment(model)
                 #if DEBUG
                 .task {
-                    // Debug-only: `-OmnieOpenFolder /path` opens a folder at launch, for screenshots and UI tests.
+                    // Debug-only launch arguments, for screenshots and UI tests:
+                    // `-OmnieOpenFolder /path` opens a folder; `-OmnieRunCommand <id>` (repeatable) runs a command.
                     let args = ProcessInfo.processInfo.arguments
                     if let i = args.firstIndex(of: "-OmnieOpenFolder"), args.indices.contains(i + 1) {
                         model.workspace.open(folder: URL(filePath: args[i + 1]))
+                    }
+                    for (i, arg) in args.enumerated() where arg == "-OmnieRunCommand" && args.indices.contains(i + 1) {
+                        model.registry.run(CommandID(rawValue: args[i + 1]))
                     }
                 }
                 #endif
