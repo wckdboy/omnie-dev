@@ -10,7 +10,6 @@ import DesignKit
 struct IDEShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
-    @State private var cursor: (line: Int, column: Int)?
 
     private let navigatorWidth: CGFloat = 260
     private let utilityWidth: CGFloat = 380
@@ -25,7 +24,7 @@ struct IDEShell: View {
                             .frame(width: navigatorWidth)
                         hairline
                     }
-                    EditorPane(cursor: $cursor)
+                    EditorPane()
                         .frame(minWidth: layout == .single ? nil : Metrics.minEditorWidth)
                     if showsUtility(layout) {
                         hairline
@@ -33,7 +32,7 @@ struct IDEShell: View {
                             .frame(width: utilityWidth)
                     }
                 }
-                StatusStrip(cursor: cursor)
+                StatusStrip()
             }
             .overlay(alignment: .leading) {
                 // Under 700 pt the navigator slides over the editor.

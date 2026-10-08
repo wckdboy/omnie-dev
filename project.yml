@@ -15,6 +15,10 @@ packages:
     path: packages/WorkspaceKit
   GitKit:
     path: packages/GitKit
+  LangKit:
+    path: packages/LangKit
+  EditorKit:
+    path: packages/EditorKit
 
 settings:
   base:
@@ -34,6 +38,8 @@ targets:
       - package: CommandKit
       - package: WorkspaceKit
       - package: GitKit
+      - package: LangKit
+      - package: EditorKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.wckd.omniedev

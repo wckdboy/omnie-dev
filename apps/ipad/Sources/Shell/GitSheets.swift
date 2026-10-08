@@ -193,6 +193,7 @@ extension View {
             .sheet(isPresented: $model.cloneSheetOpen) { CloneSheet() }
             .sheet(item: $git.pendingHostKey) { HostKeySheet(key: $0) }
             .sheet(isPresented: $model.branchSheetOpen) { BranchSheet() }
+            .fullScreenCover(isPresented: $model.editorSpikeOpen) { EditorSpikeView() }
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }

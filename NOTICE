@@ -15,6 +15,15 @@ packages/GitKit/Vendor/Clibgit2.xcframework, which is statically linked into the
 
 libgit2 is linked unmodified, as its linking exception allows. Fixes to it go upstream.
 
+The app also bundles, built from source:
+
+  tree-sitter grammars (JavaScript, TypeScript/TSX, JSON, Python, Swift, CSS, HTML)
+                   MIT, vendored by scripts/vendor-grammars.py from hash-pinned releases;
+                   each grammar's LICENSE is kept next to its sources
+  tree-sitter 0.26.13   MIT   https://github.com/tree-sitter/tree-sitter
+  omnie-dev-editor-engine   MIT, a fork of Runestone by Simon B. Støvring
+                   https://github.com/simonbs/Runestone
+
 When iSH-based components (LinuxKit, vendor/ish) are added, the distributed app becomes a
 GPLv3 combined work; COPYING.app will then describe that combination (PLAN §27).
 

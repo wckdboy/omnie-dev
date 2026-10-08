@@ -4,13 +4,13 @@
 import SwiftUI
 import DesignKit
 import GitKit
+import LangKit
 
 /// One line, grey unless something needs you. Left to right: git, diagnostics, agent, network, cursor.
 struct StatusStrip: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
     @Environment(\.density) private var density
-    var cursor: (line: Int, column: Int)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -25,7 +25,10 @@ struct StatusStrip: View {
                 Label("Offline", systemImage: "airplane")
                     .accessibilityLabel("Offline")
             }
-            if let cursor {
+            if let language = model.workspace.language {
+                Text(language.displayName)
+            }
+            if let cursor = model.workspace.cursor {
                 Text("Ln \(cursor.line), Col \(cursor.column)")
                     .monospacedDigit()
             }

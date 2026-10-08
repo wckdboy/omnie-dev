@@ -14,6 +14,8 @@ Follows PLAN §27.3: one monorepo for the app and every Kit.
 | `packages/DesignKit` | Theme, density, metrics. Colors are generated from `brand/tokens.json` |
 | `packages/CommandKit` | The command registry behind the palette, menu bar and shortcuts |
 | `packages/WorkspaceKit` | File tree, text files |
+| `packages/LangKit` | Language detection, tree-sitter grammars and highlight queries (grammars vendored by `scripts/vendor-grammars.py`) |
+| `packages/EditorKit` | The code editor: `EditorView` protocol, the Core Text engine (`omnie-dev-editor-engine`, a Runestone fork) and the brand syntax theme |
 | `packages/GitKit` | libgit2: checkpoints, timeline, commits, SSH (Secure Enclave signing) and HTTPS remotes, Sync, push queue, branches, agent task worktrees, conflicts, undo. `CGitSSH` is the C shim for the SSH signing callback |
 | `brand/` | Design tokens (and, later, icon sources) |
 | `scripts/` | `build-git-deps.sh` (native deps), `gen-theme.swift` |
@@ -25,6 +27,8 @@ Follows PLAN §27.3: one monorepo for the app and every Kit.
 ```sh
 brew install xcodegen cmake ninja   # once
 scripts/build-git-deps.sh      # once (~2 min): OpenSSL libcrypto + libssh2 + libgit2 -> packages/GitKit/Vendor/
+python3 scripts/vendor-grammars.py   # once: tree-sitter grammars -> packages/LangKit
+git clone <omnie-dev-editor-engine> ../omnie-dev-editor-engine   # sibling checkout, until it's published
 xcodegen generate              # after adding files or editing project.yml
 open OmnieDev.xcodeproj
 

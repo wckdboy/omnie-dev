@@ -3,16 +3,14 @@
 
 import SwiftUI
 import DesignKit
+import EditorKit
 import WorkspaceKit
 
-/// Stand-in editor until the P0 spike picks the Runestone fork or TextKit 2 (PLAN.md §5).
-/// It edits real files, but has no highlighting, gutter or multi-cursor yet.
+/// The code editor: the Runestone-derived Core Text engine (PLAN §5.1) with tree-sitter highlighting.
 struct EditorPane: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
     @Environment(\.density) private var density
-    @Binding var cursor: (line: Int, column: Int)?
-    @State private var selection: TextSelection?
 
     var body: some View {
         @Bindable var workspace = model.workspace
@@ -46,16 +44,7 @@ struct EditorPane: View {
             }
 
             if workspace.openFile != nil {
-                TextEditor(text: $workspace.text, selection: $selection)
-                    .font(Typography.code(density))
-                    .foregroundStyle(palette.syntax.plain.color)
-                    .scrollContentBackground(.hidden)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.asciiCapable)
-                    .padding(.leading, 8)
-                    .onChange(of: selection) { updateCursor() }
-                    .onChange(of: workspace.text) { updateCursor() }
+                CodeEditor(controller: workspace.editor)
             } else {
                 Text(workspace.root == nil ? "Open a folder to start" : "Pick a file in the navigator")
                     .font(.system(size: 13))
@@ -64,17 +53,10 @@ struct EditorPane: View {
             }
         }
         .background(palette.surface.editor.color)
+        .onChange(of: palette, initial: true) { workspace.applyEditorTheme(palette: palette, density: density) }
+        .onChange(of: density) { workspace.applyEditorTheme(palette: palette, density: density) }
     }
 
-    private func updateCursor() {
-        let text = model.workspace.text
-        guard case .selection(let range) = selection?.indices,
-              range.lowerBound <= text.endIndex else {
-            cursor = model.workspace.openFile == nil ? nil : (1, 1)
-            return
-        }
-        cursor = TextPosition.lineColumn(in: text, at: range.lowerBound)
-    }
 }
 
 /// Inline, one line, one action. No modal alerts for recoverable errors.

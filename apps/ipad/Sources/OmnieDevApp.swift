@@ -21,6 +21,11 @@ struct OmnieDevApp: App {
                     if let i = args.firstIndex(of: "-OmnieOpenFolder"), args.indices.contains(i + 1) {
                         model.workspace.open(folder: URL(filePath: args[i + 1]))
                     }
+                    // `-OmnieOpenFile <path relative to the folder>` opens a file in the editor.
+                    if let i = args.firstIndex(of: "-OmnieOpenFile"), args.indices.contains(i + 1),
+                       let root = model.workspace.rootURL {
+                        model.workspace.open(file: root.appending(path: args[i + 1]))
+                    }
                     // `-OmnieEnsureSSHKey` creates the SSH key and writes its public line to Application Support.
                     if args.contains("-OmnieEnsureSSHKey") {
                         let git = model.workspace.git
@@ -34,11 +39,18 @@ struct OmnieDevApp: App {
                        let folder = await model.workspace.git.clone(args[i + 1]) {
                         model.workspace.open(folder: folder)
                     }
+                }
+                #endif
+                .task {
+                    // `-OmnieRunCommand <id>` (repeatable) runs palette commands at launch, in every build,
+                    // so the release-build spike can be started from Xcode's scheme arguments.
+                    // Runs after the debug launch helpers above have opened any folder or file.
+                    try? await Task.sleep(for: .milliseconds(300))
+                    let args = ProcessInfo.processInfo.arguments
                     for (i, arg) in args.enumerated() where arg == "-OmnieRunCommand" && args.indices.contains(i + 1) {
                         model.registry.run(CommandID(rawValue: args[i + 1]))
                     }
                 }
-                #endif
         }
         .commands {
             RegistryMenus(model: model)

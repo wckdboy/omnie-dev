@@ -52,6 +52,7 @@ final class AppModel {
     var sshKeySheetOpen = false
     var cloneSheetOpen = false
     var branchSheetOpen = false
+    var editorSpikeOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -186,6 +187,10 @@ final class AppModel {
             Command(id: "git.init", title: "Initialize git repository", menu: "Git") { [weak self] in
                 guard let self, let root = self.workspace.rootURL else { return }
                 Task { await self.workspace.git.initialize(root) }
+            },
+            Command(id: "spike.editor", title: "Run editor spike (P0)", menu: "View",
+                    keywords: ["benchmark", "performance", "runestone", "textkit"]) { [weak self] in
+                self?.editorSpikeOpen = true
             },
             Command(id: "agent.ask", title: "Ask agent", menu: "Agent",
                     shortcut: Shortcut("i"), keywords: ["ai", "prompt"]) { [weak self] in

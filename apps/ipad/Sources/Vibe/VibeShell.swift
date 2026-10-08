@@ -11,7 +11,6 @@ struct VibeShell: View {
     @Environment(\.palette) private var palette
     @State private var tab: VibeTab = .agent
     @State private var editingFile = false
-    @State private var cursor: (line: Int, column: Int)?
 
     enum VibeTab: Hashable { case agent, changes, preview, files }
 
@@ -48,7 +47,7 @@ struct VibeShell: View {
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar { projectMenu }
                         .navigationDestination(isPresented: $editingFile) {
-                            EditorPane(cursor: $cursor)
+                            EditorPane()
                                 .navigationTitle(model.workspace.openFile?.lastPathComponent ?? "")
                                 .navigationBarTitleDisplayMode(.inline)
                                 .toolbar {
