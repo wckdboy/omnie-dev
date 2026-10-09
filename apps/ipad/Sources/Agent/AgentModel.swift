@@ -35,6 +35,17 @@ final class AgentModel {
         var tip: String?
         /// The model that did the work, for the Assisted-by trailer.
         var modelName: String?
+        /// Made from a sketch or screenshot (one vision call, not the agent loop).
+        var isSketch: Bool?
+    }
+
+    /// A sketch waiting for the network (PLAN.md §11.2: offline, the job is queued).
+    struct QueuedSketch: Codable, Identifiable, Equatable {
+        let id: UUID
+        let repoPath: String
+        let instruction: String
+        let source: SketchToCode.Source
+        let created: Date
     }
 
     private(set) var current: TaskRecord?
@@ -44,6 +55,7 @@ final class AgentModel {
     var rejected: [String: Set<Int>] = [:]
     private(set) var isRunning = false
     var error: String?
+    private(set) var queuedSketches: [QueuedSketch] = []
 
     @ObservationIgnored private let workspace: WorkspaceModel
     @ObservationIgnored private let models: ModelsModel
@@ -64,16 +76,18 @@ final class AgentModel {
         self.models = models
         self.policy = policy
         tasks = (try? JSONDecoder().decode([TaskRecord].self, from: Data(contentsOf: recordsURL))) ?? []
+        queuedSketches = (try? JSONDecoder().decode([QueuedSketch].self, from: Data(contentsOf: sketchQueueURL))) ?? []
     }
 
     /// The status-strip pill (PLAN.md §3.8).
     var pillState: AgentState {
-        guard let current else { return .idle }
+        let queued = queuedSketches.contains { $0.repoPath == workspace.rootURL?.path }
+        guard let current else { return queued ? .queued : .idle }
         switch current.phase {
         case .running: return isRunning ? .thinking : .blocked
         case .review: return current.attention == nil ? .needsReview(changes: changes.count) : .blocked
         case .failed: return .failed(current.attention ?? "error")
-        case .merged, .rejected: return .idle
+        case .merged, .rejected: return queued ? .queued : .idle
         }
     }
 
@@ -84,8 +98,15 @@ final class AgentModel {
         current = tasks.last { $0.repoPath == root.path && ($0.phase == .running || $0.phase == .review) }
         transcript = current.map { journal(for: $0).entries() } ?? []
         changes = []
-        guard let current else { return }
+        guard var current else { return }
         if current.phase == .review { Task { await loadChanges() } }
+        if current.phase == .running, current.isSketch == true {
+            // The vision call died with the app; the sketch itself is gone with it.
+            current.phase = .failed
+            current.attention = "The app closed while the sketch was turning into code. Make code from it again."
+            update(current)
+            return
+        }
         if current.phase == .running { Task { await run(current) } }
     }
 
@@ -94,7 +115,7 @@ final class AgentModel {
     func start(_ goal: String) async {
         let goal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !goal.isEmpty, !isRunning else { return }
-        guard let repo = workspace.git.repo, let root = workspace.rootURL else {
+        guard workspace.git.repo != nil, workspace.rootURL != nil else {
             error = "Open a git project first."
             return
         }
@@ -110,29 +131,41 @@ final class AgentModel {
                 : "The agent runs on \(ModelPack.standard.displayName) on this device. Download it in Settings › Models, or add an online model."
             return
         }
+        guard let record = await createTask(goal: goal) else { return }
+        await run(record)
+    }
+
+    /// A task branch and worktree from your last commit, recorded and made current.
+    private func createTask(goal: String, isSketch: Bool = false) async -> TaskRecord? {
+        guard let repo = workspace.git.repo, let root = workspace.rootURL else {
+            error = "Open a git project first."
+            return nil
+        }
         workspace.saveCurrent()
         do {
             guard let base = try await repo.head().commit else {
                 error = "Commit something first; the agent starts from your last commit."
-                return
+                return nil
             }
             let id = UUID()
             let slug = Self.slug(goal) + "-" + id.uuidString.prefix(4).lowercased()
             let path = folder.appendingPathComponent("worktrees/\(id.uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
             let worktree = try await repo.createTaskWorktree(slug: slug, at: path)
-            let record = TaskRecord(id: id, goal: goal, branch: worktree.branch, worktreeName: worktree.name,
+            var record = TaskRecord(id: id, goal: goal, branch: worktree.branch, worktreeName: worktree.name,
                                     worktreePath: worktree.path.path, repoPath: root.path, base: base.hex,
                                     created: .now, phase: .running)
+            record.isSketch = isSketch ? true : nil
             tasks.append(record)
             save()
             current = record
             transcript = []
             changes = []
             error = nil
-            await run(record)
+            return record
         } catch {
             self.error = "Couldn't start the task: \(error.localizedDescription)"
+            return nil
         }
     }
 
@@ -157,27 +190,117 @@ final class AgentModel {
                     : "You're offline. Set Agent tasks to On this device or Auto in Settings › Models."
                 return nil
             }
-            let config = models.online
-            if !policy.approvedProviders(for: root).contains(config.provider) {
-                guard await policy.authorize(.sendToProvider(provider: config.provider),
-                                             artifact: "\(purpose) in \(root.lastPathComponent) will send code to \(config.provider) (\(config.model)) at \(config.host).")
-                else {
-                    error = "Not sent to \(config.provider)."
-                    return nil
-                }
-                policy.approve(config.provider, for: root)
-            }
-            guard let key = APIKeys.load(provider: config.provider) else {
-                error = "Add an API key for \(config.provider) in Settings › Models."
-                return nil
-            }
-            return (RemoteModel(config: config, apiKey: key), config.model, true)
+            guard let remote = await onlineModel(root: root, purpose: purpose) else { return nil }
+            return (remote, remote.config.model, true)
         }
         guard let model = await models.standardModel() else {
             error = models.error ?? "The model isn't available."
             return nil
         }
         return (model, ModelPack.standard.displayName, false)
+    }
+
+    /// The online model, after you've agreed to send this project's code to its provider (Ask +
+    /// Face ID the first time) and with its key.
+    private func onlineModel(root: URL, purpose: String) async -> RemoteModel? {
+        let config = models.online
+        if !policy.approvedProviders(for: root).contains(config.provider) {
+            guard await policy.authorize(.sendToProvider(provider: config.provider),
+                                         artifact: "\(purpose) in \(root.lastPathComponent) will send code to \(config.provider) (\(config.model)) at \(config.host).")
+            else {
+                error = "Not sent to \(config.provider)."
+                return nil
+            }
+            policy.approve(config.provider, for: root)
+        }
+        guard let key = APIKeys.load(provider: config.provider) else {
+            error = "Add an API key for \(config.provider) in Settings › Models."
+            return nil
+        }
+        return RemoteModel(config: config, apiKey: key)
+    }
+
+    // MARK: Sketch → code (PLAN.md §11.2)
+
+    private var sketchFolder: URL { folder.appendingPathComponent("Sketches", isDirectory: true) }
+    private var sketchQueueURL: URL { folder.appendingPathComponent("Sketches/queue.json") }
+
+    /// Turns a sketch or screenshot (PNG) into code for the open project, as a changeset to
+    /// review. Needs an online vision model: offline or in plane mode the sketch waits in a queue
+    /// and goes when you're back online.
+    func startSketch(png: Data, source: SketchToCode.Source, instruction: String) async {
+        guard !isRunning else { return }
+        guard workspace.git.repo != nil, let root = workspace.rootURL else {
+            error = "Open a git project first."
+            return
+        }
+        guard models.hasOnlineKey else {
+            error = "Turning a sketch into code needs an online vision model (\(models.online.provider)): add its API key in Settings › Models. The model on this iPad reads text only."
+            return
+        }
+        if policy.planeMode || isOffline() {
+            queueSketch(png: png, root: root, source: source, instruction: instruction)
+            return
+        }
+        guard let model = await onlineModel(root: root, purpose: source == .sketch ? "Sketch to code" : "Screenshot to code") else { return }
+        let note = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        let goal = (source == .sketch ? "UI from a sketch" : "UI from a screenshot") + (note.isEmpty ? "" : ": \(note)")
+        guard var record = await createTask(goal: goal, isSketch: true) else { return }
+        record.modelName = model.config.model
+        update(record)
+        isRunning = true
+        let entry = JournalEntry(.goal, goal)
+        transcript = [entry]
+        try? journal(for: record).append(entry)
+        let outcome: AgentOutcome
+        do {
+            let (result, written) = try await SketchToCode.run(model: model, image: .init(png: png), source: source,
+                                                               instruction: instruction, root: URL(filePath: record.worktreePath))
+            let done = JournalEntry(.note, "Wrote \(written.joined(separator: ", ")).")
+            transcript.append(done)
+            try? journal(for: record).append(done)
+            outcome = .finished(summary: result.summary)
+        } catch {
+            outcome = .failed(error.localizedDescription)
+        }
+        isRunning = false
+        await finish(record, outcome)
+    }
+
+    private func queueSketch(png: Data, root: URL, source: SketchToCode.Source, instruction: String) {
+        let item = QueuedSketch(id: UUID(), repoPath: root.path, instruction: instruction, source: source, created: .now)
+        do {
+            try FileManager.default.createDirectory(at: sketchFolder, withIntermediateDirectories: true)
+            try png.write(to: sketchFolder.appendingPathComponent("\(item.id.uuidString).png"), options: .atomic)
+            queuedSketches.append(item)
+            saveSketchQueue()
+            error = nil
+        } catch {
+            self.error = "Couldn't keep the sketch: \(error.localizedDescription)"
+        }
+    }
+
+    /// Sends the open project's queued sketches, oldest first (on reconnect, and from the Sketch tool).
+    func sendQueuedSketches() async {
+        guard let root = workspace.rootURL, !policy.planeMode, !isOffline() else { return }
+        for item in queuedSketches where item.repoPath == root.path {
+            guard !isRunning, let png = try? Data(contentsOf: sketchFolder.appendingPathComponent("\(item.id.uuidString).png")) else { continue }
+            dropQueued(item)
+            await startSketch(png: png, source: item.source, instruction: item.instruction)
+            // One at a time: each is a changeset to review before the next.
+            break
+        }
+    }
+
+    func dropQueued(_ item: QueuedSketch) {
+        queuedSketches.removeAll { $0.id == item.id }
+        try? FileManager.default.removeItem(at: sketchFolder.appendingPathComponent("\(item.id.uuidString).png"))
+        saveSketchQueue()
+    }
+
+    private func saveSketchQueue() {
+        try? FileManager.default.createDirectory(at: sketchFolder, withIntermediateDirectories: true)
+        try? JSONEncoder().encode(queuedSketches).write(to: sketchQueueURL, options: .atomic)
     }
 
     private func run(_ record: TaskRecord) async {

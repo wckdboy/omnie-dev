@@ -137,6 +137,14 @@ final class AppModel {
             return await models.tinyModel()
         }
         registerCommands()
+        #if DEBUG
+        // `-OmnieLayout terminalBelow` starts from a preset (screenshots, UI tests), before any
+        // other launch argument shows a panel.
+        let launch = ProcessInfo.processInfo.arguments
+        if let i = launch.firstIndex(of: "-OmnieLayout"), launch.indices.contains(i + 1), let preset = LayoutPreset(rawValue: launch[i + 1]) {
+            panes = preset.layout
+        }
+        #endif
         // Debug launch arguments open their own folder.
         let args = ProcessInfo.processInfo.arguments
         if !args.contains("-OmnieOpenFolder") && !args.contains("-OmnieClone") { workspace.reopenLast() }
@@ -201,7 +209,11 @@ final class AppModel {
                 let cameOnline = self.isOffline && !offline
                 self.isOffline = offline
                 // Queued pushes were authorized when queued; send them without asking again.
-                if cameOnline && !self.policy.planeMode { await self.workspace.git.flushQueue() }
+                if cameOnline && !self.policy.planeMode {
+                    await self.workspace.git.flushQueue()
+                    // Sketches drawn offline go to the vision model now.
+                    await self.agent.sendQueuedSketches()
+                }
             }
         }
         pathMonitor.start(queue: DispatchQueue(label: "ai.wckd.omniedev.network"))

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import SwiftUI
+import AgentKit
 import CommandKit
 import DesignKit
 import EditorKit
@@ -138,6 +139,29 @@ struct OmnieDevApp: App {
                     // `-OmnieModelSmoke` installs the Tiny pack (if needed), then times load, FIM and a commit draft.
                     if args.contains("-OmnieModelSmoke") {
                         await ModelSmoke.run(model)
+                    }
+                    // `-OmnieSketchDemo "<what it is>"` sends a wireframe drawn in code through sketch → code
+                    // (needs the online key; with -OmnieTestApprove) and logs the changeset.
+                    if let i = args.firstIndex(of: "-OmnieSketchDemo"), args.indices.contains(i + 1),
+                       let png = SketchRender.png(drawing: SketchRender.demoDrawing()) {
+                        try? png.write(to: URL.documentsDirectory.appending(path: "sketch-demo.png"))
+                        // The folder's repository opens asynchronously.
+                        for _ in 0..<50 where model.workspace.git.repo == nil { try? await Task.sleep(for: .milliseconds(200)) }
+                        if let root = model.workspace.rootURL {
+                            let context = SketchToCode.context(root: root)
+                            print("[sketch] context: \(context.stack); components in \(context.componentsFolder ?? "-"); files \(context.files)")
+                        }
+                        let started = Date()
+                        await model.agent.startSketch(png: png, source: .sketch, instruction: args[i + 1])
+                        let ms = Int(Date().timeIntervalSince(started) * 1000)
+                        if let error = model.agent.error {
+                            print("[sketch] failed after \(ms) ms: \(error)")
+                        } else if let task = model.agent.current {
+                            print("[sketch] \(task.phase.rawValue) in \(ms) ms (\(png.count / 1024) KB image): \(task.summary ?? task.attention ?? "")")
+                            for diff in model.agent.changes { print("[sketch] --- \(diff.path)\n\(diff.patch)") }
+                        } else {
+                            print("[sketch] queued (\(model.agent.queuedSketches.count) waiting)")
+                        }
                     }
                     // `-OmnieClone <url>` clones and opens the result.
                     if let i = args.firstIndex(of: "-OmnieClone"), args.indices.contains(i + 1) {

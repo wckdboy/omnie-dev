@@ -53,11 +53,13 @@ public enum SketchToCode {
     /// couple of example components.
     public static func context(root: URL) -> Context {
         var files: [String] = []
-        let e = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey])
-        while let url = e?.nextObject() as? URL {
-            if skipped.contains(url.lastPathComponent) { e?.skipDescendants(); continue }
-            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
-            files.append(String(url.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count + 1)))
+        // Relative paths straight from the enumerator: on iOS the URLs it returns can start
+        // /private/var while the root starts /var, so cutting the root off them garbles the paths.
+        let e = FileManager.default.enumerator(atPath: root.path(percentEncoded: false))
+        while let path = e?.nextObject() as? String {
+            if skipped.contains((path as NSString).lastPathComponent) { e?.skipDescendants(); continue }
+            guard e?.fileAttributes?[.type] as? FileAttributeType == .typeRegular else { continue }
+            files.append(path)
             if files.count >= 400 { break }
         }
         files.sort()
@@ -83,7 +85,8 @@ public enum SketchToCode {
         let folders = ["src/components", "components", "src/lib/components", "app/components", "Sources/Views", "src"]
         let componentsFolder = folders.first { folder in files.contains { $0.hasPrefix(folder + "/") } }
         var examples: [(String, String)] = []
-        for path in files where componentExtensions.contains(where: { path.hasSuffix($0) }) && examples.count < 2 {
+        let ext = componentExtension(stack: stack)
+        for path in files where path.hasSuffix("." + ext) && examples.count < 2 {
             guard let text = try? String(contentsOf: root.appending(path: path), encoding: .utf8), text.utf8.count <= 3_000 else { continue }
             examples.append((path, text))
         }
@@ -98,9 +101,20 @@ public enum SketchToCode {
         the whole file
         </file>
         and finish with <summary>one sentence: what you built and where</summary>. \
-        Prefer one new component file. Change an existing file only when the new component must be shown somewhere \
-        (then give that whole file). Never touch package.json, lockfiles or configuration.
+        Write one new component file, inside the components folder when the request names one. Besides it, change at most one existing file, and only to show the new \
+        component (the app's root component, given whole); leave entry points, other components and styles alone. \
+        Never touch package.json, lockfiles or configuration.
         """
+
+    /// The file extension a new component gets in this stack.
+    static func componentExtension(stack: String) -> String {
+        if stack.hasPrefix("React with TypeScript") { return "tsx" }
+        if stack.hasPrefix("React") { return "jsx" }
+        if stack.hasPrefix("Vue") { return "vue" }
+        if stack.hasPrefix("Svelte") { return "svelte" }
+        if stack.hasPrefix("SwiftUI") { return "swift" }
+        return "html"
+    }
 
     /// The text that goes with the image.
     public static func request(source: Source, instruction: String, context: Context) -> String {
@@ -112,7 +126,9 @@ public enum SketchToCode {
         let note = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         if !note.isEmpty { text += "\nWhat the user says about it: \(note)\n" }
         text += "\nStack: \(context.stack)."
-        if let folder = context.componentsFolder { text += " New components go in \(folder)/." }
+        if let folder = context.componentsFolder {
+            text += " This project keeps its components in \(folder)/: the new component's path is \(folder)/<Name>.\(componentExtension(stack: context.stack))."
+        }
         text += "\n\nProject files:\n" + (context.files.isEmpty ? "(empty project)" : context.files.joined(separator: "\n"))
         for example in context.examples {
             text += "\n\nAn existing component, for style (\(example.path)):\n```\n\(example.text)\n```"
@@ -138,6 +154,70 @@ public enum SketchToCode {
         guard !files.isEmpty else { throw Failure.noFiles }
         let summary = reply.firstMatch(of: summaryBlock).map { String($0.output.1).trimmingCharacters(in: .whitespacesAndNewlines) }
         return Result(files: files, summary: summary ?? "Built the UI from the image in \(files.map(\.path).joined(separator: ", ")).")
+    }
+
+    /// Puts new component files where the project keeps its components: models often write them
+    /// next to the root component whatever the prompt says. Relative imports are rewritten on both
+    /// sides (files importing the moved one, and the moved file's own).
+    public static func place(_ result: Result, componentsFolder: String?, exists: (String) -> Bool) -> Result {
+        guard let folder = componentsFolder else { return result }
+        var moves: [String: String] = [:]
+        for file in result.files where !exists(file.path) && !file.path.hasPrefix(folder + "/")
+            && componentExtensions.contains(where: { file.path.hasSuffix($0) }) && !file.path.hasSuffix(".html") {
+            let target = folder + "/" + (file.path as NSString).lastPathComponent
+            if !exists(target) && !result.files.contains(where: { $0.path == target }) { moves[file.path] = target }
+        }
+        guard !moves.isEmpty else { return result }
+        var out = result
+        for i in out.files.indices {
+            let old = out.files[i].path
+            let new = moves[old] ?? old
+            out.files[i].content = rewriteImports(out.files[i].content, from: old, to: new, moves: moves)
+            out.files[i].path = new
+        }
+        for (old, new) in moves { out.summary = out.summary.replacingOccurrences(of: old, with: new) }
+        return out
+    }
+
+    /// Relative specifiers (`./x`, `../y/z`) in import/export/require, re-pointed after the file
+    /// itself moved from `from` to `to` and the files in `moves` moved too.
+    static func rewriteImports(_ text: String, from: String, to: String, moves: [String: String]) -> String {
+        let dirFrom = (from as NSString).deletingLastPathComponent, dirTo = (to as NSString).deletingLastPathComponent
+        return text.replacing(importSpecifier) { match in
+            let spec = String(match.output.2)
+            let resolved = normalize((dirFrom as NSString).appendingPathComponent(spec))
+            // The target, with or without the extension it was written without.
+            var target = resolved
+            if let (old, new) = moves.first(where: { $0.key == resolved || strip($0.key) == resolved }) {
+                // Keep the specifier's style: with the extension if it had one.
+                target = resolved == old ? new : strip(new)
+            }
+            guard target != resolved || dirFrom != dirTo else { return String(match.output.0) }
+            var rel = relativePath(from: dirTo, to: target)
+            if !rel.hasPrefix(".") { rel = "./" + rel }
+            return String(match.output.1) + rel + String(match.output.3)
+        }
+    }
+
+    nonisolated(unsafe) static let importSpecifier = try! Regex(#"((?:from|import|require\()\s*["'])(\.\.?/[^"']+)(["'])"#, as: (Substring, Substring, Substring, Substring).self)
+
+    static func strip(_ path: String) -> String { (path as NSString).deletingPathExtension }
+
+    /// "src/./a/../b" → "src/b".
+    static func normalize(_ path: String) -> String {
+        var parts: [String] = []
+        for part in path.split(separator: "/").map(String.init) {
+            if part == "." || part.isEmpty { continue }
+            if part == "..", let last = parts.last, last != ".." { parts.removeLast() } else { parts.append(part) }
+        }
+        return parts.joined(separator: "/")
+    }
+
+    static func relativePath(from dir: String, to path: String) -> String {
+        let a = dir.split(separator: "/").map(String.init), b = path.split(separator: "/").map(String.init)
+        var common = 0
+        while common < a.count, common < b.count - 1, a[common] == b[common] { common += 1 }
+        return (Array(repeating: "..", count: a.count - common) + b[common...]).joined(separator: "/")
     }
 
     static let protected: [String] = ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb", ".gitignore"]
@@ -167,7 +247,9 @@ public enum SketchToCode {
         let context = context(root: root)
         let reply = try await model.complete(system: system, text: request(source: source, instruction: instruction, context: context),
                                              images: [image], maxTokens: 8_000)
-        let result = try parse(reply)
+        let result = place(try parse(reply), componentsFolder: context.componentsFolder) {
+            FileManager.default.fileExists(atPath: root.appending(path: $0).path(percentEncoded: false))
+        }
         return (result, try write(result, into: root))
     }
 }

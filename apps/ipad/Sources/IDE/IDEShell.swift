@@ -88,15 +88,6 @@ struct IDEShell: View {
         .folderPicker()
         .gitSheets(model)
         .onAppear { applyInitialLayout() }
-        #if DEBUG
-        .task {
-            // `-OmnieLayout terminalBelow` starts from a preset (screenshots, UI checks).
-            let args = ProcessInfo.processInfo.arguments
-            if let i = args.firstIndex(of: "-OmnieLayout"), args.indices.contains(i + 1), let preset = LayoutPreset(rawValue: args[i + 1]) {
-                model.panes = preset.layout
-            }
-        }
-        #endif
     }
 
     private var hairline: some View {

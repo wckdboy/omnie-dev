@@ -18,7 +18,7 @@ struct ToolsPanel: View {
     @State private var tool = Tool.http
 
     enum Tool: String, CaseIterable, Identifiable {
-        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff", snippets = "Snippets", colors = "Colors", runs = "Runs"
+        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff", snippets = "Snippets", colors = "Colors", runs = "Runs", sketch = "Sketch"
         var id: Self { self }
     }
 
@@ -55,6 +55,7 @@ struct ToolsPanel: View {
             case .snippets: SnippetsTool()
             case .colors: ColorsTool()
             case .runs: RunsTool()
+            case .sketch: SketchTool()
             }
         }
         // "Compare open file with…" in the palette lands here.

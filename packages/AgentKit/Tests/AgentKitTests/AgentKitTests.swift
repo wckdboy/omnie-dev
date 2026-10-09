@@ -430,19 +430,23 @@ struct SketchToCodeTests {
     }
 
     @Test func readsTheStack() throws {
-        let react = try project(["package.json": #"{"dependencies": {"react": "^18"}}"#, "tsconfig.json": "{}",
+        let react = try project(["package.json": #"{"dependencies": {"react": "^18"}}"#, "tsconfig.json": "{}", "index.html": "<div id=root></div>",
                                  "src/components/Button.tsx": "export function Button() { return <button/>; }\n",
                                  "node_modules/x/index.js": ""])
         let context = SketchToCode.context(root: react)
+        // Through a symlinked path (as /var → /private/var on iOS) the paths stay relative.
+        let link = FileManager.default.temporaryDirectory.appendingPathComponent("sketch-link-\(UUID().uuidString)")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: react)
+        #expect(SketchToCode.context(root: link).files == context.files)
         #expect(context.stack.hasPrefix("React with TypeScript"))
         #expect(context.componentsFolder == "src/components")
-        #expect(context.files == ["package.json", "src/components/Button.tsx", "tsconfig.json"])
+        #expect(context.files == ["index.html", "package.json", "src/components/Button.tsx", "tsconfig.json"])
         #expect(context.examples.map(\.path) == ["src/components/Button.tsx"])
         #expect(SketchToCode.context(root: try project(["index.html": "<p>hi</p>"])).stack.hasPrefix("plain HTML"))
         #expect(SketchToCode.context(root: try project(["Package.swift": "", "Sources/App/A.swift": ""])).stack == "SwiftUI views (.swift)")
         let text = SketchToCode.request(source: .sketch, instruction: " a login card ", context: context)
         #expect(text.contains("hand-drawn wireframe") && text.contains("What the user says about it: a login card"))
-        #expect(text.contains("New components go in src/components/."))
+        #expect(text.contains("the new component's path is src/components/<Name>.tsx."))
     }
 
     @Test func parsesAndWritesFiles() throws {
@@ -472,5 +476,25 @@ struct SketchToCodeTests {
         #expect(throws: ToolError.protectedFile("package.json")) { try SketchToCode.write(config, into: root) }
         let escape = SketchToCode.Result(files: [.init(path: "../x.tsx", content: "")], summary: "")
         #expect(throws: ToolError.self) { try SketchToCode.write(escape, into: root) }
+    }
+
+    @Test func movesNewComponentsIntoTheComponentsFolder() throws {
+        let existing: Set<String> = ["src/App.tsx", "src/components/Button.tsx", "src/theme.ts"]
+        let result = SketchToCode.Result(files: [
+            .init(path: "src/App.tsx", content: "import SignInCard from \"./SignInCard\";\nimport { x } from './theme';\n"),
+            .init(path: "src/SignInCard.tsx", content: "import { Button } from \"./components/Button\";\nimport { colors } from \"./theme\";\nimport \"./SignInCard.css\";\n"),
+            .init(path: "src/SignInCard.css", content: ".card {}\n"),
+        ], summary: "Built SignInCard in src/SignInCard.tsx.")
+        let placed = SketchToCode.place(result, componentsFolder: "src/components") { existing.contains($0) }
+        #expect(placed.files.map(\.path) == ["src/App.tsx", "src/components/SignInCard.tsx", "src/SignInCard.css"])
+        #expect(placed.files[0].content == "import SignInCard from \"./components/SignInCard\";\nimport { x } from './theme';\n")
+        // The moved file's own imports follow it.
+        #expect(placed.files[1].content == "import { Button } from \"./Button\";\nimport { colors } from \"../theme\";\nimport \"../SignInCard.css\";\n")
+        #expect(placed.summary == "Built SignInCard in src/components/SignInCard.tsx.")
+        // Already in place, or no components folder: unchanged.
+        #expect(SketchToCode.place(placed, componentsFolder: "src/components") { existing.contains($0) } == placed)
+        #expect(SketchToCode.place(result, componentsFolder: nil) { _ in false } == result)
+        #expect(SketchToCode.relativePath(from: "src/components", to: "src/theme") == "../theme")
+        #expect(SketchToCode.normalize("src/components/../theme") == "src/theme")
     }
 }
