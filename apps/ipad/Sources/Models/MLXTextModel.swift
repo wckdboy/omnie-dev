@@ -28,6 +28,16 @@ final class MLXTextModel: TextModel, @unchecked Sendable {
             if let system { messages.append(.system(system)) }
             messages.append(.user(user))
             input = try await container.prepare(input: UserInput(chat: messages))
+        case .conversation(let turns):
+            let messages: [Chat.Message] = turns.map { turn in
+                switch turn.role {
+                case .system: .system(turn.content)
+                case .user: .user(turn.content)
+                case .assistant: .assistant(turn.content)
+                case .tool: .tool(turn.content)
+                }
+            }
+            input = try await container.prepare(input: UserInput(chat: messages))
         case .raw(let text):
             input = LMInput(tokens: MLXArray(await container.encode(text)))
         }

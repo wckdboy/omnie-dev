@@ -3,9 +3,28 @@
 
 import Foundation
 
+/// One message in a conversation.
+public struct ChatTurn: Codable, Sendable, Hashable {
+    public enum Role: String, Codable, Sendable {
+        case system, user, assistant
+        /// A tool's result, fed back to the model.
+        case tool
+    }
+
+    public let role: Role
+    public let content: String
+
+    public init(_ role: Role, _ content: String) {
+        self.role = role
+        self.content = content
+    }
+}
+
 public enum ModelPrompt: Sendable, Hashable {
     /// A chat turn, formatted with the model's own chat template.
     case chat(system: String?, user: String)
+    /// A whole conversation (the agent loop), formatted with the model's chat template.
+    case conversation([ChatTurn])
     /// Text passed to the model as-is (fill-in-the-middle, base-model completion).
     case raw(String)
 }
