@@ -210,7 +210,7 @@ struct BranchSheet: View {
                                     .frame(width: 20)
                                     .foregroundStyle(branch.isCurrent ? palette.accent.ion.color : palette.text.tertiary.color)
                                 Text(branch.name)
-                                    .font(branch.isAgentTask ? Typography.agent(.regular) : .subheadline)
+                                    .agentVoice(.regular, when: branch.isAgentTask, otherwise: .subheadline)
                                     .foregroundStyle(branch.isAgentTask ? palette.accent.agent.color : palette.text.primary.color)
                                 Spacer()
                                 if branch.hasWorkInProgress {

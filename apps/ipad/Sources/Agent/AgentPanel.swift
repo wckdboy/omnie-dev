@@ -58,14 +58,15 @@ struct AgentPanel: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Describe a change. The agent works on its own branch, and nothing lands until you review it.")
-                .font(Typography.agent(density))
+                .agentVoice(density)
                 .foregroundStyle(palette.accent.agent.color)
             if !model.models.isInstalled(.standard) {
                 Text("The agent runs on this device with Qwen2.5-Coder 7B. Download it in Settings › Models (4.3 GB).")
                     .font(.footnote)
                     .foregroundStyle(palette.text.secondary.color)
-                Button("Open Settings") { model.settingsOpen = true }
-                    .font(.footnote)
+                Button { model.settingsOpen = true } label: {
+                    Text("Open Settings").font(.footnote).frame(minHeight: 44).contentShape(Rectangle())
+                }
             } else if model.workspace.git.repo == nil {
                 Text("Open a git project to start a task.")
                     .font(.footnote)
@@ -151,7 +152,7 @@ private struct TranscriptRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 if !parsed.thought.isEmpty {
                     Text(parsed.thought)
-                        .font(Typography.agent(density))
+                        .agentVoice(density)
                         .foregroundStyle(palette.accent.agent.color)
                 }
                 if let call = parsed.call {

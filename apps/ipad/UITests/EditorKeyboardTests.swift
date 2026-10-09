@@ -14,7 +14,7 @@ final class EditorKeyboardTests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-OmnieUIFixture"]
+        app.launchArguments = ["-OmnieUIFixture", "-OmnieLayout", "standard"]
         app.launch()
         editor = app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch
         XCTAssertTrue(editor.waitForExistence(timeout: 15), "the editor didn't appear")
@@ -113,7 +113,7 @@ func warmUpKeyboard(_ app: XCUIApplication) {
 final class AccessibilityAuditTests: XCTestCase {
     func testEditorSpeaksItsNameAndPosition() {
         let app = XCUIApplication()
-        app.launchArguments = ["-OmnieUIFixture"]
+        app.launchArguments = ["-OmnieUIFixture", "-OmnieLayout", "standard"]
         app.launch()
         let editor = app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch
         XCTAssertTrue(editor.waitForExistence(timeout: 15))
@@ -128,7 +128,7 @@ final class AccessibilityAuditTests: XCTestCase {
 
     func testAuditMainScreen() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-OmnieUIFixture"]
+        app.launchArguments = ["-OmnieUIFixture", "-OmnieLayout", "standard"]
         app.launch()
         XCTAssertTrue(app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch.waitForExistence(timeout: 15))
         var issues: [String] = []

@@ -4,52 +4,25 @@
 import SwiftUI
 import DesignKit
 
-/// Right-hand pane: agent, terminal, preview, Stage, tools. Each tab says plainly what isn't built yet.
-struct UtilityPane: View {
+/// One panel's content, wherever its tab lives (PaneLayout).
+struct PanelContent: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.palette) private var palette
-    @Environment(\.density) private var density
+    let tab: UtilityTab
 
     var body: some View {
-        @Bindable var model = model
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                ForEach(UtilityTab.allCases) { tab in
-                    Button {
-                        model.utilityTab = tab
-                    } label: {
-                        Image(systemName: tab.symbol)
-                            .frame(maxWidth: .infinity, minHeight: density.tab)
-                            .foregroundStyle(model.utilityTab == tab ? palette.accent.ion.color : palette.text.secondary.color)
-                            .overlay(alignment: .bottom) {
-                                if model.utilityTab == tab {
-                                    Rectangle().fill(palette.accent.ion.color).frame(height: Metrics.focusStroke)
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(tab.rawValue)
-                    .hoverEffect(.highlight)
-                }
-            }
-            .background(palette.surface.pane.color)
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
-            }
-
-            Group {
-                switch model.utilityTab {
-                case .agent: AgentPanel()
-                case .timeline: TimelineView()
-                case .terminal: TerminalPanel()
-                case .preview: PreviewPanel()
-                case .stage: StagePanel()
-                case .tools: ToolsPanel()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        switch tab {
+        case .files:
+            Navigator(onOpen: { _ in
+                // Under 700 pt the left dock is an overlay: opening a file puts it away.
+                if model.layout == .single { withAnimation(Motion.pane) { model.leftOverlay = false } }
+            })
+        case .agent: AgentPanel()
+        case .timeline: TimelineView()
+        case .terminal: TerminalPanel()
+        case .preview: PreviewPanel()
+        case .stage: StagePanel()
+        case .tools: ToolsPanel()
         }
-        .background(palette.surface.pane.color)
     }
 }
 

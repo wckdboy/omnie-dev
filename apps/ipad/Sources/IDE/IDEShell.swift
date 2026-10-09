@@ -4,41 +4,62 @@
 import SwiftUI
 import DesignKit
 
-/// iPad: navigator | editor | utility pane, separated by hairlines, status strip below.
-/// Over 1100 pt all three show; 700 to 1100 the editor plus one side; under 700 the editor alone
-/// with the others as overlays. The editor is never narrower than 480 pt.
+/// iPad: the editor in the middle with three docks around it (left, right, bottom), status strip
+/// below. Every panel is a tab you can move between docks and groups; docks and groups resize by
+/// their boundaries (PaneLayout). Side docks show when they fit beside a 480 pt editor, else the
+/// one used last; under 700 pt the left dock slides over the editor.
 struct IDEShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
 
-    private let navigatorWidth: CGFloat = 260
-    private let utilityWidth: CGFloat = 380
-
     var body: some View {
         GeometryReader { geo in
             let layout = LayoutClass(width: geo.size.width)
+            let width = Double(geo.size.width)
+            let sides = (model.focusMode || layout == .single) ? [] : model.panes.fittingSides(width: width, minEditor: Metrics.minEditorWidth)
+            let showsBottom = !model.focusMode && model.panes.isVisible(.bottom)
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
-                    if showsNavigator(layout) {
-                        Navigator()
-                            .frame(width: navigatorWidth)
-                        hairline
+                    if sides.contains(.left) {
+                        DockView(dock: .left).frame(width: model.panes.leftWidth)
+                        ResizeHandle(axis: .horizontal, label: "Left dock width") { delta in
+                            model.panes.setSize(.left, model.panes.leftWidth + delta, maximum: maxSide(.left, width, sides))
+                        } reset: { model.panes.resetSize(.left) }
                     }
-                    EditorPane()
-                        .frame(minWidth: layout == .single ? nil : Metrics.minEditorWidth)
-                    if showsUtility(layout) {
-                        hairline
-                        UtilityPane()
-                            .frame(width: utilityWidth)
+                    VStack(spacing: 0) {
+                        EditorPane()
+                        if showsBottom {
+                            ResizeHandle(axis: .vertical, label: "Bottom dock height") { delta in
+                                model.panes.setSize(.bottom, model.panes.bottomHeight - delta, maximum: Double(geo.size.height) * 0.7)
+                            } reset: { model.panes.resetSize(.bottom) }
+                            DockView(dock: .bottom).frame(height: model.panes.bottomHeight)
+                        }
+                    }
+                    .frame(minWidth: layout == .single ? nil : Metrics.minEditorWidth)
+                    if sides.contains(.right) {
+                        ResizeHandle(axis: .horizontal, label: "Right dock width") { delta in
+                            model.panes.setSize(.right, model.panes.rightWidth - delta, maximum: maxSide(.right, width, sides))
+                        } reset: { model.panes.resetSize(.right) }
+                        DockView(dock: .right).frame(width: model.panes.rightWidth)
+                    }
+                }
+                .overlay {
+                    // While a panel is dragged, each dock edge takes it as a new group.
+                    if model.draggingPanel != nil {
+                        ZStack {
+                            HStack { DockDropZone(dock: .left); Spacer(); DockDropZone(dock: .right) }
+                            VStack { Spacer(); DockDropZone(dock: .bottom).padding(.horizontal, 60) }
+                        }
+                        .transition(.opacity)
                     }
                 }
                 StatusStrip()
             }
             .overlay(alignment: .leading) {
-                // Under 700 pt the navigator slides over the editor.
-                if layout == .single && model.navigatorVisible && !model.focusMode {
-                    Navigator(onOpen: { _ in withAnimation(Motion.pane) { model.navigatorVisible = false } })
-                        .frame(width: navigatorWidth)
+                // Under 700 pt the left dock slides over the editor.
+                if layout == .single && model.leftOverlay && !model.focusMode && !model.panes.left.isEmpty {
+                    DockView(dock: .left)
+                        .frame(width: min(model.panes.leftWidth, geo.size.width * 0.85))
                         .overlay(alignment: .trailing) { hairline }
                         .transition(.move(edge: .leading))
                 }
@@ -52,34 +73,46 @@ struct IDEShell: View {
                 }
             }
             .animation(Motion.paletteIn, value: model.paletteOpen)
+            .animation(Motion.pane, value: model.draggingPanel)
             .onChange(of: layout, initial: true) { model.layout = layout }
+            #if DEBUG
+            .task(id: "\(Int(width)) \(sides.map(\.rawValue).sorted()) \(showsBottom) \(model.panes.right.count)") {
+                let groups = PaneLayout.Dock.allCases.map { dock in
+                    "\(dock.rawValue): " + model.panes[dock].map { $0.panels.joined(separator: "+") }.joined(separator: " | ")
+                }
+                print("[layout] \(Int(width)) pt, showing \(sides.map(\.rawValue).sorted())\(showsBottom ? " + bottom" : ""); \(groups.joined(separator: "; "))")
+            }
+            #endif
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .folderPicker()
         .gitSheets(model)
         .onAppear { applyInitialLayout() }
+        #if DEBUG
+        .task {
+            // `-OmnieLayout terminalBelow` starts from a preset (screenshots, UI checks).
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-OmnieLayout"), args.indices.contains(i + 1), let preset = LayoutPreset(rawValue: args[i + 1]) {
+                model.panes = preset.layout
+            }
+        }
+        #endif
     }
 
     private var hairline: some View {
         Rectangle().fill(palette.surface.hairline.color).frame(width: Metrics.hairline)
     }
 
-    /// Full: both sides. Split: one side, and the navigator wins while it's open.
-    private func showsNavigator(_ layout: LayoutClass) -> Bool {
-        !model.focusMode && model.navigatorVisible && layout != .single
-    }
-
-    private func showsUtility(_ layout: LayoutClass) -> Bool {
-        guard !model.focusMode, model.utilityVisible else { return false }
-        switch layout {
-        case .full: return true
-        case .split: return !model.navigatorVisible
-        case .single: return false
-        }
+    /// A side dock can grow until the editor would drop under its minimum.
+    private func maxSide(_ dock: PaneLayout.Dock, _ width: Double, _ sides: Set<PaneLayout.Dock>) -> Double {
+        let other: PaneLayout.Dock = dock == .left ? .right : .left
+        return width - Metrics.minEditorWidth - (sides.contains(other) ? model.panes.size(other) : 0)
     }
 
     private func applyInitialLayout() {
-        // With no project, lead with the navigator's "Open folder".
-        if model.workspace.root == nil { model.navigatorVisible = true }
+        // With no project, lead with the files panel's "Open folder".
+        if model.workspace.root == nil {
+            model.show(.files)
+        }
     }
 }

@@ -149,7 +149,7 @@ struct CommitRow: View {
                 .frame(width: 10)
             VStack(alignment: .leading, spacing: 2) {
                 Text(commit.summary)
-                    .font(isAgent ? Typography.agent(density) : .footnote)
+                    .agentVoice(density, when: isAgent, otherwise: .footnote)
                     .foregroundStyle(isAgent ? palette.accent.agent.color : palette.text.primary.color)
                     .lineLimit(2)
                 HStack(spacing: 6) {

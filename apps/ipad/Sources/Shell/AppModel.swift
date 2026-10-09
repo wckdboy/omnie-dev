@@ -20,7 +20,9 @@ enum Experience {
     var surface: Surfaces { self == .ide ? .ide : .vibe }
 }
 
+/// The IDE's panels. Each one is a tab that can live in any dock group (PaneLayout).
 enum UtilityTab: String, CaseIterable, Identifiable {
+    case files = "Files"
     case agent = "Agent"
     case timeline = "Timeline"
     case terminal = "Terminal"
@@ -32,6 +34,7 @@ enum UtilityTab: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
+        case .files: "folder"
         case .agent: "text.bubble"
         case .timeline: "clock.arrow.trianglehead.counterclockwise.rotate.90"
         case .terminal: "terminal"
@@ -81,9 +84,14 @@ final class AppModel {
     /// The docs sheet's starting query, or nil when it's closed.
     var docsQuery: String?
     var focusMode = false
-    var navigatorVisible = true
-    var utilityVisible = true
-    var utilityTab: UtilityTab = .agent
+    /// Where the panels are (docks, groups, sizes); yours to rearrange, kept between launches.
+    var panes: PaneLayout = AppModel.loadPanes() {
+        didSet { if panes != oldValue { AppModel.savePanes(panes) } }
+    }
+    /// Under 700 pt the left dock slides over the editor instead.
+    var leftOverlay = false
+    /// The panel being dragged, while the dock edges offer themselves as drop targets.
+    var draggingPanel: UtilityTab?
     /// Current iPad window layout, reported by the IDE shell.
     var layout: LayoutClass = .full
 
@@ -133,14 +141,6 @@ final class AppModel {
         startMonitors()
     }
 
-    /// In the split layout only one side pane fits, so showing the utility pane closes the navigator.
-    private var utilityHiddenBySplit: Bool { layout == .split && navigatorVisible }
-
-    private func showUtility(_ show: Bool) {
-        utilityVisible = show
-        if show && layout == .split { navigatorVisible = false }
-    }
-
     /// Brings up the Agent pane (the status pill and "Show agent").
     func showAgent() { show(.agent) }
 
@@ -152,8 +152,41 @@ final class AppModel {
     }
 
     func show(_ tab: UtilityTab) {
-        utilityTab = tab
-        withAnimation(Motion.pane) { showUtility(true) }
+        withAnimation(Motion.pane) {
+            panes.reveal(tab.rawValue)
+            if layout == .single, panes.location(of: tab.rawValue)?.dock == .left { leftOverlay = true }
+        }
+    }
+
+    /// Whether a panel is on screen now.
+    func isShowing(_ tab: UtilityTab) -> Bool { panes.isShowing(tab.rawValue) }
+
+    func toggle(_ dock: PaneLayout.Dock) {
+        withAnimation(Motion.pane) {
+            if layout == .single && dock == .left {
+                leftOverlay.toggle()
+                if leftOverlay { panes.hidden.remove(.left) }
+            } else {
+                panes.toggle(dock)
+            }
+        }
+    }
+
+    func applyLayout(_ preset: LayoutPreset) {
+        withAnimation(Motion.pane) { panes = preset.layout }
+    }
+
+    nonisolated static let panesKey = "panes.v1"
+
+    static func loadPanes() -> PaneLayout {
+        guard let data = UserDefaults.standard.data(forKey: panesKey),
+              var layout = try? JSONDecoder().decode(PaneLayout.self, from: data) else { return LayoutPreset.standard.layout }
+        layout.repair(known: UtilityTab.allCases.map(\.rawValue))
+        return layout
+    }
+
+    static func savePanes(_ layout: PaneLayout) {
+        if let data = try? JSONEncoder().encode(layout) { UserDefaults.standard.set(data, forKey: panesKey) }
     }
 
     private func startMonitors() {
@@ -194,15 +227,23 @@ final class AppModel {
                 guard let self else { return }
                 withAnimation(Motion.pane) { self.focusMode.toggle() }
             },
-            Command(id: "view.navigator", title: "Toggle navigator", menu: "View",
-                    shortcut: Shortcut("1"), surfaces: .ide, keywords: ["sidebar", "files"]) { [weak self] in
-                guard let self else { return }
-                withAnimation(Motion.pane) { self.navigatorVisible.toggle() }
+            Command(id: "view.navigator", title: "Toggle left dock", menu: "View",
+                    shortcut: Shortcut("1"), surfaces: .ide, keywords: ["sidebar", "files", "navigator"]) { [weak self] in
+                self?.toggle(.left)
             },
-            Command(id: "view.utility", title: "Toggle utility pane", menu: "View",
-                    shortcut: Shortcut("3"), surfaces: .ide) { [weak self] in
+            Command(id: "view.utility", title: "Toggle right dock", menu: "View",
+                    shortcut: Shortcut("3"), surfaces: .ide, keywords: ["utility pane", "inspector"]) { [weak self] in
+                self?.toggle(.right)
+            },
+            Command(id: "view.bottom", title: "Toggle bottom dock", menu: "View",
+                    shortcut: Shortcut("j"), surfaces: .ide, keywords: ["panel", "terminal"]) { [weak self] in
                 guard let self else { return }
-                withAnimation(Motion.pane) { self.showUtility(!self.utilityVisible || self.utilityHiddenBySplit) }
+                // An empty bottom dock gets the terminal, the usual thing to want there.
+                if self.panes.bottom.isEmpty {
+                    withAnimation(Motion.pane) { self.panes.move(UtilityTab.terminal.rawValue, toNewGroupIn: .bottom) }
+                } else {
+                    self.toggle(.bottom)
+                }
             },
             Command(id: "file.openFolder", title: "Open folder", menu: "File",
                     shortcut: Shortcut("o"), keywords: ["project", "workspace"]) { [weak self] in
@@ -330,8 +371,7 @@ final class AppModel {
             Command(id: "git.timeline", title: "Show timeline", menu: "Git",
                     shortcut: Shortcut("t", [.command, .shift]), keywords: ["history", "log"]) { [weak self] in
                 guard let self else { return }
-                self.showUtility(true)
-                self.utilityTab = .timeline
+                self.show(.timeline)
             },
             Command(id: "git.init", title: "Initialize git repository", menu: "Git") { [weak self] in
                 guard let self, let root = self.workspace.rootURL else { return }
@@ -374,8 +414,7 @@ final class AppModel {
             Command(id: "agent.ask", title: "Ask agent", menu: "Agent",
                     shortcut: Shortcut("i"), keywords: ["ai", "prompt"]) { [weak self] in
                 guard let self else { return }
-                self.showUtility(true)
-                self.utilityTab = .agent
+                self.show(.agent)
             },
             Command(id: "density.auto", title: "Density: follow input device", menu: "View", surfaces: .ide) { [weak self] in
                 self?.densityOverride = nil
@@ -390,8 +429,12 @@ final class AppModel {
             Command(id: CommandID(rawValue: "utility.\(tab.rawValue.lowercased())"), title: "Show \(tab.rawValue.lowercased())",
                     menu: "View", surfaces: .ide) { [weak self] in
                 guard let self else { return }
-                self.showUtility(true)
-                self.utilityTab = tab
+                self.show(tab)
+            }
+        } + LayoutPreset.allCases.map { preset in
+            Command(id: CommandID(rawValue: "layout.\(preset.rawValue)"), title: "Layout: \(preset.title)",
+                    menu: "View", surfaces: .ide, keywords: ["panes", "docks", "reset layout"]) { [weak self] in
+                self?.applyLayout(preset)
             }
         }
 

@@ -74,3 +74,32 @@ public enum Typography {
 public extension EnvironmentValues {
     @Entry var density: Density = .regular
 }
+
+/// The agent's voice (mono italic at the code size) that also follows Dynamic Type; `otherwise`
+/// is the font when the text isn't the agent's.
+public struct AgentVoice: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var typeSize
+    let density: Density
+    let isAgent: Bool
+    let otherwise: Font
+
+    public func body(content: Content) -> some View {
+        content.font(isAgent ? Self.font(density, typeSize) : otherwise)
+    }
+
+    static func font(_ density: Density, _ typeSize: DynamicTypeSize) -> Font {
+        #if canImport(UIKit)
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(typeSize))
+        let size = UIFontMetrics(forTextStyle: .body).scaledValue(for: density.codeSize, compatibleWith: traits)
+        #else
+        let size = density.codeSize
+        #endif
+        return .system(size: size, design: .monospaced).italic()
+    }
+}
+
+public extension View {
+    func agentVoice(_ density: Density, when isAgent: Bool = true, otherwise: Font = .body) -> some View {
+        modifier(AgentVoice(density: density, isAgent: isAgent, otherwise: otherwise))
+    }
+}
