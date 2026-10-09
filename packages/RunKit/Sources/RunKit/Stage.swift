@@ -125,6 +125,20 @@ public enum Stage {
         "window.omnieStage?.select(\(id.map { SchemeHandler.jsString($0) } ?? "null"))"
     }
 
+    /// Async JavaScript (for `callAsyncJavaScript`) returning the scene as base64 USDZ.
+    public static let exportUSDZScript = "return await window.omnieStage.exportUSDZ()"
+
+    /// Whether `data` looks like a USDZ package: an uncompressed zip whose first file is the USD
+    /// layer (AR Quick Look's requirement).
+    public static func isUSDZ(_ data: Data) -> Bool {
+        guard data.count > 34, data.prefix(4) == Data([0x50, 0x4B, 0x03, 0x04]) else { return false }
+        let method = UInt16(data[8]) | UInt16(data[9]) << 8
+        let nameLength = Int(UInt16(data[26]) | UInt16(data[27]) << 8)
+        guard method == 0, data.count >= 30 + nameLength else { return false }
+        let name = String(decoding: data[30..<(30 + nameLength)], as: UTF8.self)
+        return name.hasSuffix(".usda") || name.hasSuffix(".usdc") || name.hasSuffix(".usd")
+    }
+
     public static func frameScript(_ id: String) -> String { "window.omnieStage?.frame(\(SchemeHandler.jsString(id)))" }
 
     public static func configuration(root: URL, onEvent: @escaping @MainActor (Event) -> Void) throws -> WKWebViewConfiguration {

@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import ARKit
 import DesignKit
+import QuickLook
 import RunKit
 import SwiftUI
 import WebKit
@@ -22,6 +24,8 @@ struct StagePanel: View {
     @State private var selection: String?
     @State private var showInspector = false
     @State private var controller = StageController()
+    /// The exported scene, while AR Quick Look shows it.
+    @State private var arFile: URL?
 
     var body: some View {
         let root = model.workspace.rootURL
@@ -48,6 +52,13 @@ struct StagePanel: View {
                         .font(.caption)
                         .accessibilityHint("Asks the agent to put your inspector changes into the scene's code, for you to review")
                     }
+                    Button {
+                        Task {
+                            do { arFile = try await controller.exportUSDZ(name: current) } catch { status = error.localizedDescription; isError = true }
+                        }
+                    } label: { Image(systemName: "arkit") }
+                        .accessibilityLabel("View in AR")
+                        .accessibilityHint("Exports the scene as USDZ and opens it in AR Quick Look")
                     Button { showInspector.toggle() } label: { Image(systemName: "list.bullet.indent") }
                         .accessibilityLabel(showInspector ? "Hide inspector" : "Show inspector")
                         .foregroundStyle(showInspector ? palette.accent.ion.color : palette.text.secondary.color)
@@ -76,6 +87,9 @@ struct StagePanel: View {
         .onChange(of: model.workspace.changeCount) { reload() }
         .onChange(of: selection) { _, id in controller.run(Stage.selectScript(id)) }
         .onDisappear { StageSnapshot.shared.file = nil }
+        .fullScreenCover(item: $arFile) { url in
+            ARQuickLook(url: url).ignoresSafeArea()
+        }
     }
 
     private func open(_ path: String) {
@@ -106,6 +120,20 @@ struct StagePanel: View {
         #endif
         switch event {
         case .loaded(let meshes, let animations):
+            #if DEBUG
+            // `-OmnieStageUSDZ`: export the loaded scene and log what came out.
+            if ProcessInfo.processInfo.arguments.contains("-OmnieStageUSDZ") {
+                Task {
+                    let started = Date()
+                    do {
+                        let url = try await controller.exportUSDZ(name: file)
+                        let data = try Data(contentsOf: url)
+                        try data.write(to: URL.documentsDirectory.appending(path: url.lastPathComponent))
+                        print("[usdz] \(url.lastPathComponent): \(data.count) bytes, valid \(Stage.isUSDZ(data)), \(Int(Date().timeIntervalSince(started) * 1000)) ms")
+                    } catch { print("[usdz] failed: \(error.localizedDescription)") }
+                }
+            }
+            #endif
             // A shader error reported during the load stays on show.
             guard model.workspace.problems.stageDiagnostics.isEmpty else { break }
             status = "\(meshes) \(meshes == 1 ? "mesh" : "meshes")" + (animations > 0 ? ", \(animations) animation\(animations == 1 ? "" : "s")" : "")
@@ -248,6 +276,27 @@ final class StageController {
     private(set) var edits: [String: [String: String]] = [:]
 
     func run(_ script: String) { webView?.evaluateJavaScript(script, completionHandler: nil) }
+
+    enum ExportError: LocalizedError {
+        case notLoaded, notUSDZ
+        var errorDescription: String? {
+            switch self {
+            case .notLoaded: "The scene isn't loaded yet."
+            case .notUSDZ: "The export didn't produce a USDZ file."
+            }
+        }
+    }
+
+    /// The scene as a .usdz file in the temporary folder, named after the scene file.
+    func exportUSDZ(name: String) async throws -> URL {
+        guard let webView else { throw ExportError.notLoaded }
+        let base64 = try await webView.callAsyncJavaScript(Stage.exportUSDZScript, contentWorld: .page) as? String
+        guard let data = base64.flatMap({ Data(base64Encoded: $0) }), Stage.isUSDZ(data) else { throw ExportError.notUSDZ }
+        let base = ((name as NSString).lastPathComponent as NSString).deletingPathExtension.replacingOccurrences(of: ".stage", with: "")
+        let url = FileManager.default.temporaryDirectory.appending(path: "\(base.isEmpty ? "scene" : base).usdz")
+        try data.write(to: url, options: .atomic)
+        return url
+    }
 
     func apply(_ edit: Stage.Edit, to id: String) {
         run(Stage.script(edit, on: id))
@@ -454,4 +503,41 @@ private struct StageWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ container: Container, context: Context) {}
+}
+
+extension URL: @retroactive Identifiable {
+    public var id: String { absoluteString }
+}
+
+/// AR Quick Look for an exported scene: on the floor at real size, with Share (Save to Files).
+struct ARQuickLook: UIViewControllerRepresentable {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let preview = QLPreviewController()
+        preview.dataSource = context.coordinator
+        preview.delegate = context.coordinator
+        return UINavigationController(rootViewController: preview)
+    }
+
+    func updateUIViewController(_ controller: UINavigationController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(url: url, dismiss: { dismiss() }) }
+
+    final class Coordinator: NSObject, @MainActor QLPreviewControllerDataSource, @MainActor QLPreviewControllerDelegate {
+        let url: URL
+        let dismiss: () -> Void
+        init(url: URL, dismiss: @escaping () -> Void) { self.url = url; self.dismiss = dismiss }
+
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> any QLPreviewItem {
+            let item = ARQuickLookPreviewItem(fileAt: url)
+            item.allowsContentScaling = true
+            return item
+        }
+
+        func previewControllerDidDismiss(_ controller: QLPreviewController) { dismiss() }
+    }
 }

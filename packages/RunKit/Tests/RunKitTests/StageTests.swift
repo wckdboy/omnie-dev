@@ -83,6 +83,17 @@ struct StageTests {
         #expect(graphs.last?.first { $0.name == "x" }?.material?.uniforms["strength"] == .number(0.9))
     }
 
+    @Test func exportsUSDZForARQuickLook() async throws {
+        let (_, webView) = try await open("models/cube.obj") { $0.contains(.loaded(meshes: 1, animations: 0)) }
+        let base64 = try await webView.callAsyncJavaScript(Stage.exportUSDZScript, contentWorld: .page) as? String
+        let data = try #require(base64.flatMap { Data(base64Encoded: $0) })
+        #expect(Stage.isUSDZ(data), "\(data.prefix(64) as NSData)")
+        // The grid and highlight stay out: one mesh, so one Mesh prim in the layer.
+        let text = String(decoding: data, as: UTF8.self)
+        #expect(text.contains("def Mesh"))
+        #expect(!Stage.isUSDZ(Data("PK not really".utf8)))
+    }
+
     @Test func findsModels() {
         #expect(Stage.models(in: root) == ["models/cube.obj", "models/tri.stl"])
     }

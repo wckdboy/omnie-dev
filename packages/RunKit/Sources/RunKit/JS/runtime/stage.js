@@ -230,7 +230,25 @@ function frameObject(id) {
   if (o) fitBox(new THREE.Box3().setFromObject(o));
 }
 
-window.omnieStage = { select, set, frame: frameObject, graph: sendGraph };
+/// The scene as USDZ for AR Quick Look (PLAN.md §10): what's on stage without the grid and the
+/// selection box, base64 for the trip to Swift. Materials USDZ can't carry (custom shaders) come
+/// out as their nearest standard material.
+async function exportUSDZ() {
+  const { USDZExporter } = await import("three/addons/exporters/USDZExporter.js");
+  const out = new THREE.Scene();
+  for (const child of scene.children) {
+    if (child.userData.omnieHelper || child.isLight || child.isCamera) continue;
+    out.add(child.clone(true));
+  }
+  out.updateMatrixWorld(true);
+  // AR Quick Look puts the model on the floor at real size: one three.js unit is a metre.
+  const bytes = await new USDZExporter().parseAsync(out, { quickLookCompatible: true });
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+window.omnieStage = { select, set, frame: frameObject, graph: sendGraph, exportUSDZ };
 
 // A tap (not a drag) picks the object under it.
 const raycaster = new THREE.Raycaster();
