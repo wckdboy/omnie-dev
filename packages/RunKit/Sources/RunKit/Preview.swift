@@ -19,7 +19,7 @@ public enum Preview {
     /// The Markdown preview of a file in the project.
     public static func markdownURL(for file: String) -> URL {
         var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/markdown.html")!
-        components.queryItems = [URLQueryItem(name: "file", value: file)]
+        components.setQueryForJS([URLQueryItem(name: "file", value: file)])
         return components.url!
     }
 

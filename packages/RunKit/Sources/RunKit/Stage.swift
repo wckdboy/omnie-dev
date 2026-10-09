@@ -83,8 +83,9 @@ public enum Stage {
     /// The page for a model or scene file; `camera` (from a `.camera` event) keeps the view.
     public static func url(for file: String, camera: [Double]? = nil, reload: Int = 0) -> URL {
         var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/stage.html")!
-        components.queryItems = [URLQueryItem(name: isScene(file) ? "scene" : "model", value: file), URLQueryItem(name: "r", value: String(reload))]
-        if let camera, camera.count == 8 { components.queryItems?.append(URLQueryItem(name: "camera", value: camera.map { String($0) }.joined(separator: ","))) }
+        var items = [URLQueryItem(name: isScene(file) ? "scene" : "model", value: file), URLQueryItem(name: "r", value: String(reload))]
+        if let camera, camera.count == 8 { items.append(URLQueryItem(name: "camera", value: camera.map { String($0) }.joined(separator: ","))) }
+        components.setQueryForJS(items)
         return components.url!
     }
 

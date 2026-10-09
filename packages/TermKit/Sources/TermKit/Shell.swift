@@ -22,9 +22,9 @@ public final class Shell {
         public var git: (_ args: [String]) async -> String
         /// Package commands, manager first: ["npm" | "pip", "install", specs…] or [manager, "ls"].
         public var packages: (_ args: [String]) async -> String
-        /// A WASI program: a `.wasm` file in the project or a tool's name, its arguments and the
-        /// working directory (relative to the project).
-        public var wasm: (_ program: String, _ args: [String], _ cwd: String) async -> String
+        /// A WASI program: a `.wasm` file in the project or a tool's name, its arguments, the
+        /// working directory (relative to the project) and its stdin (the pipe's input, if any).
+        public var wasm: (_ program: String, _ args: [String], _ cwd: String, _ stdin: String?) async -> String
         /// Tool names `wasm` knows (bundled, plus the project's tools/ and .omnie/tools/).
         public var tools: () -> [String]
         /// A task by name (`npm run dev`, `task test`), and the names there are.
@@ -40,7 +40,7 @@ public final class Shell {
                     test: @escaping (String?) async -> String = { _ in "Tests aren't available." },
                     git: @escaping ([String]) async -> String = { _ in "Git isn't available." },
                     packages: @escaping ([String]) async -> String = { _ in "The package cache isn't available." },
-                    wasm: @escaping (String, [String], String) async -> String = { _, _, _ in "WASI isn't available." },
+                    wasm: @escaping (String, [String], String, String?) async -> String = { _, _, _, _ in "WASI isn't available." },
                     tools: @escaping () -> [String] = { [] },
                     task: @escaping (String) -> TaskLookup = { _ in .unknown },
                     taskNames: @escaping () -> [String] = { [] },
@@ -76,8 +76,38 @@ public final class Shell {
     /// The prompt, e.g. "src $".
     public var prompt: String { (cwd.isEmpty ? root.lastPathComponent : cwd) + " $" }
 
+    /// What the previous command in a pipeline printed, for the one running now.
+    private var pipeInput: String?
+    /// Whether the last built-in failed (a pipeline stops there).
+    private var builtinFailed = false
+
     /// Runs one command line and returns its output (no trailing newline). "clear" returns nil.
+    /// `a | b` gives a's output to b as its input; a failing stage stops the pipeline.
     public func execute(_ line: String) async -> String? {
+        let stages: [String]
+        do { stages = try Self.pipeline(line) } catch { return "\(error)" }
+        guard stages.count > 1 else { return await executeOne(line) }
+        var output: String? = ""
+        for (i, stage) in stages.enumerated() {
+            guard !stage.trimmingCharacters(in: .whitespaces).isEmpty else { return "|: a command is missing" }
+            pipeInput = i == 0 ? nil : output ?? ""
+            defer { pipeInput = nil }
+            builtinFailed = false
+            output = await executeOne(stage)
+            if builtinFailed { return output }
+            if let out = output, Self.failed(out) { return out }
+        }
+        return output
+    }
+
+    /// The text a command reads: its files, else the pipe's input.
+    private func input(_ files: [String], _ command: String) throws -> String {
+        if !files.isEmpty { return try files.map { try read($0) }.joined(separator: "\n") }
+        guard let piped = pipeInput else { throw Failure("\(command): name a file, or pipe text into it") }
+        return piped
+    }
+
+    private func executeOne(_ line: String) async -> String? {
         let words: [String]
         do { words = try Self.split(line) } catch { return "\(error)" }
         guard let command = words.first else { return "" }
@@ -94,15 +124,33 @@ public final class Shell {
                 cwd = relative(target)
                 return ""
             case "ls": return try list(args)
-            case "cat":
-                guard !args.isEmpty else { throw Failure("cat: name a file") }
-                return try args.map { try read($0) }.joined(separator: "\n")
+            case "cat": return try input(args, command)
             case "head", "tail":
                 let (count, files) = try lineCount(args)
-                guard let file = files.first else { throw Failure("\(command): name a file") }
-                let lines = try read(file).split(separator: "\n", omittingEmptySubsequences: false)
+                let lines = try input(Array(files.prefix(1)), command).split(separator: "\n", omittingEmptySubsequences: false)
                 return (command == "head" ? lines.prefix(count) : lines.suffix(count)).joined(separator: "\n")
             case "grep": return try grep(args)
+            case "wc": return try wordCount(args)
+            case "sort":
+                let flags = args.filter { $0.hasPrefix("-") }.joined()
+                var lines = try input(args.filter { !$0.hasPrefix("-") }, command).split(separator: "\n").map(String.init)
+                if flags.contains("n") {
+                    lines.sort { (Double($0.trimmingCharacters(in: .whitespaces).prefix { "0123456789.-".contains($0) }) ?? 0) < (Double($1.trimmingCharacters(in: .whitespaces).prefix { "0123456789.-".contains($0) }) ?? 0) }
+                } else if flags.contains("f") {
+                    lines.sort { $0.lowercased() < $1.lowercased() }
+                } else {
+                    lines.sort { Array($0.utf8).lexicographicallyPrecedes(Array($1.utf8)) }
+                }
+                if flags.contains("r") { lines.reverse() }
+                if flags.contains("u") { lines = lines.reduce(into: []) { if $0.last != $1 { $0.append($1) } } }
+                return lines.joined(separator: "\n")
+            case "uniq":
+                let count = args.contains("-c")
+                var runs: [(String, Int)] = []
+                for line in try input(args.filter { !$0.hasPrefix("-") }, command).split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+                    if runs.last?.0 == line { runs[runs.count - 1].1 += 1 } else { runs.append((line, 1)) }
+                }
+                return runs.map { count ? String(repeating: " ", count: max(0, 7 - String($0.1).count)) + "\($0.1) \($0.0)" : $0.0 }.joined(separator: "\n")
             case "open":
                 guard let file = args.first else { throw Failure("open: name a file") }
                 let url = try resolve(file)
@@ -113,7 +161,7 @@ public final class Shell {
                 guard let file = args.first else { throw Failure("\(command): name a file to run") }
                 let url = try resolve(file)
                 guard FileManager.default.fileExists(atPath: url.path) else { throw Failure("\(command): \(file): no such file") }
-                if file.hasSuffix(".wasm") { return await hooks.wasm(relative(url), Array(args.dropFirst()), cwd) }
+                if file.hasSuffix(".wasm") { return await hooks.wasm(relative(url), Array(args.dropFirst()), cwd, pipeInput) }
                 return await hooks.run(relative(url))
             case "test", "pytest", "vitest", "jest":
                 // `vitest run`, `vitest watch`: subcommands, not files.
@@ -182,14 +230,16 @@ public final class Shell {
                 if command.hasSuffix(".wasm") {
                     let url = try resolve(command)
                     guard FileManager.default.fileExists(atPath: url.path) else { throw Failure("\(command): no such file") }
-                    return await hooks.wasm(relative(url), args, cwd)
+                    return await hooks.wasm(relative(url), args, cwd, pipeInput)
                 }
-                if hooks.tools().contains(command) { return await hooks.wasm(command, args, cwd) }
+                if hooks.tools().contains(command) { return await hooks.wasm(command, args, cwd, pipeInput) }
                 throw Failure("\(command): not a built-in command. Type help to see them.")
             }
         } catch let failure as Failure {
+            builtinFailed = true
             return failure.message
         } catch {
+            builtinFailed = true
             return error.localizedDescription
         }
     }
@@ -236,7 +286,8 @@ public final class Shell {
 
     static let help = """
         Built-in commands (this is not a Unix shell; everything stays in the project):
-          ls [path]  cd <path>  pwd  cat <file>  head|tail [-n N] <file>  grep <text> [path]  echo  clear
+          ls [path]  cd <path>  pwd  cat <file>  head|tail [-n N] <file>  grep [-i] <text> [path]  echo  clear
+          wc [-l|-w|-c]  sort [-n|-f|-r|-u]  uniq [-c]   on a file or a pipe: rg TODO | wc -l
           run <file>      run JavaScript, TypeScript or Python (node, python and tsx work too)
           test [file]     run the project's tests (vitest/jest-style and pytest-style)
           npm run <script>, task [name]   the project's tasks (devcontainer.json run.tasks or package.json scripts)
@@ -289,8 +340,14 @@ public final class Shell {
         let flags = args.filter { $0.hasPrefix("-") }
         let words = args.filter { !$0.hasPrefix("-") }
         guard let needle = words.first else { throw Failure("grep: grep <text> [path]") }
-        let start = try resolve(words.dropFirst().first ?? ".")
         let options: String.CompareOptions = flags.contains("-i") ? .caseInsensitive : []
+        let invert = flags.contains("-v")
+        if words.count == 1, let piped = pipeInput {
+            let lines = piped.split(separator: "\n", omittingEmptySubsequences: false).filter { ($0.range(of: needle, options: options) != nil) != invert }
+            if flags.contains("-c") { return String(lines.count) }
+            return lines.joined(separator: "\n")
+        }
+        let start = try resolve(words.dropFirst().first ?? ".")
         var hits: [String] = []
         let files: [URL]
         if isDirectory(start) {
@@ -313,6 +370,19 @@ public final class Shell {
             }
         }
         return hits.joined(separator: "\n")
+    }
+
+    /// `wc [-l|-w|-c] [file]`: lines, words and bytes, like wc's columns.
+    func wordCount(_ args: [String]) throws -> String {
+        let flags = args.filter { $0.hasPrefix("-") }.joined()
+        let files = args.filter { !$0.hasPrefix("-") }
+        let text = try input(Array(files.prefix(1)), "wc")
+        // Piped text lost its last newline; a file's was dropped by read() too.
+        let lines = text.isEmpty ? 0 : text.split(separator: "\n", omittingEmptySubsequences: false).count
+        let counts = [("l", lines), ("w", text.split(whereSeparator: \.isWhitespace).count), ("c", text.utf8.count + (text.isEmpty ? 0 : 1))]
+        let chosen = flags.isEmpty ? counts : counts.filter { flags.contains($0.0) }
+        let columns = chosen.map { String(repeating: " ", count: max(0, 7 - String($0.1).count)) + String($0.1) }.joined(separator: " ")
+        return columns + (files.first.map { " " + $0 } ?? "")
     }
 
     // MARK: Paths
@@ -353,6 +423,28 @@ public final class Shell {
         guard let resolved = realpath(existing, nil) else { return path }
         defer { free(resolved) }
         return ([String(cString: resolved)] + missing).joined(separator: "/").replacingOccurrences(of: "//", with: "/")
+    }
+
+    /// A command line's pipeline stages: split at `|` outside quotes (`||` isn't a pipe).
+    static func pipeline(_ line: String) throws -> [String] {
+        var stages: [String] = []
+        var current = ""
+        var quote: Character?
+        var escaped = false
+        let chars = Array(line)
+        for (i, c) in chars.enumerated() {
+            if escaped { current.append(c); escaped = false; continue }
+            if c == "\\" && quote != "'" { escaped = true; current.append(c); continue }
+            if let q = quote { if c == q { quote = nil }; current.append(c); continue }
+            if c == "\"" || c == "'" { quote = c; current.append(c); continue }
+            if c == "|", chars.indices.contains(i + 1) ? chars[i + 1] != "|" : true, i == 0 || chars[i - 1] != "|" {
+                stages.append(current); current = ""; continue
+            }
+            current.append(c)
+        }
+        if quote != nil { throw Failure("unclosed quote") }
+        stages.append(current)
+        return stages
     }
 
     /// Splits a command line into words: spaces separate, quotes group, backslash escapes.

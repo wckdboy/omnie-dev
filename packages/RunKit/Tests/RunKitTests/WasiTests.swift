@@ -186,6 +186,12 @@ struct WasiToolTests {
         #expect(none.exitCode == 1 && none.output.isEmpty, "\(none.report)")
         let files = await runner.runWasm("rg", args: ["--files", "--no-ignore", "-g", "*.js"])
         #expect(files.output.map(\.text) == ["out/a.js"], "\(files.report)")
+        // A `+` survives the trip into the page (form decoding would make it a space).
+        let only = await runner.runWasm("rg", args: ["-o", "-N", "[A-Z][a-z]+", "src"])
+        #expect(only.output.map(\.text) == ["src/a.ts:Total"], "\(only.report)")
+        // Piped text when the shell says so and no path is given.
+        let piped = await runner.runWasm("rg", args: ["-c", "a"], stdin: "a\nb\nab\n", env: ["OMNIE_STDIN_PIPED": "1"])
+        #expect(piped.output.map(\.text) == ["2"], "\(piped.report)")
     }
 }
 }

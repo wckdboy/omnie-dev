@@ -38,6 +38,22 @@ struct ShellTests {
         #expect(await shell.execute("clear") == nil)
     }
 
+    @Test func pipes() async throws {
+        let shell = Shell(root: root)
+        #expect(try Shell.pipeline("a | b 'c|d' \\| e || f") == ["a ", " b 'c|d' \\| e || f"])
+        #expect(await shell.execute("cat src/a.ts | wc -l") == "      2")
+        #expect(await shell.execute("wc src/a.ts") == "      2      10      40 src/a.ts")
+        #expect(await shell.execute("cat src/a.ts | grep b") == "export const b = 2;")
+        #expect(await shell.execute("cat src/a.ts | grep -v b | wc -w") == "      5")
+        #expect(await shell.execute("echo b a b c | sort") == "b a b c")
+        #expect(await shell.execute("cat src/a.ts README.md | sort -r | head -n 2") == "export const b = 2;\nexport const a = 1;")
+        #expect(await shell.execute("cat src/a.ts src/a.ts | sort | uniq -c") == "      2 export const a = 1;\n      2 export const b = 2;")
+        #expect(await shell.execute("wc") == "wc: name a file, or pipe text into it")
+        // A failing stage stops the pipeline with its message.
+        #expect(await shell.execute("cat nope.txt | wc -l") == "nope.txt: no such file")
+        #expect(await shell.execute("echo hi | ") == "|: a command is missing")
+    }
+
     @Test func staysInTheProject() async {
         let shell = Shell(root: root)
         #expect(await shell.execute("cd ../..")?.contains("outside the project") == true)
@@ -50,7 +66,7 @@ struct ShellTests {
         let shell = Shell(root: root, hooks: .init(run: { "ran \($0)" }, test: { "tested \($0 ?? "all")" },
                                                   git: { "git \($0.joined(separator: " "))" },
                                                   packages: { "packages \($0.joined(separator: " "))" },
-                                                  wasm: { "wasm \($0) \($1.joined(separator: " ")) in /\($2)" }, tools: { ["jq"] },
+                                                  wasm: { "wasm \($0) \($1.joined(separator: " ")) in /\($2)" + ($3.map { " <<\($0)" } ?? "") }, tools: { ["jq"] },
                                                   open: { opened = $0 }))
         #expect(await shell.execute("node src/a.ts") == "ran src/a.ts")
         #expect(await shell.execute("npm test") == "tested all")
@@ -69,6 +85,8 @@ struct ShellTests {
         #expect(await shell.execute("time jq -n '[range(3)] | add'")?.hasPrefix("wasm jq -n [range(3)] | add in /\nreal ") == true)
         #expect((try? Shell.split(Shell.join(["a b", "it's", "", "|", "plain"]))) == ["a b", "it's", "", "|", "plain"])
         #expect(await shell.execute("rg x")?.contains("not a built-in") == true)
+        // A pipe gives a WASI tool its input; quoted bars stay in the argument.
+        #expect(await shell.execute("cat README.md | jq '.a | .b'") == "wasm jq .a | .b in / <<# Demo\nHello there")
         _ = await shell.execute("open README.md")
         #expect(opened == "README.md")
     }

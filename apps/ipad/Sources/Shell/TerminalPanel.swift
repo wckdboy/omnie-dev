@@ -182,12 +182,12 @@ struct TerminalPanel: View {
             },
             git: { args in await Self.git(args, workspace: workspace) },
             packages: { args in await Packages.command(args, root: root, workspace: workspace) },
-            wasm: { program, args, cwd in
+            wasm: { program, args, cwd, stdin in
                 workspace.saveCurrent()
                 // A project tool by name, else a bundled tool; paths ending .wasm are files.
                 let target = program.hasSuffix(".wasm") ? program : JSRunner.projectTools(in: root)[program] ?? program
                 do {
-                    let result = await (try JSRunner(root: root)).runWasm(target, args: args, cwd: cwd)
+                    let result = await (try JSRunner(root: root)).runWasm(target, args: args, stdin: stdin ?? "", env: stdin == nil ? [:] : ["OMNIE_STDIN_PIPED": "1"], cwd: cwd)
                     lastWasm = (result.fuelUsed, result.memoryPeak)
                     if !result.changedFiles.isEmpty { workspace.reloadFromDisk() }
                     let report = result.report == "(no output)" ? "" : result.report

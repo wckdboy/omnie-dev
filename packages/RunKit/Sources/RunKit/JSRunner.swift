@@ -182,7 +182,7 @@ public final class JSRunner {
                 self.webView = webView
                 // One origin for the harness and the project, so module loads aren't cross-origin.
                 var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/harness.html")!
-                components.queryItems = query
+                components.setQueryForJS(query)
                 webView.load(URLRequest(url: components.url!))
                 DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
                     self?.finish(.timedOut(seconds: timeout))
@@ -433,5 +433,14 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     nonisolated static func jsString(_ text: String) -> String {
         let data = try? JSONSerialization.data(withJSONObject: [text])
         return data.map { String(decoding: $0, as: UTF8.self).dropFirst().dropLast() }.map(String.init) ?? "\"error\""
+    }
+}
+
+extension URLComponents {
+    /// Sets the query so the page's URLSearchParams reads it back exactly: Foundation leaves `+`
+    /// as is, which form decoding turns into a space (`rg '[a-z]+'` arrived as `[a-z] `).
+    mutating func setQueryForJS(_ items: [URLQueryItem]) {
+        queryItems = items
+        percentEncodedQuery = percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
     }
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! `rg` for Omnie Dev's WASI sandbox: ripgrep's searcher, printer and .gitignore-aware walker,
 //! single-threaded, with ripgrep's common flags and its non-terminal output (`path:line:text`).
-//! `rg [-i|-S] [-F] [-w] [-v] [-l] [-c] [-n|-N] [-A n] [-B n] [-C n] [-m n] [-g GLOB]... [-t TYPE]...
+//! `rg [-i|-S] [-F] [-w] [-v] [-o] [-l] [-c] [-n|-N] [-A n] [-B n] [-C n] [-m n] [-g GLOB]... [-t TYPE]...
 //!     [--hidden] [--no-ignore] [-uu] PATTERN [PATH...]`
 use grep::printer::{StandardBuilder, SummaryBuilder, SummaryKind};
 use grep::regex::RegexMatcherBuilder;
@@ -16,13 +16,13 @@ use termcolor::NoColor;
 #[derive(Default)]
 struct Opts {
     ignore_case: bool, smart_case: bool, fixed: bool, word: bool, invert: bool,
-    files_with_matches: bool, count: bool, no_line_number: bool,
+    files_with_matches: bool, count: bool, no_line_number: bool, only_matching: bool,
     after: usize, before: usize, max_count: Option<u64>,
     globs: Vec<String>, types: Vec<String>, hidden: bool, no_ignore: bool, files: bool,
 }
 
 fn usage() -> ! {
-    eprintln!("Usage: rg [-i|-S] [-F] [-w] [-v] [-l] [-c] [-n|-N] [-A n] [-B n] [-C n] [-m n] [-g GLOB] [-t TYPE] [--hidden] [--no-ignore] [--files] PATTERN [PATH...]");
+    eprintln!("Usage: rg [-i|-S] [-F] [-w] [-v] [-o] [-l] [-c] [-n|-N] [-A n] [-B n] [-C n] [-m n] [-g GLOB] [-t TYPE] [--hidden] [--no-ignore] [--files] PATTERN [PATH...]");
     exit(2)
 }
 
@@ -48,6 +48,7 @@ fn main() {
             "-v" | "--invert-match" => o.invert = true,
             "-l" | "--files-with-matches" => o.files_with_matches = true,
             "-c" | "--count" => o.count = true,
+            "-o" | "--only-matching" => o.only_matching = true,
             "-n" | "--line-number" => o.no_line_number = false,
             "-N" | "--no-line-number" => o.no_line_number = true,
             "-A" | "--after-context" => o.after = number(value()),
@@ -68,6 +69,8 @@ fn main() {
         }
     }
     let pattern = if o.files { None } else if positional.is_empty() { usage() } else { Some(positional.remove(0)) };
+    // Piped text (Omnie's shell says so) is searched when no path is given, as ripgrep does.
+    let piped = positional.is_empty() && std::env::var_os("OMNIE_STDIN_PIPED").is_some();
     let paths = if positional.is_empty() { vec![".".to_string()] } else { positional };
 
     let mut walk = WalkBuilder::new(&paths[0]);
@@ -119,12 +122,29 @@ fn main() {
         .build();
 
     let stdout = std::io::stdout();
-    let mut standard = StandardBuilder::new().max_matches(o.max_count).build(NoColor::new(stdout.lock()));
+    let mut standard = StandardBuilder::new().max_matches(o.max_count).only_matching(o.only_matching).build(NoColor::new(stdout.lock()));
     let kind = if o.files_with_matches { SummaryKind::PathWithMatch } else { SummaryKind::Count };
     let mut summary = SummaryBuilder::new().kind(kind).max_matches(o.max_count).build(NoColor::new(std::io::stdout()));
 
     let mut matched = false;
     let mut errors = false;
+    if piped && !o.files {
+        let stdin = std::io::stdin();
+        let result = if o.files_with_matches || o.count {
+            // A count of piped text is just the number, as ripgrep prints it.
+            let mut sink = if o.count { summary.sink(&matcher) } else { summary.sink_with_path(&matcher, "<stdin>") };
+            let r = searcher.search_reader(&matcher, stdin.lock(), &mut sink);
+            matched = sink.has_match();
+            r
+        } else {
+            let mut sink = standard.sink(&matcher);
+            let r = searcher.search_reader(&matcher, stdin.lock(), &mut sink);
+            matched = sink.has_match();
+            r
+        };
+        if let Err(e) = result { eprintln!("rg: <stdin>: {e}"); exit(2) }
+        exit(if matched { 0 } else { 1 })
+    }
     for entry in walk.build() {
         let entry = match entry { Ok(e) => e, Err(e) => { eprintln!("rg: {e}"); errors = true; continue } };
         if !entry.file_type().map_or(false, |t| t.is_file()) { continue }
