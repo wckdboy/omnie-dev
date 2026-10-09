@@ -84,6 +84,9 @@ final class AppModel {
     init() {
         workspace = WorkspaceModel(policy: policy)
         registerCommands()
+        // Debug launch arguments open their own folder.
+        let args = ProcessInfo.processInfo.arguments
+        if !args.contains("-OmnieOpenFolder") && !args.contains("-OmnieClone") { workspace.reopenLast() }
         startMonitors()
     }
 

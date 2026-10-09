@@ -3,7 +3,7 @@
 **Status:** plan only. Nothing is built, no repo exists. Written 8 Oct 2026. This replaces `iPad-IDE-Architecture.md` (v1) and pulls in its sources: SUPERDEV (app, runtime, git, terminal, LSP), FORGE (models), ADA (security and App Store 2.5.2), and Percival (UX and brand).
 **Target device:** 13-inch iPad Pro M5 with **12 GB RAM**, iPadOS 26.
 **Brand:** the full brand spec and design tokens are in `/workspace/ipad-ide-brand/` (`BRAND.md`, `tokens.json`, `contrast.json`). §3 summarizes them.
-**Name:** **Omnie-dev** (chosen 8 Oct 2026). Where this doc says "the app", it means Omnie-dev. Trademark and App Store name checks are still to do (§2.4).
+**Name:** **Omnie-dev** (chosen 8 Oct 2026). Where this doc says "the app", it means Omnie-dev. Trademark and App Store name checks are still to do (§2.4). The name shown under the home-screen icon is **Omnie Dev** (`CFBundleDisplayName`, 9 Oct 2026).
 **Bundle ID:** `ai.wckd.omniedev`. Extensions and containers derive from it (for example `ai.wckd.omniedev.fileprovider`, `iCloud.ai.wckd.omniedev`).
 
 > **How to read the numbers.** Every speed, memory and size figure here is an **estimate** from the specialist sections or from first-principles math. None of it has been benchmarked on an M5 iPad. Anything still to be verified is marked *(verify)* and listed again in Appendix A.
@@ -290,7 +290,7 @@ flowchart LR
 | Module | Owns | Key tech | Notes |
 |---|---|---|---|
 | `CommandKit` | Every action as a typed command with an ID, a title, a shortcut and a policy tier | `UIKeyCommand`, `UIMenuBuilder` | Feeds the ⌘K palette, the iPadOS menu bar and the hold-⌘ overlay. **One registry, no orphan actions.** The agent's tools are commands too |
-| `WorkspaceKit` | Files, security-scoped bookmarks, `NSFileCoordinator`/presenters, file watching, File Provider extension | `NSFileProtectionComplete` | The disk is the truth for file contents |
+| `WorkspaceKit` | Files, security-scoped bookmarks, `NSFileCoordinator`/presenters, file watching, File Provider extension | `NSFileProtectionComplete` | The disk is the truth for file contents. *Built (P1):* bookmarked recent projects with reopen at launch, coordinated reads and writes, and a project-wide file presenter. The File Provider extension is deferred: projects in `Documents/Projects` already appear in Files ("On My iPad › Omnie Dev") through `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`, so an extension only adds value once projects live outside Documents |
 | `EditorKit` | Document model, undo, selections, rendering, gutter, diff view | Runestone-derived core (§5), tree-sitter | Behind an `EditorView` protocol so the backend can be swapped |
 | `LangKit` | Syntax, folding ranges, outline, LSP client | tree-sitter (native grammars, bundled), LSP over stdio-in-WASI or WebSocket | Offline LSPs: TS/JS, Pyright, JSON/CSS/HTML. Online: anything remote |
 | `GitKit` | Repos, checkpoints, timeline, sync, push queue, worktrees, conflicts | libgit2 (≥1.7 for shallow clones) + libssh2 | §9 |

@@ -67,6 +67,31 @@ struct EmptyProject: View {
                 Button("Clone") { model.registry.run("git.clone") }
                     .buttonStyle(.bordered)
             }
+            if !model.workspace.recentProjects.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Recent")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(palette.text.secondary.color)
+                        .padding(.bottom, 4)
+                    ForEach(model.workspace.recentProjects) { ref in
+                        Button { model.workspace.open(recent: ref) } label: {
+                            Label(ref.name, systemImage: "folder")
+                                .font(.system(size: 13))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(palette.text.primary.color)
+                        .padding(.vertical, 4)
+                        .contextMenu {
+                            Button("Remove from Recent", role: .destructive) { model.workspace.forget(ref) }
+                        }
+                        .accessibilityHint("Opens the project")
+                    }
+                }
+                .frame(maxWidth: 280)
+                .padding(.top, 12)
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

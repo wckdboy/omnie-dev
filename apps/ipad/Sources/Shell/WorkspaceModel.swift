@@ -9,8 +9,8 @@ import PolicyKit
 import SwiftUI
 import WorkspaceKit
 
-/// The open project folder and the file in the editor.
-/// Security-scoped bookmarks (reopen on launch) come with WorkspaceKit proper in P1.
+/// The open project folder and the file in the editor. Projects are remembered by bookmark and the
+/// last one reopens at launch; a file presenter watches for changes made outside the app.
 @MainActor
 @Observable
 final class WorkspaceModel {
@@ -23,6 +23,9 @@ final class WorkspaceModel {
     private(set) var root: FileNode?
     private(set) var rootURL: URL?
     private var isAccessingRoot = false
+    @ObservationIgnored let recents = RecentProjects(fileURL: AppPaths.support.appendingPathComponent("recent-projects.json"))
+    private(set) var recentProjects: [ProjectRef] = []
+    @ObservationIgnored private var watcher: ProjectWatcher?
 
     private(set) var openFile: URL?
     private(set) var language: Language?
@@ -45,6 +48,7 @@ final class WorkspaceModel {
             isDirty = true
             scheduleAutosave()
         }
+        recentProjects = recents.load()
         editor.onSelectionChange = { [weak self] range in
             guard let self, let location = editor.textView.textLocation(at: range.location) else { return }
             cursor = (location.lineNumber + 1, location.column + 1)
@@ -52,6 +56,8 @@ final class WorkspaceModel {
     }
 
     func open(folder url: URL) {
+        if isDirty { saveCurrent() }
+        watcher?.stop()
         if isAccessingRoot { rootURL?.stopAccessingSecurityScopedResource() }
         // Folders inside the app container need no grant, so false here is not an error by itself;
         // reload() reports if the folder really can't be read.
@@ -59,8 +65,68 @@ final class WorkspaceModel {
         rootURL = url
         policy.projectRoot = url
         closeFile()
+        root = nil
         reload()
+        guard root != nil else {
+            // Unreadable: reload() set the banner. Leave nothing half-open.
+            if isAccessingRoot { url.stopAccessingSecurityScopedResource() }
+            isAccessingRoot = false
+            rootURL = nil
+            policy.projectRoot = nil
+            return
+        }
+        _ = try? recents.remember(url)
+        recentProjects = recents.load()
+        startWatching(url)
         Task { await git.attach(url) }
+    }
+
+    /// Reopens a remembered project. When you pick one that's gone, it leaves the list.
+    func open(recent ref: ProjectRef, forgetIfMissing: Bool = true) {
+        if let url = recents.url(for: ref) { open(folder: url) }
+        guard root == nil else { return }
+        if forgetIfMissing {
+            forget(ref)
+            banner = "\(ref.name) isn't available any more. Open it again from Files."
+        }
+    }
+
+    /// At launch: the project you had open last. Quietly skipped if it's unavailable right now
+    /// (a disconnected drive, a provider that's signed out); it stays in Recent.
+    func reopenLast() {
+        guard rootURL == nil, let last = recentProjects.first else { return }
+        open(recent: last, forgetIfMissing: false)
+        if root == nil { banner = nil }
+    }
+
+    func forget(_ ref: ProjectRef) {
+        try? recents.forget(ref.id)
+        recentProjects = recents.load()
+    }
+
+    private func startWatching(_ url: URL) {
+        let watcher = ProjectWatcher(root: url)
+        watcher.onSaveRequest = { [weak self] in
+            MainActor.assumeIsolated { self?.saveCurrent() }
+        }
+        watcher.onChange = { [weak self] urls in
+            MainActor.assumeIsolated { self?.changedOutside(urls) }
+        }
+        watcher.start()
+        self.watcher = watcher
+    }
+
+    /// Something outside Omnie-dev changed files: refresh the navigator, and the open file if it's
+    /// clean. Unsaved edits are never overwritten; you're told instead.
+    private func changedOutside(_ urls: Set<URL>) {
+        reload()
+        Task { await git.refresh() }
+        guard let openFile, urls.contains(openFile.standardizedFileURL) else { return }
+        if isDirty {
+            banner = "\(openFile.lastPathComponent) changed outside Omnie-dev. Your unsaved edits are kept; saving replaces the other version."
+        } else {
+            reloadFromDisk()
+        }
     }
 
     func reload() {
@@ -72,7 +138,7 @@ final class WorkspaceModel {
     func open(file url: URL) {
         if isDirty { saveCurrent() }
         do {
-            let loaded = try TextFile.load(url)
+            let loaded = try TextFile.load(url, presenter: watcher)
             language = Language(url: url)
             editor.load(loaded, language: language)
             editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
@@ -102,7 +168,7 @@ final class WorkspaceModel {
         autosaveTask?.cancel()
         guard let openFile, isDirty else { return }
         do {
-            try TextFile.save(editor.text, to: openFile)
+            try TextFile.save(editor.text, to: openFile, presenter: watcher)
             isDirty = false
         } catch {
             banner = "Save failed: \(error.localizedDescription). Try again."
@@ -130,7 +196,7 @@ final class WorkspaceModel {
         reload()
         guard let openFile else { return }
         if FileManager.default.fileExists(atPath: openFile.path(percentEncoded: false)),
-           let loaded = try? TextFile.load(openFile) {
+           let loaded = try? TextFile.load(openFile, presenter: watcher) {
             let selection = editor.selectedRange
             editor.load(loaded, language: language)
             isDirty = false

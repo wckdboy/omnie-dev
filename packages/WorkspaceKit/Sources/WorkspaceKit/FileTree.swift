@@ -68,18 +68,26 @@ public enum TextFile {
     public static let maxEditableBytes = 8 * 1024 * 1024
 
     /// Loads a file as UTF-8 text. Rejects files with NUL bytes in the first 8 KB (binary) or over the size cap.
-    public static func load(_ url: URL) throws -> String {
-        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+    /// Reads through a file coordinator, so a provider can bring the file down and other apps finish writing first.
+    public static func load(_ url: URL, presenter: NSFilePresenter? = nil) throws -> String {
+        var coordinationError: NSError?
+        var result: Result<Data, Error>?
+        NSFileCoordinator(filePresenter: presenter).coordinate(readingItemAt: url, options: [], error: &coordinationError) { target in
+            result = Result { try Data(contentsOf: target) }
+        }
+        if let coordinationError { throw coordinationError }
+        let data = try result?.get() ?? Data()
         if data.count > maxEditableBytes { throw LoadError.tooLarge(bytes: data.count) }
         if data.prefix(8192).contains(0) { throw LoadError.binary }
         return String(decoding: data, as: UTF8.self)
     }
 
     /// Atomic write through a file coordinator, so other apps (Files, Working Copy) see a consistent file.
-    public static func save(_ text: String, to url: URL) throws {
+    /// Pass the project's watcher as `presenter` so it isn't told about our own write.
+    public static func save(_ text: String, to url: URL, presenter: NSFilePresenter? = nil) throws {
         var coordinationError: NSError?
         var writeError: Error?
-        NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
+        NSFileCoordinator(filePresenter: presenter).coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
             do { try Data(text.utf8).write(to: target, options: .atomic) } catch { writeError = error }
         }
         if let e = coordinationError { throw e }
