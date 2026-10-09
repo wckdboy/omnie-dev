@@ -45,9 +45,13 @@ final class PolicyModel {
     }
 
     /// Decides, asks if needed, audits, and returns whether `action` may happen now.
-    /// The token is redeemed here: callers act immediately after a true.
-    func authorize(_ action: Action, by actor: Actor = .user, artifact: String? = nil) async -> Bool {
+    /// The token is redeemed here: callers act immediately after a true. `later`: the action is
+    /// queued to happen once the network is back (a push in plane mode), so plane mode doesn't
+    /// refuse it now; it's still asked for and audited.
+    func authorize(_ action: Action, by actor: Actor = .user, artifact: String? = nil, later: Bool = false) async -> Bool {
         guard let gate else { return false }
+        var context = context
+        if later { context.planeMode = false }
         switch await gate.authorize(action, by: actor, artifact: artifact, context: context) {
         case .granted(let token):
             lastRefusal = nil
@@ -63,6 +67,11 @@ struct AppApprover: Approver {
     let present: @Sendable @MainActor (ApprovalRequest) async -> Bool
 
     func approve(_ request: ApprovalRequest) async -> Bool {
+        #if DEBUG
+        // Unattended device runs (-OmniePlaneTest) can't answer Face ID. Debug builds only; the
+        // decision is still audited.
+        if ProcessInfo.processInfo.arguments.contains("-OmnieTestApprove") { return true }
+        #endif
         // Your own outward action: pressing the button was the ask, so only Face ID remains.
         if request.actor == .user && request.tier == .askWithBiometrics {
             return await Biometrics.confirm(request.action.summary)

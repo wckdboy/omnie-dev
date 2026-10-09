@@ -13,3 +13,9 @@ SPDX-License-Identifier = "Apache-2.0"
 path = ["apps/ipad/Resources/Assets.xcassets/AppIcon.appiconset/*.png", "brand/icon/**"]
 SPDX-FileCopyrightText = "2026 wckdboy"
 SPDX-License-Identifier = "LicenseRef-Omnie-dev-Icon"
+
+# The plane test's fixture project: sources kept free of headers, like a user's project.
+[[annotations]]
+path = ["fixtures/**"]
+SPDX-FileCopyrightText = "2026 wckdboy and Omnie-dev contributors"
+SPDX-License-Identifier = "Apache-2.0"

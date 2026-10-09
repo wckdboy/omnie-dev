@@ -31,7 +31,10 @@ Open from the P1 bar: your hands-on editor checks; cloning from forges other tha
 
 Open: an agreed pass rate on a larger task set (the router can already send what the local 7B can't do to an online model).
 
-## P3 sandbox and tools: well underway
+## P3 sandbox and tools: exit test passes
+
+**The plane test passes on the iPad** (PLAN's P3 bar): a Vite-style three.js project is cloned and prepared online, then in plane mode the local 7B fixes it, its tests and type check pass, the preview and the Stage run, a commit is made and the push queues; with plane mode off, the push lands. 67–70 s end to end, unattended (`scripts/plane-test.sh`). See `spikes/plane-test-p3.md`.
+
 
 - **RunKit:** JavaScript/TypeScript (Sucrase in JavaScriptCore, ES modules in WKWebView) and Python (Pyodide) run on the device with no network and a timeout; vitest- and pytest-compatible subsets run a project's own tests. The agent has `run_tests` and `run_script`.
 - **WASI (wasm32-wasip1) programs:** RunKit's own preview1 layer passes **73 of 73** of wasi-testsuite on the iPad (6.1 s for the suite; the P0 spike's shim passed 55). Programs run in a worker in the sandboxed web view against the project: files load on first read, and what a program writes, moves or deletes is applied inside the project when it exits. Paths can't leave the directory they're resolved from, rights only shrink, no sockets, a memory cap and a timeout. In the terminal: bundled `jq` (jq's language through jaq), `./tool.wasm`, and project tools in `tools/` or `.omnie/tools/` by name; the agent's `run_script` runs `.wasm` too. On the iPad, a jq query takes 166 ms.
@@ -50,6 +53,6 @@ Open: more bundled WASI tools, fuel (instruction budgets) for WASI, PyPI package
 
 ## How to check things yourself
 
-- Debug launch arguments (debug builds): `-OmnieOpenFolder <path in Documents>`, `-OmnieRunTests`, `-OmniePreview`, `-OmnieAgentDemo`, `-OmnieAgentTask "<goal>"`, `-OmnieAgentEval <label>`, `-OmnieModelSmoke`.
+- Debug launch arguments (debug builds): `-OmniePlaneTest <bare repo in Documents>`, `-OmnieWasiConformance`, `-OmnieOpenFolder <path in Documents>`, `-OmnieRunTests`, `-OmniePreview`, `-OmnieAgentDemo`, `-OmnieAgentTask "<goal>"`, `-OmnieAgentEval <label>`, `-OmnieModelSmoke`.
 - Packages: `swift test` in each `packages/*` (EditorKit runs on the simulator: `xcodebuild test -scheme EditorKit`).
 - Vendored inputs (gitignored): `scripts/build-git-deps.sh`, `scripts/vendor-grammars.py`, `scripts/vendor-runkit.sh`, `scripts/vendor-wasi-spike.py`.

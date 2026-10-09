@@ -38,6 +38,14 @@ struct TypeCheckTests {
         #expect(result.report.contains("src/main.ts:4:7 error TS2322"))
     }
 
+    @Test func knowsTheStageAPI() async throws {
+        let root = try project([
+            "src/spin.stage.ts": "export default ({ scene, onFrame }: OmnieStage) => {\n  onFrame((dt) => { scene.rotation.y += dt; });\n  const n: string = 1;\n};\n",
+        ])
+        let result = await (try JSRunner(root: root)).typeCheck()
+        #expect(result.diagnostics.map(\.code) == [2322], "\(result.report)")
+    }
+
     @Test func readsTsconfig() async throws {
         let root = try project([
             "tsconfig.json": "{ \"compilerOptions\": { \"strict\": false }, \"include\": [\"src\"] }",

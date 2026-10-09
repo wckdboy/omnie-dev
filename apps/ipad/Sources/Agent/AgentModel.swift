@@ -276,6 +276,13 @@ final class AgentModel {
             return
         }
         var message = record.summary.flatMap(CommitDraft.clean) ?? "Agent: \(record.goal.prefix(60))"
+        // A summary longer than a subject line: mark the cut, and keep all of it in the body.
+        if let summary = record.summary?.trimmingCharacters(in: .whitespacesAndNewlines), !summary.isEmpty,
+           summary.trimmingCharacters(in: CharacterSet(charactersIn: ".")) != message {
+            let firstLine = summary.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ". ")) } ?? ""
+            if firstLine.count > message.count, firstLine.hasPrefix(message) { message += "…" }
+            message += "\n\n" + summary
+        }
         // The agent's summary describes everything it did; say what review left out.
         if partial { message += "\n\n\(leftOut) \(leftOut == 1 ? "change was" : "changes were") left out in review." }
         do {

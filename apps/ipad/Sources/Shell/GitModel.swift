@@ -176,7 +176,8 @@ final class GitModel {
             error = "Set your name and email (Commit asks for them) before syncing."
             return
         }
-        guard await policy.authorize(await pushAction()) else {
+        // Offline or in plane mode the push is queued, so it's authorized for later.
+        guard await policy.authorize(await pushAction(), later: isOffline) else {
             if let reason = policy.lastRefusal, reason != "Not approved" { error = reason }
             return
         }

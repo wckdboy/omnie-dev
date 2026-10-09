@@ -77,6 +77,7 @@ struct OmnieDevApp: App {
                         await ModelSmoke.adopt(model, from: URL.documentsDirectory.appending(path: args[i + 1]))
                     }
                     if args.contains("-OmnieWasiConformance") { await WasiConformance.run() }
+                    if args.contains("-OmniePlaneTest") { await PlaneTest.run(model) }
                     // `-OmnieStageSummary` prints what the agent's stage_scene tool would see.
                     if args.contains("-OmnieStageSummary") {
                         Task {

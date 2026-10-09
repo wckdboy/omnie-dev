@@ -24,6 +24,17 @@ self.onmessage = async () => {
       files.set("/project/node_modules/" + pkg.name + "/" + f, await text(url));
     })));
 
+    // The Stage's scene-module API, so `export default ({ scene, onFrame }: OmnieStage) => …` checks.
+    files.set("/lib/omnie-stage.d.ts", `
+      interface OmnieStage {
+        THREE: typeof import("three");
+        scene: import("three").Scene;
+        camera: import("three").PerspectiveCamera;
+        renderer: import("three").WebGLRenderer;
+        controls: { target: import("three").Vector3; update(): void; enabled: boolean };
+        /** Called every frame with the seconds since the last frame and since the start. */
+        onFrame(callback: (delta: number, elapsed: number) => void): void;
+      }`);
     const exists = (n) => files.has(n);
     const entries = (dir) => {
       const prefix = dir.endsWith("/") ? dir : dir + "/";
@@ -70,7 +81,7 @@ self.onmessage = async () => {
     }
     Object.assign(options, { noEmit: true, skipLibCheck: true });
 
-    const program = ts.createProgram({ rootNames: roots, options, host });
+    const program = ts.createProgram({ rootNames: [...roots, "/lib/omnie-stage.d.ts"], options, host });
     const category = (c) => (c === ts.DiagnosticCategory.Error ? "error" : c === ts.DiagnosticCategory.Warning ? "warning" : "info");
     const diagnostics = [];
     for (const d of ts.getPreEmitDiagnostics(program)) {

@@ -1,0 +1,7 @@
+{
+  "name": "plane-demo",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite", "test": "vitest run" },
+  "dependencies": { "three": "^0.186.0" }
+}

@@ -58,7 +58,7 @@ struct StagePanel: View {
             } else {
                 NotYet(title: "Stage", detail: root == nil
                        ? "Open a project to view its 3D models here."
-                       : "No 3D models (glTF, GLB, OBJ, STL) or scenes in this project. A scene is a file named *.stage.js that exports `default ({ THREE, scene, onFrame }) => …`.")
+                       : "No 3D models (glTF, GLB, OBJ, STL) or scenes in this project. A scene is a file named *.stage.js or *.stage.ts that exports `default ({ THREE, scene, onFrame }: OmnieStage) => …`.")
             }
         }
         .background(palette.surface.pane.color)
