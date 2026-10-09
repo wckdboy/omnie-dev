@@ -117,6 +117,15 @@ struct AgentLoopTests {
         #expect(journal.entries().filter { $0.kind == .toolResult }.first?.tool == "list")
     }
 
+    @Test func codeInProseIsReportedNotForcedIntoACall() async throws {
+        // On the device the 7B wrote its fix as a code block; the forced call ran the tests instead.
+        let prose = "Let's update slugify.\n```typescript\nexport function slugify(t: string) { return t; }\n```"
+        let model = ScriptedModel([prose, call("finish", ["summary": "ok"])])
+        _ = await runner(model, Recorder()).run()
+        #expect(model.prefixes == [nil, nil])
+        #expect(journal.entries().contains { $0.isError && $0.text.hasPrefix("Nothing changed: code written in your message") })
+    }
+
     @Test func noToolCallTwiceNeedsYou() async {
         let model = ScriptedModel(["Sure, I can do that!", "not json", "Here is the answer.", "still not"])
         let outcome = await runner(model, Recorder()).run()
@@ -166,22 +175,34 @@ struct AgentLoopTests {
                 == "# shop\n\nA tiny shop backend.\n\n## Usage\n\nRun `npm start`.\n")
     }
 
-    @Test func patchRefusesToDuplicateTheLinesAfterFind() async throws {
-        // The 7B's rename: find is the signature, replace is the whole function.
-        try "export function total(prices: number[]): number {\n  return prices.reduce((a, b) => a + b, 0);\n}\n"
-            .write(to: root.appendingPathComponent("cart.ts"), atomically: true, encoding: .utf8)
-        let cartSHA = Sandbox.blobSHA(try Data(contentsOf: root.appendingPathComponent("cart.ts")))
-        let tool = PatchTool(sandbox: Sandbox(root: root))
-        await #expect(throws: ToolError.duplicatesFollowingLines("return prices.reduce((a, b) => a + b, 0);")) {
-            _ = try await tool.run(ToolCall(name: "patch", arguments: [
-                "path": .string("cart.ts"), "sha": .string(cartSHA), "find": .string("export function total(prices: number[]): number {"),
-                "replace": .string("export function sumPrices(prices: number[]): number {\n  return prices.reduce((a, b) => a + b, 0);\n}")]))
-        }
-        // The same rename with only the signature in replace is fine.
-        _ = try await tool.run(ToolCall(name: "patch", arguments: [
-            "path": .string("cart.ts"), "sha": .string(cartSHA), "find": .string("export function total(prices: number[]): number {"),
-            "replace": .string("export function sumPrices(prices: number[]): number {")]))
-        #expect(try String(contentsOf: root.appendingPathComponent("cart.ts"), encoding: .utf8).hasPrefix("export function sumPrices"))
+    func patch(_ file: String, _ content: String, find: String, replace: String) async throws -> String {
+        try content.write(to: root.appendingPathComponent(file), atomically: true, encoding: .utf8)
+        _ = try await PatchTool(sandbox: Sandbox(root: root)).run(ToolCall(name: "patch", arguments: [
+            "path": .string(file), "sha": .string(Sandbox.blobSHA(Data(content.utf8))), "find": .string(find), "replace": .string(replace)]))
+        return try String(contentsOf: root.appendingPathComponent(file), encoding: .utf8)
+    }
+
+    @Test func patchExtendsFindOverLinesReplaceRepeats() async throws {
+        // Three patches the 7B wrote on the device: find is a block's first line, replace the whole block.
+        let cart = "export function total(prices: number[]): number {\n  return prices.reduce((a, b) => a + b, 0);\n}\n"
+        #expect(try await patch("cart.ts", cart, find: "export function total(prices: number[]): number {",
+                                replace: "export function sumPrices(prices: number[]): number {\n  return prices.reduce((a, b) => a + b, 0);\n}")
+                == cart.replacingOccurrences(of: "total", with: "sumPrices"))
+
+        let math = "export function clamp(value: number, min: number, max: number): number {\n  return Math.min(Math.max(value, min), max);\n}\n"
+        #expect(try await patch("math.ts", math, find: "export function clamp(value: number, min: number, max: number): number {",
+                                replace: "/** Keeps value between min and max. */\n" + math.trimmingCharacters(in: .newlines))
+                == "/** Keeps value between min and max. */\n" + math)
+
+        let checkout = "const TAX_RATE = 0.2;\n\nexport function withTax(amount: number): number {\n  return amount * (1 + TAX_RATE);\n}\n"
+        #expect(try await patch("checkout.ts", checkout, find: "const TAX_RATE = 0.2;",
+                                replace: "import { TAX_RATE } from './config';\n\nexport function withTax(amount: number): number {\n  return amount * (1 + TAX_RATE);\n}")
+                == "import { TAX_RATE } from './config';\n\nexport function withTax(amount: number): number {\n  return amount * (1 + TAX_RATE);\n}\n")
+
+        // An ordinary one-line change isn't extended.
+        #expect(try await patch("cart.ts", cart, find: "export function total(prices: number[]): number {",
+                                replace: "export function sumPrices(prices: number[]): number {")
+                == cart.replacingOccurrences(of: "total", with: "sumPrices"))
     }
 
     @Test func patchMatchesLooselyAcrossBlankLines() async throws {

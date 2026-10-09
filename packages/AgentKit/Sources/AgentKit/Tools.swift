@@ -29,7 +29,6 @@ public enum ToolError: Error, Equatable, LocalizedError {
     case findNotUnique(count: Int)
     case alreadyExists(String)
     case unknownTool(String)
-    case duplicatesFollowingLines(String)
     case wouldBreakSyntax(path: String, reason: String)
 
     public var errorDescription: String? {
@@ -42,7 +41,6 @@ public enum ToolError: Error, Equatable, LocalizedError {
         case .alreadyExists(let p): "\(p) already exists. Use patch to change it."
         case .unknownTool(let n): "There's no tool called \(n)."
         case .wouldBreakSyntax(let p, let reason): "That would leave \(p) invalid, so nothing was written: \(reason)\nEdit inside the existing structure with patch."
-        case .duplicatesFollowingLines(let line): "replace includes \"\(line)\", which already comes right after find in the file, so it would appear twice. Put those lines in find as well, or leave them out of replace."
         }
     }
 }
@@ -226,7 +224,7 @@ public struct PatchTool: AgentTool {
     let sandbox: Sandbox
     public init(sandbox: Sandbox) { self.sandbox = sandbox }
     public let name = "patch"
-    public let description = "Replace text in a file. find must appear exactly once in the file, copied exactly from read; sha is the file's sha from read. To add code without removing any, put existing text in find and that same text plus your addition in replace."
+    public let description = "Replace text in a file. find must appear exactly once in the file, copied exactly from read; sha is the file's sha from read. To add code without removing any, put existing text in find and that same text plus your addition in replace. To delete code, put it in find and use an empty replace."
     public var parameters: [String: JSONValue] {
         schema(["path": ("string", "File to change."), "sha": ("string", "The sha read returned for this file."),
                 "find": ("string", "Exact existing text to replace, including indentation."), "replace": ("string", "The new text.")],
@@ -267,26 +265,50 @@ public struct PatchTool: AgentTool {
             try out.write(to: url, options: .atomic)
             return "Patched \(path) (matched ignoring blank lines). New sha: \(Sandbox.blobSHA(out))"
         }
-        if let repeated = Self.repeatedTail(text: text, find: find, replace: replace) {
-            throw ToolError.duplicatesFollowingLines(repeated)
+        // A replace that repeats the lines right after find (find was a block's first line, replace
+        // the whole block) means those lines are part of the change: extend find over them.
+        // Reporting it as an error led the model to drop code while "fixing" its patch.
+        var note = ""
+        if let extended = Self.extendOverRepeatedLines(text: text, find: find, replace: replace) {
+            find = extended
+            note = " (the change covers the following lines your replace already included)"
         }
         let out = Data(text.replacingOccurrences(of: find, with: replace).utf8)
         try Sandbox.validate(out, path: path)
         try out.write(to: url, options: .atomic)
-        return "Patched \(path). New sha: \(Sandbox.blobSHA(out))"
+        return "Patched \(path)\(note). New sha: \(Sandbox.blobSHA(out))"
     }
 
-    /// Catches a replace that ends with lines the file already has right after find (find was the
-    /// first line of a block, replace the whole block), which would duplicate them.
-    static func repeatedTail(text: String, find: String, replace: String) -> String? {
+    /// When the lines right after `find` also appear in `replace`, contiguously and in order (after
+    /// the part standing in for find), returns find extended over them; otherwise nil.
+    static func extendOverRepeatedLines(text: String, find: String, replace: String) -> String? {
         guard let range = text.range(of: find) else { return nil }
-        let following = text[range.upperBound...].split(separator: "\n", omittingEmptySubsequences: true)
-            .prefix(3).map { $0.trimmingCharacters(in: .whitespaces) }
-        let replaceLines = replace.split(separator: "\n", omittingEmptySubsequences: true).map { $0.trimmingCharacters(in: .whitespaces) }
-        let findLines = find.split(separator: "\n", omittingEmptySubsequences: true).count
-        guard let first = following.first, first.count >= 3, replaceLines.count > findLines else { return nil }
-        // The line that follows find appears in replace after the part that stands in for find.
-        return replaceLines.dropFirst(findLines).contains(first) ? first : nil
+        let trim = { (s: Substring) in s.trimmingCharacters(in: .whitespaces) }
+        // The file's lines after find, each with where it ends.
+        var following: [(text: String, end: String.Index)] = []
+        var cursor = range.upperBound
+        if cursor < text.endIndex, text[cursor] == "\n" { cursor = text.index(after: cursor) }
+        while cursor < text.endIndex, following.count < 400 {
+            let end = text[cursor...].firstIndex(of: "\n") ?? text.endIndex
+            following.append((trim(text[cursor..<end]), end))
+            cursor = end < text.endIndex ? text.index(after: end) : end
+        }
+        let replaceLines = replace.split(separator: "\n", omittingEmptySubsequences: false).map(trim)
+        let findLineCount = find.split(separator: "\n", omittingEmptySubsequences: false).count
+        // Skip leading blank lines in the file; the first repeated line must have content.
+        var first = 0
+        while first < following.count, following[first].text.isEmpty { first += 1 }
+        guard first < following.count, following[first].text.count >= 3 else { return nil }
+        let searchFrom = min(findLineCount, replaceLines.count)
+        guard let start = replaceLines[searchFrom...].firstIndex(of: following[first].text) else { return nil }
+        // How many of the file's following lines replace repeats from there, in order.
+        var matched = 0
+        while first + matched < following.count, start + matched < replaceLines.count,
+              following[first + matched].text == replaceLines[start + matched] {
+            matched += 1
+        }
+        guard matched > 0 else { return nil }
+        return String(text[range.lowerBound..<following[first + matched - 1].end])
     }
 
     /// Where `find`'s non-blank lines appear as consecutive non-blank lines of `text`, compared

@@ -197,6 +197,14 @@ public actor AgentRunner {
             var output: String
             do {
                 output = try await generate(entries, prefix: nil)
+                // Code written as prose instead of a tool call: say so, rather than forcing a call
+                // (the forced call was usually run_tests, and the edit was lost).
+                if ToolCallParser.parse(Self.clean(output)).call == nil, Self.containsCodeBlock(output) {
+                    record(JournalEntry(.assistant, Self.clean(output)), into: &entries)
+                    record(JournalEntry(.toolResult, "Nothing changed: code written in your message isn't applied to any file. Call patch, append_to_file or create_file to make the change.",
+                                        tool: "error", isError: true), into: &entries)
+                    continue
+                }
                 if ToolCallParser.parse(Self.clean(output)).call == nil {
                     // Constrained retry (PLAN.md §7: "constrained JSON decoding plus retry for local
                     // models"): pre-start the reply as a call, so the model can only continue it.
@@ -285,6 +293,10 @@ public actor AgentRunner {
     private func generate(_ entries: [JournalEntry], prefix: String?) async throws -> String {
         try await model.complete(.conversation(conversation(entries), toolsJSON: toolsJSON(), assistantPrefix: prefix),
                                  maxTokens: config.maxTokensPerStep, temperature: config.temperature, stop: ["</tool_call>"])
+    }
+
+    static func containsCodeBlock(_ output: String) -> Bool {
+        output.components(separatedBy: "```").count >= 3
     }
 
     /// Chat-control tokens leaking into the text aren't part of the answer.
