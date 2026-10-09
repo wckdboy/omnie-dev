@@ -6,8 +6,9 @@ which Settings › Acknowledgements shows. BSD, MIT and Apache all require the n
 binaries, so run this after changing a dependency (it needs a built project: the native deps from
 scripts/build-git-deps.sh and the Swift packages resolved by an Xcode build)."""
 import importlib.util
-import json
 import sys
+sys.dont_write_bytecode = True  # importing vendor-grammars.py must not leave a __pycache__
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

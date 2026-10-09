@@ -1,0 +1,24 @@
+{
+  "originHash" : "80aef75f9d792fa80aa0fe5a813c7ca52f3d1f0383eeb704ba9d571cfe4ce487",
+  "pins" : [
+    {
+      "identity" : "omnie-dev-editor-engine",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/wckdboy/omnie-dev-editor-engine",
+      "state" : {
+        "revision" : "e7cd7eb2825aec7465ba5a2d5ce8c7b96df44ce7",
+        "version" : "0.6.5"
+      }
+    },
+    {
+      "identity" : "tree-sitter",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tree-sitter/tree-sitter",
+      "state" : {
+        "revision" : "d97971e24500218865c05ed1febdee2acf41bae1",
+        "version" : "0.26.13"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -193,6 +193,7 @@ struct CommitSheet: View {
     @State private var name = ""
     @State private var email = ""
     @State private var needsIdentity = false
+    @State private var isDrafting = false
 
     var body: some View {
         let git = model.workspace.git
@@ -205,7 +206,17 @@ struct CommitSheet: View {
                 } header: {
                     Text("\(git.status?.changedCount ?? 0) changed on \(git.status?.head.branch ?? "HEAD")")
                 } footer: {
-                    Text("Drafted from the changed files. Edit it to say why.")
+                    if model.models.isInstalled(.tiny) {
+                        HStack {
+                            Text(isDrafting ? "Drafting on this device…" : "Drafted from the changed files. Edit it to say why.")
+                            Spacer()
+                            Button("Draft with local model") { Task { await draft() } }
+                                .font(.footnote)
+                                .disabled(isDrafting)
+                        }
+                    } else {
+                        Text("Drafted from the changed files. Edit it to say why. A local model (Settings › Models) can draft it from the diff.")
+                    }
                 }
                 if needsIdentity {
                     Section {
@@ -254,6 +265,14 @@ struct CommitSheet: View {
             email = git.fallbackEmail
             needsIdentity = await git.repo?.configuredSignature() == nil
         }
+    }
+
+    /// Replaces the message with the local model's draft. Nothing leaves the device.
+    private func draft() async {
+        isDrafting = true
+        defer { isDrafting = false }
+        guard let tiny = await model.models.tinyModel() else { return }
+        if let drafted = await model.workspace.git.draftMessage(with: tiny) { message = drafted }
     }
 
     private var canCommit: Bool {

@@ -3,6 +3,7 @@
 
 import DesignKit
 import GitKit
+import ModelKit
 import SwiftUI
 
 /// Settings: who you commit as, your SSH key, how the app looks, what it's allowed to do, and the
@@ -41,6 +42,8 @@ struct SettingsView: View {
                         Text("Touch").tag(Density?.some(.touch))
                     }
                 }
+
+                ModelsSection()
 
                 Section {
                     Toggle("Plane mode", isOn: $policy.planeMode)
@@ -116,6 +119,56 @@ private struct SSHKeySection: View {
             } else {
                 Text("For cloning and pushing over SSH.")
             }
+        }
+    }
+}
+
+/// Local models: download, progress, remove (PLAN.md §7). Files are checked against pinned
+/// SHA-256 sums before they're used.
+private struct ModelsSection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let models = model.models
+        Section {
+            ForEach(ModelPack.catalog) { pack in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(pack.displayName)
+                            Text("\(pack.role == .tiny ? "Commit messages and completion" : "The offline agent") · \(ByteCountFormatter.string(fromByteCount: pack.totalBytes, countStyle: .file))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if models.downloads[pack.id] != nil {
+                            Button("Cancel") { models.cancel(pack) }
+                        } else if models.isInstalled(pack) {
+                            Menu("Installed") {
+                                Button("Remove", role: .destructive) { models.remove(pack) }
+                            }
+                        } else {
+                            Button(models.states[pack.id].map { if case .partial = $0 { "Resume" } else { "Download" } } ?? "Download") {
+                                models.install(pack)
+                            }
+                        }
+                    }
+                    if let download = models.downloads[pack.id] {
+                        ProgressView(value: download.fraction) {
+                            Text("\(ByteCountFormatter.string(fromByteCount: download.done, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: download.total, countStyle: .file))")
+                                .font(.caption)
+                        }
+                    }
+                }
+                .accessibilityElement(children: .contain)
+            }
+            if let error = models.error {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Models")
+        } footer: {
+            Text("Models run on this device; nothing you write is sent anywhere. Downloads come from Hugging Face and are checked against pinned checksums. Keep the app open while one downloads.")
         }
     }
 }

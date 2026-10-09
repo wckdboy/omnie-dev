@@ -18,10 +18,12 @@ struct OmnieDevApp: App {
                 #if DEBUG
                 .task {
                     // Debug-only launch arguments, for screenshots and UI tests:
-                    // `-OmnieOpenFolder /path` opens a folder; `-OmnieRunCommand <id>` (repeatable) runs a command.
+                    // `-OmnieOpenFolder <path>` opens a folder (relative to Documents unless absolute); `-OmnieRunCommand <id>` (repeatable) runs a command.
                     let args = ProcessInfo.processInfo.arguments
                     if let i = args.firstIndex(of: "-OmnieOpenFolder"), args.indices.contains(i + 1) {
-                        model.workspace.open(folder: URL(filePath: args[i + 1]))
+                        // Relative paths are inside Documents (handy on a device, where the container path is unknown).
+                        let path = args[i + 1]
+                        model.workspace.open(folder: path.hasPrefix("/") ? URL(filePath: path) : URL.documentsDirectory.appending(path: path))
                     }
                     // `-OmnieOpenFile <path relative to the folder>` opens a file in the editor.
                     if let i = args.firstIndex(of: "-OmnieOpenFile"), args.indices.contains(i + 1),
@@ -62,6 +64,10 @@ struct OmnieDevApp: App {
                         try? await Task.sleep(for: .milliseconds(500))
                         let author = await git.author() ?? Signature(name: "Omnie Debug", email: "debug@omnie.invalid")
                         _ = await git.commit(message: args[i + 1], author: author)
+                    }
+                    // `-OmnieModelSmoke` installs the Tiny pack (if needed), then times load, FIM and a commit draft.
+                    if args.contains("-OmnieModelSmoke") {
+                        await ModelSmoke.run(model)
                     }
                     // `-OmnieClone <url>` clones and opens the result.
                     if let i = args.firstIndex(of: "-OmnieClone"), args.indices.contains(i + 1),

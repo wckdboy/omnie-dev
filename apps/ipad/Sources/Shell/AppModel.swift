@@ -75,6 +75,7 @@ final class AppModel {
 
     let policy = PolicyModel()
     let workspace: WorkspaceModel
+    let models: ModelsModel
 
     var density: Density {
         if let densityOverride { return densityOverride }
@@ -86,6 +87,7 @@ final class AppModel {
 
     init() {
         workspace = WorkspaceModel(policy: policy)
+        models = ModelsModel(policy: policy)
         registerCommands()
         // Debug launch arguments open their own folder.
         let args = ProcessInfo.processInfo.arguments

@@ -4,6 +4,7 @@
 import CryptoKit
 import SwiftUI
 import GitKit
+import ModelKit
 import PolicyKit
 import SecretsKit
 
@@ -482,6 +483,27 @@ final class GitModel {
         else { verb = "Update" }
         let list = names.count <= 3 ? names.joined(separator: ", ") : "\(names.prefix(2).joined(separator: ", ")) and \(names.count - 2) more"
         return "\(verb) \(list)"
+    }
+
+    /// A subject line from the local model, written from the changed files and the lines they add.
+    /// nil when the model gives nothing usable; the template draft stays.
+    func draftMessage(with model: TextModel) async -> String? {
+        guard let repo, let entries = status?.entries, !entries.isEmpty else { return nil }
+        let changes = entries.map { CommitDraft.Change(path: $0.path, kind: Self.word(for: $0.kind)) }
+        let added = ((try? await repo.pendingAddedLines(limit: 4_000)) ?? []).map { (path: $0.path, text: $0.text) }
+        let prompt = CommitDraft.prompt(changes: changes, added: added)
+        let raw = try? await model.complete(.chat(system: CommitDraft.system, user: prompt), maxTokens: 40,
+                                            stop: ["\n\n"])
+        return raw.flatMap(CommitDraft.clean)
+    }
+
+    nonisolated static func word(for kind: StatusEntry.Kind) -> String {
+        switch kind {
+        case .added, .untracked: "added"
+        case .deleted: "deleted"
+        case .renamed: "renamed"
+        default: "modified"
+        }
     }
 
     /// The push a Sync would make, for the policy decision and the audit log.

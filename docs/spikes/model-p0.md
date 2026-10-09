@@ -36,3 +36,16 @@ A cold first generation (no warm-up) ran prefill at 323 tok/s and took 3.1 s for
 - The Tiny FIM model (0.5–1.5B) for ghost text, and running Tiny and 7B together.
 - Coexistence with the editor, a preview web view and the Stage under memory pressure (the §20 soak test).
 - llama.cpp (GGUF) as the fallback path.
+
+## Tiny pack through ModelKit (9 Oct 2026, iPad Pro 13" M5, debug build)
+
+The first real use of the local model in the app: Settings › Models downloads the pinned pack, and the commit sheet's "Draft with local model" writes the subject line. `-OmnieModelSmoke` (debug builds) runs the whole path:
+
+| Step | Result |
+|---|---|
+| Download and SHA-256 check, Qwen2.5-Coder-0.5B-Instruct-4bit (290 MB, from Hugging Face) | 17.3 s |
+| Load | 0.58 s |
+| Fill-in-the-middle, 24 tokens max (`return |` in a Swift fibonacci) | 0.88 s: `fibonacci(n - 1) + fibonacci(n - 2)`, then the model kept going; `FIM.trim` cuts at the suffix |
+| Commit draft from a README change | 0.19 s: "Improve README.md for better network control" (template: "Update README.md") |
+
+Qwen's FIM special tokens tokenize correctly through swift-transformers, so the instruct model can serve ghost text. Within the plan's 300 ms ghost-text budget only for short completions; ghost text should ask for a single line.

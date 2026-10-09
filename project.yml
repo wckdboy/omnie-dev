@@ -23,6 +23,8 @@ packages:
     path: packages/SecretsKit
   PolicyKit:
     path: packages/PolicyKit
+  ModelKit:
+    path: packages/ModelKit
   # P0 spike 2: local models (moves into ModelKit after the spike).
   mlx-swift-lm:
     url: https://github.com/ml-explore/mlx-swift-lm
@@ -61,6 +63,7 @@ targets:
       - package: EditorKit
       - package: SecretsKit
       - package: PolicyKit
+      - package: ModelKit
       - package: mlx-swift-lm
         product: MLXLLM
       - package: mlx-swift-lm
