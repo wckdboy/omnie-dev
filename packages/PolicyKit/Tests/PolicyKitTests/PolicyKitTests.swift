@@ -115,7 +115,9 @@ struct AuditLogTests {
         let original = try String(contentsOf: url, encoding: .utf8)
 
         // Rewrite history: change the path recorded on line 2.
-        try original.replacingOccurrences(of: "f2", with: "f9").write(to: url, atomically: true, encoding: .utf8)
+        // Only the quoted path: hex hashes contain "f2" often enough to make a bare replace flaky.
+        #expect(original.components(separatedBy: "\"f2\"").count == 2)
+        try original.replacingOccurrences(of: "\"f2\"", with: "\"f9\"").write(to: url, atomically: true, encoding: .utf8)
         #expect(await log.verify() == .broken(atLine: 2))
 
         // Delete a line.
