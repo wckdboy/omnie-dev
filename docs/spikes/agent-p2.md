@@ -34,8 +34,9 @@ This is the case changeset review is for: nothing lands until you accept. It als
 | v6, 24 tasks | 16/24 | twelve more tasks (HTML, Python, Swift, YAML, .gitignore, moving code across files, doc comments, deletions, typos) |
 | v7, 25 tasks | 18/25 | `run_tests`/`run_script` (RunKit) and a new failing-test task; loose matching no longer ignores indentation (it let a bad patch corrupt an enum); "change exactly what's asked" replaced a rule that made the model keep code it was told to remove; the self-review asks for a quoted line per requirement |
 | v9, 25 tasks | **18/25 (72%)**, 1006 s (~40 s a task) | patch extends over lines replace repeats (the refusal made the model drop code); code written as prose gets "nothing changed" instead of a forced call; run_tests names the code under test |
+| v10, 25 tasks | 17/25, 1028 s | no loop changes; more tools offered where they apply (check_types in TypeScript projects, docs_lookup, snippets_search, sqlite_query). Within the run-to-run noise: the same core failures (farewell, typos, doc-comment, failing-test) plus four that swing between runs |
 
-Raw results: `results/ipad-pro-13-m5-agent-eval-v6-2026-10-09.json` (12 tasks), `results/ipad-pro-13-m5-agent-eval-v9-2026-10-09.json` (25 tasks).
+Raw results: `results/ipad-pro-13-m5-agent-eval-v6-2026-10-09.json` (12 tasks), `results/ipad-pro-13-m5-agent-eval-v9-2026-10-09.json` (25 tasks), `results/ipad-pro-13-m5-agent-eval-v10-2026-10-09.json` (25 tasks, after the new tools).
 
 ## Online model on the same set
 
