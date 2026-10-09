@@ -61,7 +61,7 @@ enum PlaneTest {
 
         // The preview: index.html with main.ts, three from the offline cache.
         var console: [(String, String)] = []
-        if let config = try? Preview.configuration(root: folder, onConsole: { console.append(($0, $1)) }), let page = Preview.entry(in: folder) {
+        if let config = try? Preview.configuration(root: folder, onConsole: { if $0 != "network" { console.append(($0, $1)) } }), let page = Preview.entry(in: folder) {
             let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), configuration: config)
             webView.load(URLRequest(url: Preview.url(for: page)))
             for _ in 0..<100 where !console.contains(where: { $0.1.hasPrefix("scene ready") || $0.0 == "error" }) { try? await Task.sleep(for: .milliseconds(100)) }
