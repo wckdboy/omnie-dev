@@ -64,6 +64,8 @@ enum Packages {
             }
             workspace.reloadFromDisk()
         }
+        // New declarations to check against.
+        if !lines.isEmpty { workspace.problems.schedule(root: project, after: .zero) }
         lines.append(lines.isEmpty ? "Everything is already in the offline cache." : "Previews, runs and tests import these from the offline cache, with no connection.")
         return lines.joined(separator: "\n")
     }

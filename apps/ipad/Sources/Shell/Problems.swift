@@ -48,6 +48,9 @@ final class ProblemsModel {
         guard let runner = try? JSRunner(root: root) else { return }
         let result = await runner.typeCheck()
         guard !Task.isCancelled else { return }
+        #if DEBUG
+        print("[types] \(result.report.split(separator: "\n").last ?? "")")
+        #endif
         failure = result.failure
         if result.failure == nil { diagnostics = result.diagnostics }
         onUpdate?()
