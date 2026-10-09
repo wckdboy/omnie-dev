@@ -182,6 +182,8 @@ struct WasiToolTests {
         #expect(lines.fuelUsed != nil, "rg ran without a fuel budget")
         let counts = await runner.runWasm("rg", args: ["-c", "-i", "-t", "ts", "total"])
         #expect(counts.output.map(\.text) == ["src/a.ts:2"], "\(counts.report)")
+        let one = await runner.runWasm("rg", args: ["-n", "total", "src/a.ts"])
+        #expect(one.output.map(\.text) == ["2:const total = 2;"], "\(one.report)")
         let none = await runner.runWasm("rg", args: ["-w", "tot"])
         #expect(none.exitCode == 1 && none.output.isEmpty, "\(none.report)")
         let files = await runner.runWasm("rg", args: ["--files", "--no-ignore", "-g", "*.js"])

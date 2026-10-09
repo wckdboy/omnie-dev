@@ -52,6 +52,21 @@ struct ShellTests {
         // A failing stage stops the pipeline with its message.
         #expect(await shell.execute("cat nope.txt | wc -l") == "nope.txt: no such file")
         #expect(await shell.execute("echo hi | ") == "|: a command is missing")
+
+        var wrote: [String] = []
+        shell.hooks.wrote = { wrote.append($0) }
+        #expect(await shell.execute("cat src/a.ts | grep a > out.txt") == "")
+        #expect(await shell.execute("echo more >> out.txt") == "")
+        #expect(await shell.execute("cat out.txt") == "export const a = 1;\nmore")
+        #expect(await shell.execute("echo 'a > b' > \"q.txt\"") == "")
+        #expect(await shell.execute("cat q.txt") == "a > b")
+        #expect(wrote == ["out.txt", "out.txt", "q.txt"])
+        #expect(await shell.execute("echo x > ../escape.txt")?.contains("outside the project") == true)
+        #expect(await shell.execute("echo x > src") == "src: is a folder")
+        #expect(await shell.execute("echo x >") == ">: name a file")
+        // A failing command doesn't truncate the file.
+        #expect(await shell.execute("cat nope > out.txt") == "nope: no such file")
+        #expect(await shell.execute("wc -l out.txt") == "      2 out.txt")
     }
 
     @Test func staysInTheProject() async {

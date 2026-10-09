@@ -35,6 +35,8 @@ public final class Shell {
         /// `tsc`: the type check.
         public var typecheck: () async -> String
         public var open: (_ file: String) -> Void
+        /// A file a redirection (`> file`) wrote, relative to the project.
+        public var wrote: (_ file: String) -> Void
 
         public init(run: @escaping (String) async -> String = { _ in "Running isn't available." },
                     test: @escaping (String?) async -> String = { _ in "Tests aren't available." },
@@ -46,7 +48,8 @@ public final class Shell {
                     taskNames: @escaping () -> [String] = { [] },
                     preview: @escaping () -> String = { "The preview isn't available." },
                     typecheck: @escaping () async -> String = { "Type checking isn't available." },
-                    open: @escaping (String) -> Void = { _ in }) {
+                    open: @escaping (String) -> Void = { _ in },
+                    wrote: @escaping (String) -> Void = { _ in }) {
             self.run = run
             self.test = test
             self.git = git
@@ -58,6 +61,7 @@ public final class Shell {
             self.preview = preview
             self.typecheck = typecheck
             self.open = open
+            self.wrote = wrote
         }
     }
 
@@ -84,9 +88,40 @@ public final class Shell {
     /// Runs one command line and returns its output (no trailing newline). "clear" returns nil.
     /// `a | b` gives a's output to b as its input; a failing stage stops the pipeline.
     public func execute(_ line: String) async -> String? {
-        let stages: [String]
-        do { stages = try Self.pipeline(line) } catch { return "\(error)" }
-        guard stages.count > 1 else { return await executeOne(line) }
+        var stages: [String]
+        let redirect: (path: String, append: Bool)?
+        do {
+            stages = try Self.pipeline(line)
+            (stages[stages.count - 1], redirect) = try Self.redirection(stages[stages.count - 1])
+        } catch { return "\(error)" }
+        guard let redirect else { return await runPipeline(stages) }
+        // `> file` / `>> file`: the output goes into the file (inside the project) instead.
+        builtinFailed = false
+        let output = await runPipeline(stages) ?? ""
+        if builtinFailed || Self.failed(output) { return output }
+        do {
+            let url = try resolve(redirect.path)
+            guard !isDirectory(url) else { throw Failure("\(redirect.path): is a folder") }
+            guard FileManager.default.fileExists(atPath: url.deletingLastPathComponent().path) else { throw Failure("\(redirect.path): no such folder") }
+            let text = output.isEmpty ? "" : output + "\n"
+            if redirect.append, let handle = try? FileHandle(forWritingTo: url) {
+                defer { try? handle.close() }
+                try handle.seekToEnd()
+                try handle.write(contentsOf: Data(text.utf8))
+            } else {
+                try Data(text.utf8).write(to: url, options: .atomic)
+            }
+            hooks.wrote(relative(url))
+            return ""
+        } catch let failure as Failure {
+            return failure.message
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    private func runPipeline(_ stages: [String]) async -> String? {
+        guard stages.count > 1 else { return await executeOne(stages[0]) }
         var output: String? = ""
         for (i, stage) in stages.enumerated() {
             guard !stage.trimmingCharacters(in: .whitespaces).isEmpty else { return "|: a command is missing" }
@@ -288,6 +323,7 @@ public final class Shell {
         Built-in commands (this is not a Unix shell; everything stays in the project):
           ls [path]  cd <path>  pwd  cat <file>  head|tail [-n N] <file>  grep [-i] <text> [path]  echo  clear
           wc [-l|-w|-c]  sort [-n|-f|-r|-u]  uniq [-c]   on a file or a pipe: rg TODO | wc -l
+          command > file, command >> file   write or append the output to a project file
           run <file>      run JavaScript, TypeScript or Python (node, python and tsx work too)
           test [file]     run the project's tests (vitest/jest-style and pytest-style)
           npm run <script>, task [name]   the project's tasks (devcontainer.json run.tasks or package.json scripts)
@@ -445,6 +481,27 @@ public final class Shell {
         if quote != nil { throw Failure("unclosed quote") }
         stages.append(current)
         return stages
+    }
+
+    /// A trailing `> file` or `>> file` outside quotes, split off the command.
+    static func redirection(_ stage: String) throws -> (String, (path: String, append: Bool)?) {
+        var quote: Character?
+        var escaped = false
+        var at: String.Index?
+        for i in stage.indices {
+            let c = stage[i]
+            if escaped { escaped = false; continue }
+            if c == "\\" && quote != "'" { escaped = true; continue }
+            if let q = quote { if c == q { quote = nil }; continue }
+            if c == "\"" || c == "'" { quote = c; continue }
+            if c == ">" { at = i; break }
+        }
+        guard let at else { return (stage, nil) }
+        let append = stage[at...].hasPrefix(">>")
+        let rest = stage[stage.index(at, offsetBy: append ? 2 : 1)...]
+        let words = try split(String(rest))
+        guard words.count == 1 else { throw Failure(words.isEmpty ? ">: name a file" : ">: one file, at the end of the line") }
+        return (String(stage[..<at]), (words[0], append))
     }
 
     /// Splits a command line into words: spaces separate, quotes group, backslash escapes.

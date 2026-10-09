@@ -122,9 +122,11 @@ fn main() {
         .build();
 
     let stdout = std::io::stdout();
-    let mut standard = StandardBuilder::new().max_matches(o.max_count).only_matching(o.only_matching).build(NoColor::new(stdout.lock()));
+    // One file named on its own prints without its name, as ripgrep does.
+    let with_name = !(paths.len() == 1 && std::path::Path::new(&paths[0]).is_file());
+    let mut standard = StandardBuilder::new().path(with_name).max_matches(o.max_count).only_matching(o.only_matching).build(NoColor::new(stdout.lock()));
     let kind = if o.files_with_matches { SummaryKind::PathWithMatch } else { SummaryKind::Count };
-    let mut summary = SummaryBuilder::new().kind(kind).max_matches(o.max_count).build(NoColor::new(std::io::stdout()));
+    let mut summary = SummaryBuilder::new().kind(kind).path(with_name || o.files_with_matches).max_matches(o.max_count).build(NoColor::new(std::io::stdout()));
 
     let mut matched = false;
     let mut errors = false;

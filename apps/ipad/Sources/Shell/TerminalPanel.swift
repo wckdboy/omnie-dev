@@ -210,7 +210,8 @@ struct TerminalPanel: View {
             typecheck: {
                 do { return await (try JSRunner(root: root)).typeCheck().report } catch { return error.localizedDescription }
             },
-            open: { file in workspace.open(file: root.appending(path: file)) }))
+            open: { file in workspace.open(file: root.appending(path: file)) },
+            wrote: { _ in workspace.reloadFromDisk() }))
         lines = []
     }
 
@@ -224,6 +225,8 @@ struct TerminalPanel: View {
         busy = true
         let started = Date()
         lastWasm = nil
+        // Commands read files from disk (and `> file` writes them): unsaved edits go first.
+        model.workspace.saveCurrent()
         let output = await shell.execute(command)
         busy = false
         // The profiler's record of it.
