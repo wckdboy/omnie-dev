@@ -155,6 +155,8 @@ final class AppModel {
 
     let policy = PolicyModel()
     let workspace: WorkspaceModel
+    /// Definitions, references, rename, quick info and completions (TypeScript and JavaScript).
+    let language: LanguageModel
     let models: ModelsModel
     let docs: DocsModel
     let agent: AgentModel
@@ -179,12 +181,17 @@ final class AppModel {
         models = ModelsModel(policy: policy)
         docs = DocsModel(policy: policy)
         agent = AgentModel(workspace: workspace, models: models, policy: policy)
+        language = LanguageModel(workspace: workspace)
         agent.snippets = snippets
         agent.isOffline = { [weak self] in self?.isOffline ?? false }
         workspace.onProjectOpened = { [weak self, agent] root in
             agent.attach(root)
+            self?.language.reset()
             self?.restoreLayout(for: root)
         }
+        workspace.onEdited = { [weak self] in self?.language.edited() }
+        workspace.onProjectClosed = { [weak self] in self?.language.reset() }
+        workspace.suppressesGhostText = { [weak self] in self?.language.completions != nil }
         workspace.completionModel = { [models] in
             guard models.inlineSuggestions else { return nil }
             return await models.tinyModel()
@@ -218,8 +225,42 @@ final class AppModel {
             EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: [.alternate, .shift], id: "editor.copyLineDown"),
             // ⌃ shortcuts don't reach the menu while the editor has focus.
             EditorKeyCommand(input: "r", modifiers: .control, id: "file.projects"),
+            EditorKeyCommand(input: " ", modifiers: .control, id: "editor.suggest"),
+            EditorKeyCommand(input: UIKeyCommand.f12, modifiers: [], id: "editor.goToDefinition"),
+            EditorKeyCommand(input: UIKeyCommand.f12, modifiers: .shift, id: "editor.findReferences"),
         ]
-        workspace.editor.onKeyCommand = { [weak self] id in self?.registry.run(CommandID(rawValue: id)) }
+        // A long press on code offers what VS Code's context menu does, for TypeScript and JavaScript.
+        workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
+            guard let self, self.language.isAvailable else { return [] }
+            let run = { (id: String) in { (_: UIAction) in self.registry.run(CommandID(rawValue: id)) } }
+            return [
+                UIAction(title: "Go to Definition", image: UIImage(systemName: "arrow.turn.down.right"), handler: run("editor.goToDefinition")),
+                UIAction(title: "Find All References", image: UIImage(systemName: "list.bullet.indent"), handler: run("editor.findReferences")),
+                UIAction(title: "Rename Symbol…", image: UIImage(systemName: "pencil"), handler: run("editor.rename")),
+                UIAction(title: "Type & Docs", image: UIImage(systemName: "info.circle"), handler: run("editor.quickInfo")),
+            ]
+        }
+        // A completion list takes ↑ ↓ ⏎ ⇥ ⎋ while it shows.
+        workspace.editor.dynamicKeyCommands = { [weak self] in
+            guard self?.language.completions != nil else { return [] }
+            return [
+                EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: [], id: "completion.previous"),
+                EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: [], id: "completion.next"),
+                EditorKeyCommand(input: "\r", modifiers: [], id: "completion.accept"),
+                EditorKeyCommand(input: "\t", modifiers: [], id: "completion.accept"),
+                EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "completion.dismiss"),
+            ]
+        }
+        workspace.editor.onKeyCommand = { [weak self] id in
+            guard let self else { return }
+            switch id {
+            case "completion.previous": language.moveSelection(-1)
+            case "completion.next": language.moveSelection(1)
+            case "completion.accept": language.accept()
+            case "completion.dismiss": language.dismiss()
+            default: registry.run(CommandID(rawValue: id))
+            }
+        }
         startMonitors()
     }
 
@@ -385,6 +426,31 @@ final class AppModel {
                     shortcut: Shortcut("j"), surfaces: .ide, keywords: ["panel", "terminal"]) { [weak self] in
                 // An empty bottom dock gets the terminal, the usual thing to want there.
                 self?.toggle(.bottom)
+            },
+            Command(id: "editor.goToDefinition", title: "Go to definition", menu: "Edit",
+                    shortcut: Shortcut("j", [.command, .control]), surfaces: .ide, keywords: ["jump", "declaration", "f12"]) { [weak self] in
+                guard let self else { return }
+                Task { await self.language.goToDefinition() }
+            },
+            Command(id: "editor.findReferences", title: "Find all references", menu: "Edit",
+                    shortcut: Shortcut("j", [.command, .control, .shift]), surfaces: .ide, keywords: ["usages", "callers", "where used"]) { [weak self] in
+                guard let self else { return }
+                Task { await self.language.findReferences() }
+            },
+            Command(id: "editor.rename", title: "Rename symbol…", menu: "Edit",
+                    shortcut: Shortcut("e", [.command, .control]), surfaces: .ide, keywords: ["refactor", "f2"]) { [weak self] in
+                guard let self else { return }
+                Task { await self.language.startRename() }
+            },
+            Command(id: "editor.quickInfo", title: "Show type and docs", menu: "Edit",
+                    shortcut: Shortcut("i", [.command, .control]), surfaces: .ide, keywords: ["hover", "quick info", "signature", "documentation"]) { [weak self] in
+                guard let self else { return }
+                Task { await self.language.showInfo() }
+            },
+            Command(id: "editor.suggest", title: "Show completions", menu: "Edit",
+                    surfaces: .ide, keywords: ["intellisense", "autocomplete", "suggest"]) { [weak self] in
+                guard let self else { return }
+                Task { await self.language.complete() }
             },
             Command(id: "editor.toggleComment", title: "Toggle line comment", menu: "Edit",
                     shortcut: Shortcut("/"), surfaces: .ide, keywords: ["comment out", "uncomment"]) { [weak self] in

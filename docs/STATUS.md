@@ -82,7 +82,9 @@ Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with com
 - **Projects:** New project (⌃⌘N) from Empty, TypeScript (with a Vitest test), Python (pytest-style) or Web page templates, as a git repository; the project switcher (⌃R, or the project's name at the left of the status strip) with every way to start, filterable recent projects and Close folder; with no project, the editor area shows a start page (new, open, clone, sample, recent).
 - `WorkbenchUITests` covers closing and restoring panels and docks, the keyboard, the line commands, and new/switch/close project. `LayoutShotsUITests` captures each preset in both orientations (`TEST_RUNNER_OMNIE_SHOTS_DIR`).
 
-Still behind VS Code: language servers (go to definition, references, rename, completions beyond ghost text), code folding, multi-cursor editing beyond Runestone's, a debugger, extensions, and a formatter.
+- **Code intelligence for TypeScript and JavaScript (1.2):** the TypeScript language service (the one VS Code uses) runs offline and stays up per project in RunKit's sandbox (`LanguageService`), fed the editor's unsaved text. Go to definition (⌃⌘J or F12), find all references (⇧⌃⌘J or ⇧F12; grouped by file with each line, declarations marked), rename symbol across the project (⌃⌘E: the open file through the editor as one undo step, the others on disk), type and docs at the caret (⌃⌘I), and completions as you type after a dot or two letters (⌃Space asks; ↑ ↓ ⏎ ⇥ ⎋; the chosen one's signature and docs below; Settings can turn the as-you-type list off). A long press on code puts Go to Definition, Find All References, Rename Symbol and Type & Docs first in the edit menu (engine patch 0015, `omnie-dev-editor-engine` 0.6.7). `LanguageServiceTests` and `CodeIntelUITests`.
+
+Still behind VS Code: language intelligence for Python and the rest, code folding, multi-cursor commands (the engine has carets; ⌘D isn't wired yet), a debugger, extensions, and a formatter.
 
 ## P4 online power: HostKit started
 

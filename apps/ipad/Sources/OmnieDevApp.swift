@@ -151,8 +151,11 @@ struct OmnieDevApp: App {
                         // Comma-separated: each opens in a tab; the last stays a preview tab.
                         let files = args[i + 1].split(separator: ",").map(String.init)
                         for (n, file) in files.enumerated() {
-                            // `path:line` puts the caret on that line.
-                            if let colon = file.lastIndex(of: ":"), let line = Int(file[file.index(after: colon)...]) {
+                            // `path:line` or `path:line:column` puts the caret there.
+                            let parts = file.split(separator: ":").map(String.init)
+                            if parts.count == 3, let line = Int(parts[1]), let column = Int(parts[2]) {
+                                model.workspace.open(path: parts[0], line: line, column: column)
+                            } else if let colon = file.lastIndex(of: ":"), let line = Int(file[file.index(after: colon)...]) {
                                 model.workspace.open(path: String(file[..<colon]), line: line, column: nil)
                             } else {
                                 model.workspace.open(file: root.appending(path: file), preview: n == files.count - 1)

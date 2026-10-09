@@ -35,6 +35,13 @@ const project = (path) => "omnie-run://local/" + path.split("/").map(encodeURICo
       });
       worker.terminate();
       send({ type: "done" });
+    } else if (params.get("mode") === "language") {
+      // Long-lived: Swift sends requests through omnieLanguage(), replies come back as messages.
+      const worker = new Worker("omnie-run://local/__omnie/runtime/language-worker.js");
+      worker.onmessage = (e) => send(e.data);
+      worker.onerror = (e) => send({ type: "error", text: e.message || "Language service failed" });
+      window.omnieLanguage = (request) => worker.postMessage(request);
+      send({ type: "ready" });
     } else if (params.get("mode") === "typecheck") {
       const worker = new Worker("omnie-run://local/__omnie/runtime/typecheck-worker.js");
       await new Promise((resolve) => {

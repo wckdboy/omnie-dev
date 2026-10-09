@@ -198,6 +198,8 @@ extension View {
             .sheet(isPresented: $model.remotesSheetOpen) { RemotesSheet() }
             .sheet(isPresented: $model.pullRequestsOpen) { PullRequestsSheet() }
             .sheet(isPresented: $model.projectsOpen) { ProjectsSheet() }
+            .sheet(item: Binding(get: { model.language.references }, set: { model.language.references = $0 })) { ReferencesSheet(list: $0) }
+            .sheet(item: Binding(get: { model.language.renaming }, set: { model.language.renaming = $0 })) { RenameSheet(request: $0) }
             .sheet(isPresented: $model.newProjectOpen) { NewProjectSheet() }
             .fullScreenCover(isPresented: $model.editorSpikeOpen) { EditorSpikeView() }
             .fullScreenCover(isPresented: $model.modelSpikeOpen) { ModelSpikeView() }

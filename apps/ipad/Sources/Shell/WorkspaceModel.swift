@@ -53,6 +53,11 @@ final class WorkspaceModel {
     @ObservationIgnored var completionModel: (() async -> TextModel?)?
     /// Called after a project opens (the agent shows that project's tasks).
     @ObservationIgnored var onProjectOpened: ((URL) -> Void)?
+    /// After each edit in the editor (completions as you type).
+    @ObservationIgnored var onEdited: (() -> Void)?
+    @ObservationIgnored var onProjectClosed: (() -> Void)?
+    /// Whether ghost text should stay away (a completion list is showing).
+    @ObservationIgnored var suppressesGhostText: () -> Bool = { false }
     @ObservationIgnored private var suggestionTask: Task<Void, Never>?
     @ObservationIgnored private var editGeneration = 0
 
@@ -90,6 +95,7 @@ final class WorkspaceModel {
             if let i = tabs.firstIndex(where: { $0.url == openFile }), tabs[i].isPreview { tabs[i].isPreview = false }
             scheduleAutosave()
             scheduleSuggestion()
+            onEdited?()
         }
         recentProjects = recents.available().map(\.ref)
         editor.onSelectionChange = { [weak self] range in
@@ -470,6 +476,7 @@ final class WorkspaceModel {
         policy.projectRoot = nil
         recentFiles = []
         problems.clear()
+        onProjectClosed?()
         Task { await git.detach() }
     }
 
@@ -525,7 +532,7 @@ final class WorkspaceModel {
                                                 stop: FIM.qwenStops + ["\n"])
             guard !Task.isCancelled, generation == editGeneration, let raw else { return }
             let suggestion = FIM.trim(raw, suffix: suffix)
-            if !suggestion.isEmpty { editor.showGhostText(suggestion, at: selection.location) }
+            if !suggestion.isEmpty, !suppressesGhostText() { editor.showGhostText(suggestion, at: selection.location) }
         }
     }
 

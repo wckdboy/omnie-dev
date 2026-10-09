@@ -267,17 +267,34 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
 
     public func scrollRangeToVisible(_ range: NSRange) { textView.scrollRangeToVisible(range) }
 
+    /// Replaces a range (UTF-16) through the text view: one undo step, the delegate hears it, and
+    /// the caret ends after the new text.
+    @discardableResult
+    public func replace(_ range: NSRange, with text: String) -> Bool {
+        guard let start = textView.position(from: textView.beginningOfDocument, offset: range.location),
+              let end = textView.position(from: start, offset: range.length),
+              let textRange = textView.textRange(from: start, to: end) else { return false }
+        textView.replace(textRange, withText: text)
+        return true
+    }
+
+    /// The caret's rectangle in `view`'s coordinates (for a popup beside it).
+    public func caretRect(in view: UIView?) -> CGRect? {
+        guard let position = textView.selectedTextRange?.end else { return nil }
+        let rect = textView.caretRect(for: position)
+        return view.map { textView.convert(rect, to: $0) } ?? rect
+    }
+
     /// Shortcuts claimed while the editor has focus, and what runs them (the app's commands).
     public var keyCommands: [EditorKeyCommand] = []
+    /// More, for now only (a completion list's ↑ ↓ ⏎ ⇥ ⎋ while it shows).
+    public var dynamicKeyCommands: (() -> [EditorKeyCommand])?
     public var onKeyCommand: ((String) -> Void)?
 
     /// A line command, applied through the text view so it's one undo step and the delegate hears it.
     public func perform(_ edit: LineEdit, comment: LineEdit.CommentStyle, indentUnit: String) {
         guard let result = edit.apply(to: textView.text, selection: textView.selectedRange, comment: comment, indentUnit: indentUnit),
-              let start = textView.position(from: textView.beginningOfDocument, offset: result.range.location),
-              let end = textView.position(from: start, offset: result.range.length),
-              let range = textView.textRange(from: start, to: end) else { return }
-        textView.replace(range, withText: result.replacement)
+              replace(result.range, with: result.replacement) else { return }
         let length = (textView.text as NSString).length
         let location = min(result.selection.location, length)
         textView.selectedRange = NSRange(location: location, length: min(result.selection.length, length - location))
@@ -458,7 +475,7 @@ public final class EditorHostView: UIView {
     }
 
     public override var keyCommands: [UIKeyCommand]? {
-        (controller?.keyCommands ?? []).map { command in
+        ((controller?.dynamicKeyCommands?() ?? []) + (controller?.keyCommands ?? [])).map { command in
             let key = UIKeyCommand(title: "", action: #selector(runKeyCommand(_:)), input: command.input,
                                    modifierFlags: UIKeyModifierFlags(rawValue: command.modifiers), propertyList: command.id)
             key.wantsPriorityOverSystemBehavior = true

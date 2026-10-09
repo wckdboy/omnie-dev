@@ -44,6 +44,19 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Toggle("Completions as you type", isOn: Binding(get: { model.language.completesAsYouType },
+                                                                   set: { model.language.completesAsYouType = $0 }))
+                    Toggle("Wrap long lines", isOn: Binding(get: { model.wordWrap }, set: { model.wordWrap = $0 }))
+                    Toggle("Minimap", isOn: Binding(get: { model.showsMinimap }, set: { model.showsMinimap = $0 }))
+                    Stepper("Text size \(Int((model.workspace.fontScale * 100).rounded())) %", value: Binding(
+                        get: { Double(model.workspace.fontScale) }, set: { model.workspace.fontScale = CGFloat($0) }), in: 0.6...2.5, step: 0.1)
+                } header: {
+                    Text("Editor")
+                } footer: {
+                    Text("TypeScript and JavaScript get definitions, references, rename and completions from the TypeScript language service on this iPad; ⌃Space asks for completions any time.")
+                }
+
                 ModelsSection()
                 OnlineModelSection()
 

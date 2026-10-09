@@ -42,6 +42,10 @@ struct EditorPane: View {
                         .overlay(alignment: .top) {
                             StickyScopes(scopes: Outline.enclosing(line: firstLine, in: scopes).filter { $0.startLine < firstLine && $0.endLine > firstLine })
                         }
+                        .overlay(alignment: .bottom) {
+                            if let card = model.language.info { InfoCardView(card: card) }
+                        }
+                        .overlay { CompletionLayer() }
                     // The whole file at a glance, marks included; tap or drag to scroll (PLAN.md §5.1).
                     if model.showsMinimap && model.layout != .single {
                         MinimapStrip(controller: workspace.editor)
@@ -345,5 +349,25 @@ struct StartPage: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(palette.accent.ion.color)
+    }
+}
+
+/// Puts the completion list under the caret (above it near the bottom), inside the editor.
+private struct CompletionLayer: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        GeometryReader { geo in
+            if let list = model.language.completions,
+               let caret = model.workspace.editor.caretRect(in: model.workspace.editor.textView.superview) {
+                let below = caret.maxY + 220 < geo.size.height
+                CompletionPopup(list: list)
+                    .frame(width: 380)
+                    .position(x: min(max(190, caret.minX + 190), geo.size.width - 190),
+                              y: below ? caret.maxY + 110 : caret.minY - 110)
+                    .transition(.opacity)
+            }
+        }
+        .allowsHitTesting(model.language.completions != nil)
     }
 }
