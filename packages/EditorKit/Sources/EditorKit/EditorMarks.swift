@@ -66,6 +66,7 @@ public struct EditorMark: Hashable, Sendable {
 extension CodeEditorController {
     /// Replaces all marks. Cheap to call often: only marks in view are laid out.
     public func setMarks(_ marks: [EditorMark]) {
+        marksVersion += 1
         self.marks = marks
         textView.decorations = marks.map { $0.decoration(in: theme.palette) }
     }

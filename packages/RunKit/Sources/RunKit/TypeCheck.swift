@@ -19,6 +19,17 @@ public struct TypeDiagnostic: Sendable, Hashable, Identifiable {
     public let start: Int?
     public let length: Int?
 
+    public init(code: Int, category: Category, message: String, path: String?, line: Int?, column: Int?, start: Int?, length: Int?) {
+        self.code = code
+        self.category = category
+        self.message = message
+        self.path = path
+        self.line = line
+        self.column = column
+        self.start = start
+        self.length = length
+    }
+
     /// "src/a.ts:3:7 error TS2322: …"
     public var summary: String {
         let place = path.map { "\($0):\(line ?? 0):\(column ?? 0) " } ?? ""

@@ -11,7 +11,10 @@ import SwiftUI
 @MainActor
 @Observable
 final class ProblemsModel {
-    private(set) var diagnostics: [TypeDiagnostic] = []
+    private(set) var typeDiagnostics: [TypeDiagnostic] = []
+    /// Shader compile errors from the Stage, until it reloads.
+    var stageDiagnostics: [TypeDiagnostic] = [] { didSet { onUpdate?() } }
+    var diagnostics: [TypeDiagnostic] { typeDiagnostics + stageDiagnostics }
     private(set) var isChecking = false
     private(set) var failure: String?
     /// Called after a check, so the open file's marks can be refreshed.
@@ -23,7 +26,8 @@ final class ProblemsModel {
 
     func clear() {
         task?.cancel()
-        diagnostics = []
+        typeDiagnostics = []
+        stageDiagnostics = []
         failure = nil
         isChecking = false
         onUpdate?()
@@ -40,7 +44,7 @@ final class ProblemsModel {
 
     func check(root: URL) async {
         guard await Task.detached(operation: { JSRunner.hasTypeScript(root) }).value else {
-            if !diagnostics.isEmpty { diagnostics = []; onUpdate?() }
+            if !typeDiagnostics.isEmpty { typeDiagnostics = []; onUpdate?() }
             return
         }
         isChecking = true
@@ -52,7 +56,7 @@ final class ProblemsModel {
         print("[types] \(result.report.split(separator: "\n").last ?? "")")
         #endif
         failure = result.failure
-        if result.failure == nil { diagnostics = result.diagnostics }
+        if result.failure == nil { typeDiagnostics = result.diagnostics }
         onUpdate?()
     }
 
@@ -76,11 +80,11 @@ struct ProblemsLabel: View {
         let problems = model.workspace.problems
         if problems.errors + problems.warnings > 0 {
             Button { model.problemsOpen = true } label: {
-                Label("\(problems.errors) \(problems.errors == 1 ? "error" : "errors")", systemImage: "xmark.octagon")
+                Label("\(problems.errors) \(problems.errors == 1 ? "problem" : "problems")", systemImage: "xmark.octagon")
                     .foregroundStyle(problems.errors > 0 ? palette.status.error.color : palette.status.warn.color)
             }
             .buttonStyle(.plain)
-            .accessibilityHint("Lists type errors")
+            .accessibilityHint("Lists type and shader errors")
         } else if problems.isChecking {
             Text("Checking types…")
         }
@@ -114,7 +118,7 @@ struct ProblemsSheet: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(d.message).font(.system(size: 13))
                                         if let line = d.line {
-                                            Text(verbatim: "Line \(line), column \(d.column ?? 1) · TS\(d.code)")
+                                            Text(verbatim: "Line \(line), column \(d.column ?? 1)" + (d.code > 0 ? " · TS\(d.code)" : " · shader"))
                                                 .font(.system(size: 11, design: .monospaced))
                                                 .foregroundStyle(palette.text.secondary.color)
                                         }

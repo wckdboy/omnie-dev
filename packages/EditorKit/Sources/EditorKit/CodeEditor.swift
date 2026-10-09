@@ -45,6 +45,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     }
     /// Marks as last set; their live ranges are in `textView.decorations`.
     var marks: [EditorMark] = []
+    /// Bumped by every setMarks, so a load doesn't apply marks that were replaced while it ran.
+    var marksVersion = 0
 
     /// An inline suggestion drawn after the caret (PLAN.md §7 ghost text). It isn't part of the
     /// text: Tab inserts it, and any edit or caret move clears it.
@@ -102,6 +104,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         self.language = language
         loadGeneration += 1
         let generation = loadGeneration
+        let marksAtStart = marksVersion
         let box = UncheckedState()
         box.theme = theme
         Task.detached(priority: .userInitiated) {
@@ -110,7 +113,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             await MainActor.run {
                 guard generation == self.loadGeneration, let state = box.state else { return }
                 self.textView.setState(state)
-                self.setMarks(marks)
+                // Newer marks (set while this loaded) win over the ones passed in.
+                self.setMarks(self.marksVersion == marksAtStart ? marks : self.marks)
                 self.onLoaded?()
                 guard let language else {
                     self.onHighlighted?()

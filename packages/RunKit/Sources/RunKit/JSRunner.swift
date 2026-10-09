@@ -255,7 +255,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if full.hasPrefix("__omnie/npm-raw/") { area = "npm-raw"; path = String(full.dropFirst("__omnie/npm-raw/".count)) }
         if full.hasPrefix("__omnie/source/") { area = "source"; path = String(full.dropFirst("__omnie/source/".count)) }
         do {
-            let (data, mime) = try body(area: area, path: path)
+            let (data, mime) = try body(area: area, path: path, query: url.query() ?? "")
             let headers = ["Content-Type": mime, "Content-Length": String(data.count), "Content-Security-Policy": Self.csp,
                            "Cache-Control": "no-store"]
             task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)
@@ -298,7 +298,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         NpmCache.sharedRoot.map { NpmModules.importMap(project: resolver.root, cache: $0) } ?? [:]
     }
 
-    func body(area: String, path: String) throws -> (Data, String) {
+    func body(area: String, path: String, query: String = "") throws -> (Data, String) {
         if area == "python-packages" {
             let (lock, wheels) = PyCache.sharedRoot.map { PyCache.resolve(project: resolver.root, cache: $0) } ?? ([], [])
             let urls = wheels.map { "omnie-run://local/__omnie/pypi/" + $0 }
@@ -349,6 +349,14 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if name.hasSuffix(".html") || name.hasSuffix(".htm") {
             return (Data(PackageCache.inject(into: String(decoding: data, as: UTF8.self), adding: npmImports).utf8), "text/html")
         }
+        // Shaders, and `?raw` imports (Vite's convention), are strings. Shaders register their text
+        // so the Stage can map compile errors back to the file.
+        let shader = Self.shaderExtensions.contains((name as NSString).pathExtension.lowercased())
+        if shader || query.split(separator: "&").contains("raw") {
+            let text = Self.jsString(String(decoding: data, as: UTF8.self))
+            let register = shader ? "(globalThis.__omnieShaders ??= new Map()).set(text, \(Self.jsString(path)));\n" : ""
+            return (Data("const text = \(text);\n\(register)export default text;\n".utf8), "text/javascript")
+        }
         if name.hasSuffix(".json") {
             return (Data("export default \(String(decoding: data, as: UTF8.self));".utf8), "text/javascript")
         }
@@ -358,6 +366,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         }
         return (data, Self.mimeTypes[(name as NSString).pathExtension.lowercased()] ?? "application/octet-stream")
     }
+
+    nonisolated static let shaderExtensions: Set<String> = ["glsl", "vert", "frag", "vs", "fs", "wgsl"]
 
     nonisolated static let mimeTypes: [String: String] = [
         "js": "text/javascript", "mjs": "text/javascript", "cjs": "text/javascript",
