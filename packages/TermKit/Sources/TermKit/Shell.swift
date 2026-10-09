@@ -229,7 +229,7 @@ public final class Shell {
     }
 
     /// Whether a command's output reads as a failure (stops `a && b`).
-    static func failed(_ output: String) -> Bool {
+    public static func failed(_ output: String) -> Bool {
         output.contains("not a built-in command") || output.contains(" failed, ") || output.hasPrefix("Exited with")
             || output.contains("\nExited with") || output.contains("error TS") || output.hasPrefix("No task")
     }

@@ -18,7 +18,7 @@ struct ToolsPanel: View {
     @State private var tool = Tool.http
 
     enum Tool: String, CaseIterable, Identifiable {
-        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff", snippets = "Snippets", colors = "Colors"
+        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff", snippets = "Snippets", colors = "Colors", runs = "Runs"
         var id: Self { self }
     }
 
@@ -54,6 +54,7 @@ struct ToolsPanel: View {
             case .diff: DiffTool()
             case .snippets: SnippetsTool()
             case .colors: ColorsTool()
+            case .runs: RunsTool()
             }
         }
         // "Compare open file with…" in the palette lands here.
@@ -64,7 +65,10 @@ struct ToolsPanel: View {
         // `-OmnieTools Patterns` opens that tool.
         .task {
             let args = ProcessInfo.processInfo.arguments
-            if let i = args.firstIndex(of: "-OmnieTools"), args.indices.contains(i + 1), let t = Tool(rawValue: args[i + 1]) { tool = t }
+            // `-OmnieToolsPick Runs` picks the tool without switching tabs.
+            for flag in ["-OmnieTools", "-OmnieToolsPick"] {
+                if let i = args.firstIndex(of: flag), args.indices.contains(i + 1), let t = Tool(rawValue: args[i + 1]) { tool = t }
+            }
         }
         #endif
         .background(palette.surface.pane.color)

@@ -72,6 +72,8 @@ final class AppModel {
     var terminalRequest: String?
     /// A file for the diff tool's left side ("Compare open file with…").
     var diffLeft: String?
+    /// Terminal commands this session and what they cost (the profiler, PLAN.md §11.2).
+    var runLog: [RunRecord] = []
     /// A new snippet to edit ("Save selection as snippet").
     var snippetRequest: SnippetVault.Snippet?
     /// The snippet vault (PLAN.md §11.1), in Application Support.

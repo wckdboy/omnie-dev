@@ -78,6 +78,15 @@ public enum Preview {
             }
           };
 
+          // The profiler: the page's own performance.measure()s.
+          try {
+            new PerformanceObserver((list) => {
+              for (const e of list.getEntries()) {
+                try { window.webkit.messageHandlers.omnieConsole.postMessage({ level: "perf", text: JSON.stringify({ name: e.name, ms: Math.round(e.duration * 10) / 10, start: Math.round(e.startTime) }) }); } catch {}
+              }
+            }).observe({ type: "measure", buffered: true });
+          } catch {}
+
           // DevTools-lite, elements: an outline of the DOM, and an inspector that outlines one node.
           window.__omnieDOM = () => {
             let count = 0;

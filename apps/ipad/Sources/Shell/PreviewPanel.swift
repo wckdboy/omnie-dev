@@ -20,8 +20,9 @@ struct PreviewPanel: View {
     @State private var dom: [(node: RunKit.Preview.DOMNode, depth: Int)] = []
     @State private var inspected: RunKit.Preview.ElementInfo?
     @State private var inspectedPath: [Int]?
+    @State private var measures: [(name: String, ms: Double, start: Int)] = []
 
-    enum Drawer: String, CaseIterable { case console = "Console", network = "Network", elements = "Elements" }
+    enum Drawer: String, CaseIterable { case console = "Console", network = "Network", elements = "Elements", perf = "Perf" }
 
     var body: some View {
         let workspace = model.workspace
@@ -51,6 +52,13 @@ struct PreviewPanel: View {
                 .padding(.vertical, 8)
                 Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
                 PreviewWebView(root: root, url: url, reloadToken: reloadToken + workspace.changeCount, ref: webViewRef) { level, text in
+                    if level == "perf" {
+                        if let d = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] {
+                            measures.append((d["name"] as? String ?? "", (d["ms"] as? NSNumber)?.doubleValue ?? 0, (d["start"] as? NSNumber)?.intValue ?? 0))
+                            if measures.count > 300 { measures.removeFirst(measures.count - 300) }
+                        }
+                        return
+                    }
                     if level == "network" {
                         if let entry = try? JSONDecoder().decode(RunKit.Preview.NetworkEntry.self, from: Data(text.utf8)) {
                             network.append(entry)
@@ -64,7 +72,7 @@ struct PreviewPanel: View {
                     console.append((level, text))
                     if console.count > 500 { console.removeFirst(console.count - 500) }
                 } onReload: {
-                    console.removeAll(); network.removeAll(); dom = []; inspected = nil; inspectedPath = nil
+                    console.removeAll(); network.removeAll(); measures.removeAll(); dom = []; inspected = nil; inspectedPath = nil
                 }
                 .id(url)
                 // A Markdown preview follows the caret: the block holding its line scrolls into view.
@@ -84,6 +92,7 @@ struct PreviewPanel: View {
                         case .console: consoleList
                         case .network: networkList
                         case .elements: elementsList
+                        case .perf: perfList
                         }
                     }
                     .frame(height: 240)
@@ -158,6 +167,31 @@ struct PreviewPanel: View {
             .font(.system(.caption2, design: .monospaced))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+        }
+    }
+
+    private var perfList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 3) {
+                if measures.isEmpty {
+                    Text("No measures. In the page: performance.mark(\"a\"); …; performance.measure(\"step\", \"a\").")
+                        .foregroundStyle(palette.text.secondary.color)
+                }
+                let top = max(1, measures.map(\.ms).max() ?? 1)
+                ForEach(Array(measures.enumerated()), id: \.offset) { _, m in
+                    HStack(spacing: 8) {
+                        Text(m.name).lineLimit(1).frame(width: 140, alignment: .leading)
+                        GeometryReader { geo in
+                            Rectangle().fill(palette.accent.ion.color.opacity(0.6)).frame(width: max(2, geo.size.width * m.ms / top))
+                        }
+                        .frame(height: 8)
+                        Text(String(format: "%.1f ms", m.ms)).monospacedDigit().frame(width: 70, alignment: .trailing)
+                        Text("@\(m.start)").foregroundStyle(palette.text.secondary.color).frame(width: 50, alignment: .trailing)
+                    }
+                }
+            }
+            .font(.system(.caption2, design: .monospaced))
             .padding(8)
         }
     }

@@ -25,6 +25,8 @@ struct TerminalPanel: View {
     @State private var errorsOnly = false
     @State private var expanded: Set<UUID> = []
     @State private var projectFiles: Set<String> = []
+    /// The last WASI run's resources, for the run log.
+    @State private var lastWasm: (fuel: Int64?, memory: Int?)?
 
     struct Line: Identifiable {
         let id = UUID()
@@ -109,6 +111,8 @@ struct TerminalPanel: View {
             // `-OmnieTerminal "ls; cd src; cat a.ts"` types commands into the terminal.
             if let i = args.firstIndex(of: "-OmnieTerminal"), args.indices.contains(i + 1) {
                 for command in args[i + 1].split(separator: ";") { await submit(String(command)) }
+                // `-OmnieThenTools`: show the Tools tab afterwards (with `-OmnieTools Runs`, the profiler).
+                if args.contains("-OmnieThenTools") { model.show(.tools) }
             }
         }
         #endif
@@ -184,6 +188,7 @@ struct TerminalPanel: View {
                 let target = program.hasSuffix(".wasm") ? program : JSRunner.projectTools(in: root)[program] ?? program
                 do {
                     let result = await (try JSRunner(root: root)).runWasm(target, args: args, cwd: cwd)
+                    lastWasm = (result.fuelUsed, result.memoryPeak)
                     if !result.changedFiles.isEmpty { workspace.reloadFromDisk() }
                     let report = result.report == "(no output)" ? "" : result.report
                     // Under `time`, the run's fuel and memory too.
@@ -218,8 +223,16 @@ struct TerminalPanel: View {
         lines.append(Line(kind: .command, text: "\(shell.prompt) \(command)"))
         busy = true
         let started = Date()
+        lastWasm = nil
         let output = await shell.execute(command)
         busy = false
+        // The profiler's record of it.
+        if command != "clear", let output {
+            let failed = Shell.failed(output) || LogLine.isError(output.split(separator: "\n").last.map(String.init) ?? "")
+            model.runLog.append(RunRecord(command: command, date: .now, ms: Int(Date().timeIntervalSince(started) * 1000),
+                                          fuel: lastWasm?.fuel, memory: lastWasm?.memory, ok: !failed))
+            if model.runLog.count > 300 { model.runLog.removeFirst(model.runLog.count - 300) }
+        }
         #if DEBUG
         print("[term] $ \(command)  (\(Int(Date().timeIntervalSince(started) * 1000)) ms)\n\(output ?? "")")
         #endif
