@@ -74,6 +74,8 @@ struct OmnieDevApp: App {
                     if let i = args.firstIndex(of: "-OmnieAgentEval") {
                         await AgentEval.run(model, label: args.indices.contains(i + 1) ? args[i + 1] : "eval")
                     }
+                    // `-OmnieRunTests` opens the Run panel and runs the project's tests.
+                    if args.contains("-OmnieRunTests") { model.show(.terminal) }
                     // `-OmnieAgentDemo` runs a scripted agent task in the open project (UI checks).
                     if args.contains("-OmnieAgentDemo") {
                         try? await Task.sleep(for: .milliseconds(800))

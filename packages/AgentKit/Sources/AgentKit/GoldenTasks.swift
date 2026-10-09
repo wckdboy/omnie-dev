@@ -12,6 +12,17 @@ public struct GoldenTask: Sendable, Identifiable {
     public let files: [String: String]
     /// Returns nil when the result is right, or what's wrong.
     public let check: @Sendable (_ read: (String) -> String?) -> String?
+    /// The project's own tests must pass afterwards (checked by the app with RunKit).
+    public var testsMustPass = false
+
+    public init(id: String, goal: String, files: [String: String], testsMustPass: Bool = false,
+                check: @escaping @Sendable (_ read: (String) -> String?) -> String?) {
+        self.id = id
+        self.goal = goal
+        self.files = files
+        self.testsMustPass = testsMustPass
+        self.check = check
+    }
 
     /// Writes the fixture into `root` (which must be empty or missing).
     public func materialize(at root: URL) throws {
@@ -34,7 +45,9 @@ extension GoldenTask {
     static func firstFailure(_ checks: String?...) -> String? { checks.compactMap { $0 }.first }
 
     public static let all: [GoldenTask] = [farewell, rename, fixAdd, constants, readme,
-                                           pythonDefault, swiftGuard, jsonScript, cssColor, extractConstant, todoComment, testCase]
+                                           pythonDefault, swiftGuard, jsonScript, cssColor, extractConstant, todoComment, testCase,
+                                           htmlTitle, pythonOffByOne, optionalParam, removeFunction, moveConstant, swiftEnum,
+                                           ciNode, gitignore, docComment, pythonFunction, cssRule, typos, failingTest]
 
     static let farewell = GoldenTask(
         id: "farewell",
@@ -195,5 +208,179 @@ extension GoldenTask {
                 expect(test.contains("add(2,3)"), "there's no test calling add(2, 3)"),
                 expect(test.contains(").toBe(5)") || test.contains(").toEqual(5)"), "it doesn't expect 5"),
                 expect(test.contains("expect(add(1,0)).toBe(1)"), "the existing test was removed"))
+        })
+
+    static let htmlTitle = GoldenTask(
+        id: "html-title",
+        goal: "Change the page title in index.html to Omnie Shop",
+        files: ["index.html": "<!doctype html>\n<html>\n  <head>\n    <title>Vite App</title>\n  </head>\n  <body>\n    <div id=\"app\"></div>\n  </body>\n</html>\n"],
+        check: { read in
+            let html = read("index.html") ?? ""
+            return firstFailure(
+                expect(html.contains("<title>Omnie Shop</title>"), "the title isn't Omnie Shop"),
+                expect(!html.contains("Vite App"), "the old title is still there"),
+                expect(html.contains("<div id=\"app\"></div>"), "the body changed"))
+        })
+
+    static let pythonOffByOne = GoldenTask(
+        id: "python-off-by-one",
+        goal: "total_up_to(n) in calc.py should include n itself (total_up_to(3) is 6) but it returns 3. Fix it.",
+        files: ["calc.py": "def total_up_to(n):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n"],
+        check: { read in
+            let py = (read("calc.py") ?? "").replacingOccurrences(of: " ", with: "")
+            return firstFailure(
+                expect(py.contains("range(n+1)") || py.contains("range(1,n+1)") || py.contains("n*(n+1)//2"), "it still stops before n"),
+                expect(py.contains("deftotal_up_to(n)"), "the function signature changed"))
+        })
+
+    static let optionalParam = GoldenTask(
+        id: "optional-param",
+        goal: "Give greet in src/greet.ts a second, optional greeting parameter that defaults to \"Hello\" and is used instead of the fixed word",
+        files: ["src/greet.ts": "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n"],
+        check: { read in
+            let ts = (read("src/greet.ts") ?? "").replacingOccurrences(of: " ", with: "")
+            return firstFailure(
+                expect(ts.contains("greeting=\"Hello\"") || ts.contains("greeting:string=\"Hello\"") || ts.contains("greeting='Hello'")
+                       || ts.contains("greeting:string='Hello'"), "there's no greeting parameter defaulting to \"Hello\""),
+                expect(ts.contains("${greeting}"), "the greeting isn't used in the message"),
+                expect(ts.contains("${name}"), "the name was dropped"))
+        })
+
+    static let removeFunction = GoldenTask(
+        id: "remove-function",
+        goal: "Remove the unused function legacyFormat from src/format.ts",
+        files: ["src/format.ts": "export function formatPrice(cents: number): string {\n  return `$${(cents / 100).toFixed(2)}`;\n}\n\nexport function legacyFormat(cents: number): string {\n  return cents + \" cents\";\n}\n"],
+        check: { read in
+            let ts = read("src/format.ts") ?? ""
+            return firstFailure(
+                expect(!ts.contains("legacyFormat") && !ts.contains("\" cents\""), "legacyFormat is still there"),
+                expect(ts.contains("function formatPrice") && ts.contains("toFixed(2)"), "formatPrice was changed"))
+        })
+
+    static let moveConstant = GoldenTask(
+        id: "move-constant",
+        goal: "Move the TAX_RATE constant from src/checkout.ts into a new file src/config.ts, export it there, and import it in src/checkout.ts",
+        files: ["src/checkout.ts": "const TAX_RATE = 0.2;\n\nexport function withTax(amount: number): number {\n  return amount * (1 + TAX_RATE);\n}\n"],
+        check: { read in
+            let config = (read("src/config.ts") ?? "").replacingOccurrences(of: " ", with: "")
+            let checkout = read("src/checkout.ts") ?? ""
+            return firstFailure(
+                expect(config.contains("exportconstTAX_RATE=0.2"), "src/config.ts doesn't export TAX_RATE = 0.2"),
+                expect(!checkout.contains("const TAX_RATE"), "src/checkout.ts still defines TAX_RATE"),
+                expect(checkout.contains("import") && checkout.contains("TAX_RATE") && checkout.contains("config"), "src/checkout.ts doesn't import it"),
+                expect(checkout.contains("amount * (1 + TAX_RATE)"), "withTax changed"))
+        })
+
+    static let swiftEnum = GoldenTask(
+        id: "swift-enum",
+        goal: "Add a purple case to the Tint enum in Sources/Tint.swift, with the hex value 8E5CF7",
+        files: ["Sources/Tint.swift": "enum Tint: String {\n    case cyan = \"3DD6F5\"\n    case amber = \"F5B83D\"\n}\n"],
+        check: { read in
+            let swift = (read("Sources/Tint.swift") ?? "").uppercased().replacingOccurrences(of: " ", with: "")
+            return firstFailure(
+                expect(swift.contains("CASEPURPLE=\"8E5CF7\""), "there's no purple case with 8E5CF7"),
+                expect(swift.contains("CASECYAN=\"3DD6F5\"") && swift.contains("CASEAMBER"), "the existing cases changed"))
+        })
+
+    static let ciNode = GoldenTask(
+        id: "ci-node",
+        goal: "In the CI workflow, change the Node version from 18 to 20",
+        files: [".github/workflows/ci.yml": "name: CI\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 18\n      - run: npm test\n"],
+        check: { read in
+            let yml = read(".github/workflows/ci.yml") ?? ""
+            return firstFailure(
+                expect(yml.contains("node-version: 20") || yml.contains("node-version: '20'") || yml.contains("node-version: \"20\""), "node-version isn't 20"),
+                expect(!yml.contains("node-version: 18"), "18 is still there"),
+                expect(yml.contains("- run: npm test"), "the steps changed"))
+        })
+
+    static let gitignore = GoldenTask(
+        id: "gitignore",
+        goal: "Make git ignore the dist folder",
+        files: [".gitignore": "node_modules/\n.DS_Store\n", "src/index.ts": "console.log(1);\n"],
+        check: { read in
+            let lines = (read(".gitignore") ?? "").split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            return firstFailure(
+                expect(lines.contains { ["dist", "dist/", "/dist", "/dist/"].contains($0) }, ".gitignore doesn't ignore dist"),
+                expect(lines.contains("node_modules/") && lines.contains(".DS_Store"), "existing entries were removed"))
+        })
+
+    static let docComment = GoldenTask(
+        id: "doc-comment",
+        goal: "Add a doc comment above clamp in src/math.ts that explains what it does",
+        files: ["src/math.ts": "export function clamp(value: number, min: number, max: number): number {\n  return Math.min(Math.max(value, min), max);\n}\n"],
+        check: { read in
+            let ts = read("src/math.ts") ?? ""
+            guard let fn = ts.range(of: "export function clamp") else { return "clamp is gone" }
+            let before = ts[..<fn.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+            return firstFailure(
+                expect(before.hasSuffix("*/") || before.split(separator: "\n").last?.trimmingCharacters(in: .whitespaces).hasPrefix("//") == true,
+                       "there's no comment right above clamp"),
+                expect(ts.contains("Math.min(Math.max(value, min), max)"), "clamp's body changed"))
+        })
+
+    static let pythonFunction = GoldenTask(
+        id: "python-function",
+        goal: "Add an is_even function to utils.py that returns True for even numbers",
+        files: ["utils.py": "def is_positive(n):\n    return n > 0\n"],
+        check: { read in
+            let py = (read("utils.py") ?? "").replacingOccurrences(of: " ", with: "")
+            return firstFailure(
+                expect(py.contains("defis_even("), "there's no is_even"),
+                expect(py.contains("%2==0") || py.contains("%2!=1") || py.contains("&1==0"), "is_even doesn't test divisibility by 2"),
+                expect(py.contains("defis_positive(n):") && py.contains("returnn>0"), "is_positive changed"))
+        })
+
+    static let cssRule = GoldenTask(
+        id: "css-rule",
+        goal: "Add a .hidden class to styles.css that hides an element",
+        files: ["styles.css": ".card {\n  padding: 16px;\n}\n"],
+        check: { read in
+            let css = (read("styles.css") ?? "").replacingOccurrences(of: " ", with: "")
+            return firstFailure(
+                expect(css.contains(".hidden{") && (css.contains("display:none") || css.contains("visibility:hidden")), "there's no .hidden rule that hides"),
+                expect(css.contains(".card{") && css.contains("padding:16px"), ".card changed"))
+        })
+
+    static let typos = GoldenTask(
+        id: "typos",
+        goal: "Fix the spelling mistakes in README.md",
+        files: ["README.md": "# notes\n\nYou will recieve an email when teh build finishes.\n"],
+        check: { read in
+            let md = read("README.md") ?? ""
+            return firstFailure(
+                expect(md.contains("receive") && md.contains("the build"), "the typos aren't fixed"),
+                expect(!md.contains("recieve") && !md.contains("teh "), "a typo is still there"),
+                expect(md.contains("# notes"), "the heading changed"))
+        })
+
+    static let slugifyTest = """
+        import { describe, it, expect } from "vitest";
+        import { add, slugify } from "../src/util";
+
+        describe("util", () => {
+          it("adds", () => {
+            expect(add(2, 3)).toBe(5);
+          });
+          it("slugifies", () => {
+            expect(slugify("Hello World")).toBe("hello-world");
+          });
+          it("slugifies punctuation", () => {
+            expect(slugify("Hi, there!")).toBe("hi-there");
+          });
+        });
+
+        """
+
+    static let failingTest = GoldenTask(
+        id: "failing-test",
+        goal: "A test is failing. Run the tests, then fix the code (not the test) so they all pass.",
+        files: [
+            "src/util.ts": "export function add(a: number, b: number): number {\n  return a + b;\n}\n\nexport function slugify(text: string): string {\n  return text.toLowerCase().replace(/ /g, \"-\");\n}\n",
+            "tests/util.test.ts": slugifyTest,
+        ],
+        testsMustPass: true,
+        check: { read in
+            expect(read("tests/util.test.ts") == slugifyTest, "the test file was changed")
         })
 }

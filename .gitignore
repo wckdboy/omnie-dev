@@ -21,3 +21,8 @@ packages/LangKit/REUSE.toml
 apps/ipad/Resources/WASISpike/
 
 __pycache__/
+
+# Built by scripts/vendor-runkit.sh
+packages/RunKit/Sources/RunKit/JS/sucrase.js
+packages/RunKit/Sources/RunKit/JS/sucrase-LICENSE.txt
+scripts/runkit/node_modules/

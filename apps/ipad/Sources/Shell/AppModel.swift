@@ -111,8 +111,10 @@ final class AppModel {
     }
 
     /// Brings up the Agent pane (the status pill and "Show agent").
-    func showAgent() {
-        utilityTab = .agent
+    func showAgent() { show(.agent) }
+
+    func show(_ tab: UtilityTab) {
+        utilityTab = tab
         withAnimation(Motion.pane) { showUtility(true) }
     }
 

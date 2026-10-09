@@ -20,7 +20,8 @@ struct GoldenTaskTests {
     }
 
     @Test func everyFixtureStartsUnsolved() throws {
-        for task in GoldenTask.all {
+        // Tasks judged by the project's tests start unsolved in a way only RunKit can see.
+        for task in GoldenTask.all where !task.testsMustPass {
             #expect(task.verify(at: try fresh(task)) != nil, "\(task.id)")
         }
     }
@@ -61,6 +62,36 @@ struct GoldenTaskTests {
             try edit(root, "tests/math.test.ts") {
                 $0.replacingOccurrences(of: "  });\n});", with: "  });\n  it(\"adds\", () => {\n    expect(add(2, 3)).toBe(5);\n  });\n});")
             }
+        case "html-title":
+            try edit(root, "index.html") { $0.replacingOccurrences(of: "Vite App", with: "Omnie Shop") }
+        case "python-off-by-one":
+            try edit(root, "calc.py") { $0.replacingOccurrences(of: "range(n)", with: "range(n + 1)") }
+        case "optional-param":
+            try edit(root, "src/greet.ts") {
+                $0.replacingOccurrences(of: "(name: string)", with: "(name: string, greeting: string = \"Hello\")")
+                    .replacingOccurrences(of: "`Hello,", with: "`${greeting},")
+            }
+        case "remove-function":
+            try edit(root, "src/format.ts") { String($0[..<$0.range(of: "\nexport function legacyFormat")!.lowerBound]) }
+        case "move-constant":
+            try edit(root, "src/config.ts") { _ in "export const TAX_RATE = 0.2;\n" }
+            try edit(root, "src/checkout.ts") { $0.replacingOccurrences(of: "const TAX_RATE = 0.2;", with: "import { TAX_RATE } from \"./config\";") }
+        case "swift-enum":
+            try edit(root, "Sources/Tint.swift") { $0.replacingOccurrences(of: "\n}", with: "\n    case purple = \"8E5CF7\"\n}") }
+        case "ci-node":
+            try edit(root, ".github/workflows/ci.yml") { $0.replacingOccurrences(of: "node-version: 18", with: "node-version: 20") }
+        case "gitignore":
+            try edit(root, ".gitignore") { $0 + "dist/\n" }
+        case "doc-comment":
+            try edit(root, "src/math.ts") { "/** Keeps value between min and max. */\n" + $0 }
+        case "python-function":
+            try edit(root, "utils.py") { $0 + "\n\ndef is_even(n):\n    return n % 2 == 0\n" }
+        case "css-rule":
+            try edit(root, "styles.css") { $0 + "\n.hidden {\n  display: none;\n}\n" }
+        case "failing-test":
+            try edit(root, "src/util.ts") { $0.replacingOccurrences(of: ".replace(/ /g, \"-\")", with: ".replace(/[^a-z0-9]+/g, \"-\").replace(/^-|-$/g, \"\")") }
+        case "typos":
+            try edit(root, "README.md") { $0.replacingOccurrences(of: "recieve", with: "receive").replacingOccurrences(of: "teh", with: "the") }
         default:
             Issue.record("no solution for \(task.id)")
         }

@@ -4,6 +4,7 @@
 #if DEBUG
 import AgentKit
 import Foundation
+import RunKit
 import ModelKit
 
 /// Runs the golden task set (AgentKit.GoldenTask) against the local 7B, each task in a fresh
@@ -33,12 +34,17 @@ enum AgentEval {
             do { try task.materialize(at: root) } catch { print("[eval] fixture failed: \(error)"); continue }
             // Outside the project, as in the app: the agent's grep must not find its own journal.
             let journal = Journal(url: root.deletingLastPathComponent().appending(path: "\(root.lastPathComponent).jsonl"))
-            let runner = AgentRunner(goal: task.goal, model: model, tools: standardTools(root: root), journal: journal,
+            let runner = AgentRunner(goal: task.goal, model: model, tools: AgentModel.tools(root: root), journal: journal,
                                      authorize: { _, _ in true })
             let t0 = Date()
             let outcome = await runner.run()
             let seconds = Date().timeIntervalSince(t0)
-            let failure = task.verify(at: root)
+            var failure = task.verify(at: root)
+            if failure == nil, task.testsMustPass {
+                let files = JSRunner.testFiles(in: root)
+                let result = await (try? JSRunner(root: root))?.runTests(files)
+                if result?.passed != true { failure = "the tests don't pass: \(result?.tests.filter { !$0.passed }.map(\.name).joined(separator: ", ") ?? "couldn't run")" }
+            }
             let steps = journal.entries().filter { $0.kind == .assistant }.count
             let row = Row(task: task.id, passed: failure == nil, failure: failure, outcome: "\(outcome)", steps: steps, seconds: seconds)
             rows.append(row)

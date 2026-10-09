@@ -1,0 +1,8 @@
+{
+  "name": "omnie-runkit-vendor",
+  "private": true,
+  "description": "Pins the JavaScript RunKit bundles (scripts/vendor-runkit.sh).",
+  "dependencies": {
+    "sucrase": "3.35.1"
+  }
+}

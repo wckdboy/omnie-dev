@@ -137,7 +137,7 @@ final class AgentModel {
         }
         let policy = policy
         let runner = AgentRunner(
-            goal: record.goal, model: model, tools: standardTools(root: URL(filePath: record.worktreePath)),
+            goal: record.goal, model: model, tools: Self.tools(root: URL(filePath: record.worktreePath)),
             journal: journal(for: record),
             authorize: { action, artifact in await policy.authorize(action, by: .agent, artifact: artifact) },
             onEntry: { entry in
@@ -254,6 +254,14 @@ final class AgentModel {
     }
 
     // MARK: Helpers
+
+    /// The typed tools plus RunKit's runners, all confined to the task's worktree.
+    nonisolated static func tools(root: URL) -> [any AgentTool] {
+        standardTools(root: root) + [
+            RunTestsTool { file in await AgentRuns.tests(root: root, file: file) },
+            RunScriptTool { file in await AgentRuns.script(root: root, file: file) },
+        ]
+    }
 
     private func journal(for record: TaskRecord) -> Journal {
         Journal(url: folder.appendingPathComponent("\(record.id.uuidString).jsonl"))

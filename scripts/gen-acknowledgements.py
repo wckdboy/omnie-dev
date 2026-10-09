@@ -69,6 +69,12 @@ def main() -> None:
         repo, tag = pins.GRAMMARS[folder.name][:2]
         items.append(entry(f"tree-sitter-{folder.name}", tag.lstrip("v"), [folder / "LICENSE"], f"https://github.com/{repo}"))
 
+    # RunKit's TypeScript transpiler (scripts/vendor-runkit.sh).
+    sucrase = ROOT / "packages/RunKit/Sources/RunKit/JS/sucrase-LICENSE.txt"
+    if not sucrase.exists():
+        sys.exit(f"missing {sucrase}; run scripts/vendor-runkit.sh")
+    items.append(entry("Sucrase", "3.35.1", [sucrase], "https://github.com/alangpierce/sucrase"))
+
     # The WASI spike's runtime and tests, when vendored into this build.
     spike = ROOT / "apps/ipad/Resources/WASISpike"
     if spike.exists():
