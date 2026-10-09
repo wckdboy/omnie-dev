@@ -195,6 +195,7 @@ extension View {
             .sheet(isPresented: $model.branchSheetOpen) { BranchSheet() }
             .fullScreenCover(isPresented: $model.editorSpikeOpen) { EditorSpikeView() }
             .fullScreenCover(isPresented: $model.modelSpikeOpen) { ModelSpikeView() }
+            .fullScreenCover(isPresented: $model.webGPUSpikeOpen) { WebGPUSpikeView() }
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }
