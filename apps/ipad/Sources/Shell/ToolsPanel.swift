@@ -2,20 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import DesignKit
+import GitKit
 import PolicyKit
 import RunKit
 import SecretsKit
 import SwiftUI
 import ToolsKit
+import WorkspaceKit
 
-/// The Tools tab (PLAN.md §11.1): the curated, offline tools. First two: the SQLite browser and
-/// the Patterns lab.
+/// The Tools tab (PLAN.md §11.1): the curated, offline tools: the HTTP client, the SQLite browser,
+/// the Patterns lab and the diff tool.
 struct ToolsPanel: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
     @State private var tool = Tool.http
 
     enum Tool: String, CaseIterable, Identifiable {
-        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns"
+        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff"
         var id: Self { self }
     }
 
@@ -31,8 +34,12 @@ struct ToolsPanel: View {
             case .http: HTTPTool()
             case .sqlite: SQLiteTool()
             case .patterns: PatternsTool()
+            case .diff: DiffTool()
             }
         }
+        // "Compare open file with…" in the palette lands here.
+        .onChange(of: model.diffLeft) { if model.diffLeft != nil { tool = .diff } }
+        .onAppear { if model.diffLeft != nil { tool = .diff } }
         #if DEBUG
         // `-OmnieTools Patterns` opens that tool.
         .task {
@@ -526,5 +533,109 @@ private struct SecretsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+    }
+}
+
+/// The diff tool (PLAN.md §11.1): any two files, or pasted text, compared with git's diff, the
+/// same engine and colors as reviews and the conflict resolver.
+private struct DiffTool: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+    @State private var left = Side()
+    @State private var right = Side()
+    @State private var files: [String] = []
+
+    struct Side: Equatable {
+        var file: String?
+        var text = ""
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                sideEditor("Before", $left)
+                Button { swap(&left, &right) } label: { Image(systemName: "arrow.left.arrow.right") }
+                    .accessibilityLabel("Swap sides").padding(.top, 6)
+                sideEditor("After", $right)
+            }
+            let diff = FileDiff.texts(contents(left), contents(right), oldName: left.file ?? "before", newName: right.file ?? "after")
+            HStack {
+                Text("+\(diff.additions)").foregroundStyle(palette.status.ok.color)
+                Text("−\(diff.deletions)").foregroundStyle(palette.status.error.color)
+                Text(diff.hunks.isEmpty ? "No differences" : "\(diff.hunks.count) \(diff.hunks.count == 1 ? "change" : "changes")")
+                    .foregroundStyle(palette.text.secondary.color)
+            }
+            .font(.caption)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(diff.hunks) { hunk in
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(hunk.header.components(separatedBy: "@@").dropFirst().first.map { "@@\($0)@@" } ?? hunk.header)
+                                .foregroundStyle(palette.text.tertiary.color)
+                            ForEach(Array(hunk.lines.prefix(400).enumerated()), id: \.offset) { _, line in
+                                Text(line.isEmpty ? " " : line)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(line.hasPrefix("+") ? palette.diff.addedBg.color : line.hasPrefix("-") ? palette.diff.removedBg.color : .clear)
+                            }
+                        }
+                    }
+                }
+                .font(.system(.caption2, design: .monospaced))
+                .textSelection(.enabled)
+            }
+        }
+        .padding(12)
+        .task(id: model.workspace.rootURL) {
+            if let root = model.workspace.rootURL { files = await Task.detached { ProjectSearch.files(in: root) }.value }
+        }
+        .onAppear(perform: takeRequest)
+        .onChange(of: model.diffLeft) { takeRequest() }
+    }
+
+    private func takeRequest() {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-OmnieDiffRight"), args.indices.contains(i + 1) { right = Side(file: args[i + 1]) }
+        #endif
+        guard let path = model.diffLeft else { return }
+        left = Side(file: path)
+        model.diffLeft = nil
+    }
+
+    private func contents(_ side: Side) -> String {
+        guard let file = side.file, let root = model.workspace.rootURL else { return side.text }
+        // The open file as you see it, saved or not.
+        if model.workspace.relativePath == file { return model.workspace.editor.text }
+        return (try? String(contentsOf: root.appending(path: file), encoding: .utf8)) ?? ""
+    }
+
+    private func sideEditor(_ title: String, _ side: Binding<Side>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Menu {
+                    Button("Text") { side.wrappedValue.file = nil }
+                    Divider()
+                    ForEach(files.prefix(300), id: \.self) { path in Button(path) { side.wrappedValue.file = path } }
+                } label: {
+                    Label(side.wrappedValue.file ?? "\(title): text", systemImage: side.wrappedValue.file == nil ? "text.alignleft" : "doc")
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Spacer()
+                if side.wrappedValue.file == nil {
+                    Button { side.wrappedValue.text = UIPasteboard.general.string ?? "" } label: { Image(systemName: "doc.on.clipboard") }
+                        .accessibilityLabel("Paste the clipboard as \(title.lowercased())")
+                }
+            }
+            .font(.caption)
+            if side.wrappedValue.file == nil {
+                TextEditor(text: side.text)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(height: 110)
+                    .scrollContentBackground(.hidden)
+                    .background(palette.surface.raised.color, in: RoundedRectangle(cornerRadius: Metrics.Radius.sm))
+                    .autocorrectionDisabled().textInputAutocapitalization(.never)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 }

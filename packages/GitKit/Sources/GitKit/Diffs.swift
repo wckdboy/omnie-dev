@@ -171,3 +171,32 @@ extension FileDiff {
         return lines.joined(separator: "\n") + (trailingNewline || lines.isEmpty ? "\n" : "")
     }
 }
+
+extension FileDiff {
+    /// Two texts compared with git's diff (the diff tool, PLAN.md §11.1: same engine as reviews and
+    /// the conflict resolver). `context` lines around each change.
+    public static func texts(_ old: String, _ new: String, oldName: String = "a", newName: String = "b", context: Int = 3) -> FileDiff {
+        _ = Libgit2.initialize
+        var options = git_diff_options()
+        git_diff_options_init(&options, UInt32(GIT_DIFF_OPTIONS_VERSION))
+        options.context_lines = UInt32(context)
+        var patch: OpaquePointer?
+        let oldData = Array(old.utf8), newData = Array(new.utf8)
+        let status = oldData.withUnsafeBufferPointer { o in
+            newData.withUnsafeBufferPointer { n in
+                git_patch_from_buffers(&patch, o.baseAddress, o.count, oldName, n.baseAddress, n.count, newName, &options)
+            }
+        }
+        defer { git_patch_free(patch) }
+        guard status == 0, let patch else {
+            return FileDiff(path: newName, kind: .modified, additions: 0, deletions: 0, isBinary: false, patch: "")
+        }
+        var additions = 0, deletions = 0
+        git_patch_line_stats(nil, &additions, &deletions, patch)
+        var buf = git_buf()
+        defer { git_buf_dispose(&buf) }
+        let text = git_patch_to_buf(&buf, patch) == 0
+            ? buf.ptr.map { String(decoding: UnsafeRawBufferPointer(start: $0, count: buf.size), as: UTF8.self) } ?? "" : ""
+        return FileDiff(path: newName, kind: .modified, additions: additions, deletions: deletions, isBinary: false, patch: text)
+    }
+}

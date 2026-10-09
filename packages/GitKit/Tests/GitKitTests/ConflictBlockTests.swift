@@ -35,3 +35,17 @@ struct ConflictBlockTests {
         #expect(both == "import a\nlet x = 3\nmiddle\nend")
     }
 }
+
+struct TextDiffTests {
+    @Test func comparesTwoTexts() {
+        let diff = FileDiff.texts("a\nb\nc\nd\n", "a\nB\nc\nd\ne\n", oldName: "one.txt", newName: "two.txt")
+        #expect(diff.additions == 2 && diff.deletions == 1)
+        #expect(diff.hunks.count == 1)
+        #expect(diff.hunks[0].removed == ["b"] && diff.hunks[0].added == ["B", "e"])
+        #expect(FileDiff.texts("same\n", "same\n").hunks.isEmpty)
+        // Far-apart changes are separate hunks with less context.
+        let lines = (1...40).map { "line \($0)" }
+        var changed = lines; changed[2] = "x"; changed[35] = "y"
+        #expect(FileDiff.texts(lines.joined(separator: "\n"), changed.joined(separator: "\n"), context: 1).hunks.count == 2)
+    }
+}

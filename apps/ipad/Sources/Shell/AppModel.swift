@@ -67,6 +67,8 @@ final class AppModel {
     var problemsOpen = false
     /// A command for the terminal to run (the palette's "Run task: …").
     var terminalRequest: String?
+    /// A file for the diff tool's left side ("Compare open file with…").
+    var diffLeft: String?
     /// The docs sheet's starting query, or nil when it's closed.
     var docsQuery: String?
     var focusMode = false
@@ -248,6 +250,11 @@ final class AppModel {
             },
             Command(id: "task.build", title: "Run task: build", menu: "File", keywords: ["compile", "npm run build", "workspace"]) { [weak self] in
                 self?.runTask("build")
+            },
+            Command(id: "tools.compare", title: "Compare open file with…", menu: "File", keywords: ["diff", "compare", "difference", "clipboard"]) { [weak self] in
+                guard let self, let path = workspace.relativePath else { return }
+                diffLeft = path
+                show(.tools)
             },
             Command(id: "problems.show", title: "Show problems", menu: "File",
                     shortcut: Shortcut("m", [.command, .shift]), keywords: ["type errors", "diagnostics", "typescript", "tsc", "check types"]) { [weak self] in
