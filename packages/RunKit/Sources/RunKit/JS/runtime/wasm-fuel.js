@@ -113,10 +113,13 @@ self.omnieInstrumentFuel = function instrument(input, fuel) {
     // New global and export sections.
     const fuelGlobal = [0x7e, 0x01, 0x42, ...sleb64(BigInt(fuel)), 0x0b];
     const out = [];
-    const section = (id, payload) => { out.push(id, ...uleb(payload.length)); for (const b of payload) out.push(b); };
+    // Appends without spreading: JavaScriptCore caps a call's arguments (~65k), which a big
+    // function body exceeds.
+    const append = (to, from) => { for (let i = 0; i < from.length; i++) to.push(from[i]); };
+    const section = (id, payload) => { out.push(id); append(out, uleb(payload.length)); append(out, payload); };
     const withCount = (s, extra) => {
       const r = new Reader(bytes, s.body); const n = r.u32();
-      return [...uleb(n + 1), ...bytes.subarray(r.p, s.end), ...extra];
+      const result = uleb(n + 1); append(result, bytes.subarray(r.p, s.end)); append(result, extra); return result;
     };
     let wroteGlobals = false, wroteExports = false;
     for (const b of bytes.subarray(0, 8)) out.push(b);
@@ -146,15 +149,15 @@ self.omnieInstrumentFuel = function instrument(input, fuel) {
           // Locals stay as they are.
           const localsStart = r.p;
           for (let n = r.u32(); n > 0; n--) { r.skipLEB(); r.skip(1); }
-          for (const b of bytes.subarray(localsStart, r.p)) body.push(b);
-          body.push(...charge); // function entry
+          append(body, bytes.subarray(localsStart, r.p));
+          append(body, charge); // function entry
           while (r.p < bodyEnd) {
             const opStart = r.p, op = r.byte();
             skipImmediates(r, op);
-            for (const b of bytes.subarray(opStart, r.p)) body.push(b);
-            if (op === 0x03) body.push(...charge); // each loop iteration
+            append(body, bytes.subarray(opStart, r.p));
+            if (op === 0x03) append(body, charge); // each loop iteration
           }
-          payload.push(...uleb(body.length), ...body);
+          append(payload, uleb(body.length)); append(payload, body);
         }
         section(10, payload);
         continue;

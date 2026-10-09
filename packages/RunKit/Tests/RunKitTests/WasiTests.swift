@@ -164,5 +164,28 @@ struct WasiToolTests {
         let bad = await runner.runWasm("jq", args: [".users[", "data.json"])
         #expect(bad.exitCode == 3 && bad.output.first?.text.hasPrefix("jq: error") == true, "\(bad.report)")
     }
+
+    @Test(.enabled(if: JSRunner.bundledTools().contains("rg")))
+    func rg() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("wasi-rg-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root.appending(path: "src"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: root.appending(path: "out"), withIntermediateDirectories: true)
+        try "export const Total = 1;\nconst total = 2;\n".write(to: root.appending(path: "src/a.ts"), atomically: true, encoding: .utf8)
+        try "total\n".write(to: root.appending(path: "notes.md"), atomically: true, encoding: .utf8)
+        try "const total = 3;\n".write(to: root.appending(path: "out/a.js"), atomically: true, encoding: .utf8)
+        try "out\n".write(to: root.appending(path: ".gitignore"), atomically: true, encoding: .utf8)
+        let runner = try JSRunner(root: root)
+        // .gitignore is honored without a .git folder; results are sorted by path.
+        let lines = await runner.runWasm("rg", args: ["-n", "total"])
+        #expect(lines.output.map(\.text) == ["notes.md:1:total", "src/a.ts:2:const total = 2;"] && lines.exitCode == 0, "\(lines.report)")
+        // ripgrep's module is big enough to need the instrumenter's spread-free path in JavaScriptCore.
+        #expect(lines.fuelUsed != nil, "rg ran without a fuel budget")
+        let counts = await runner.runWasm("rg", args: ["-c", "-i", "-t", "ts", "total"])
+        #expect(counts.output.map(\.text) == ["src/a.ts:2"], "\(counts.report)")
+        let none = await runner.runWasm("rg", args: ["-w", "tot"])
+        #expect(none.exitCode == 1 && none.output.isEmpty, "\(none.report)")
+        let files = await runner.runWasm("rg", args: ["--files", "--no-ignore", "-g", "*.js"])
+        #expect(files.output.map(\.text) == ["out/a.js"], "\(files.report)")
+    }
 }
 }

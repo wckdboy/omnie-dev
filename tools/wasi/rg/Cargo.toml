@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
+# SPDX-License-Identifier: Apache-2.0
+# An rg (ripgrep) command for RunKit's WASI sandbox, on ripgrep's own libraries (MIT/Unlicense).
+# Built by scripts/vendor-runkit.sh for wasm32-wasip1.
+[package]
+name = "omnie-rg"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "rg"
+path = "src/main.rs"
+
+[dependencies]
+grep = "=0.3.2"
+ignore = "=0.4.23"
+termcolor = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1

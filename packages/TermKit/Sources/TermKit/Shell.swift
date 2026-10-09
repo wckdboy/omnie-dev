@@ -246,7 +246,7 @@ public final class Shell {
           npm ls          what the project gets from the cache
           pip install [-r requirements.txt | name…]   the same for Python (PyPI and Pyodide's builds)
           pip list
-          jq …, ./tool.wasm …   WASI programs: bundled tools, and .wasm files (tools/ and .omnie/tools/ by name)
+          jq …, rg …, ./x.wasm  WASI programs: bundled tools, and .wasm files (tools/ and .omnie/tools/ by name)
           git status|log|diff|branch
           open <file>     open in the editor
         """
