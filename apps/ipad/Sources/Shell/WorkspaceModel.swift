@@ -40,7 +40,14 @@ final class WorkspaceModel {
         /// Where the caret was, restored when you come back.
         var selection = NSRange(location: 0, length: 0)
     }
-    private(set) var tabs: [EditorTab] = []
+    private(set) var tabs: [EditorTab] = [] { didSet { saveSession() } }
+    /// Off for launches that set up their own files (UI-test fixtures), so an earlier run's tabs
+    /// don't come back into them.
+    @ObservationIgnored var restoresSessions = true
+    /// Off while a project opens, so clearing the last one's tabs doesn't overwrite this one's.
+    @ObservationIgnored private var savesSession = true
+    /// The caret in each open file, as you move it (saved with the session, not on every move).
+    @ObservationIgnored private var carets: [URL: Int] = [:]
     @ObservationIgnored private var watcher: ProjectWatcher?
     /// The model for ghost text, when one is installed and suggestions are on. Set by AppModel.
     @ObservationIgnored var completionModel: (() async -> TextModel?)?
@@ -49,7 +56,7 @@ final class WorkspaceModel {
     @ObservationIgnored private var suggestionTask: Task<Void, Never>?
     @ObservationIgnored private var editGeneration = 0
 
-    private(set) var openFile: URL?
+    private(set) var openFile: URL? { didSet { saveSession() } }
     private(set) var language: Language?
     private(set) var isDirty = false
     /// 1-based caret position for the status strip.
@@ -88,11 +95,61 @@ final class WorkspaceModel {
         editor.onSelectionChange = { [weak self] range in
             guard let self, let location = editor.textView.textLocation(at: range.location) else { return }
             cursor = (location.lineNumber + 1, location.column + 1)
+            if let openFile, !editor.isLoading { carets[openFile] = range.location }
         }
+        // Where the caret is, kept when the app goes to the background.
+        NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.saveSession() }
+        }
+    }
+
+    // MARK: Session (open tabs, the open file and its caret, per project)
+
+    struct Session: Codable, Equatable {
+        struct Tab: Codable, Equatable {
+            var path: String
+            var isPreview: Bool
+            var location: Int
+        }
+        var tabs: [Tab]
+        var open: String?
+    }
+
+    nonisolated static func sessionKey(for root: URL) -> String {
+        AppModel.layoutKey(for: root).replacingOccurrences(of: AppModel.panesKey + "@", with: "tabs.v1@")
+    }
+
+    func saveSession() {
+        guard let rootURL, restoresSessions, savesSession else { return }
+        let session = Session(
+            tabs: tabs.map { Session.Tab(path: relativePath(of: $0.url), isPreview: $0.isPreview, location: carets[$0.url] ?? $0.selection.location) },
+            open: openFile.map(relativePath(of:)))
+        if let data = try? JSONEncoder().encode(session) { UserDefaults.standard.set(data, forKey: Self.sessionKey(for: rootURL)) }
+    }
+
+    /// Brings back the tabs a project had, the open file last, with the caret where it was.
+    /// Files that are gone are skipped.
+    private func restoreSession(_ root: URL) {
+        guard restoresSessions, let data = UserDefaults.standard.data(forKey: Self.sessionKey(for: root)),
+              let session = try? JSONDecoder().decode(Session.self, from: data) else { return }
+        let restored = session.tabs.compactMap { tab -> EditorTab? in
+            let url = root.appending(path: tab.path)
+            guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return nil }
+            return EditorTab(url: url, isPreview: tab.isPreview, selection: NSRange(location: tab.location, length: 0))
+        }
+        guard !restored.isEmpty else { return }
+        tabs = restored
+        for tab in restored { carets[tab.url] = tab.selection.location }
+        let current = session.open.flatMap { path in restored.first { relativePath(of: $0.url) == path } } ?? restored.last!
+        open(file: current.url, preview: current.isPreview)
     }
 
     func open(folder url: URL) {
         if isDirty { saveCurrent() }
+        saveSession()
+        savesSession = false
+        defer { savesSession = true }
+        carets = [:]
         watcher?.stop()
         if isAccessingRoot { rootURL?.stopAccessingSecurityScopedResource() }
         // Folders inside the app container need no grant, so false here is not an error by itself;
@@ -116,6 +173,8 @@ final class WorkspaceModel {
         _ = try? recents.remember(url)
         recentProjects = recents.available().map(\.ref)
         startWatching(url)
+        savesSession = true
+        restoreSession(url)
         problems.clear()
         problems.schedule(root: url, after: .milliseconds(300))
         Task {
@@ -182,7 +241,7 @@ final class WorkspaceModel {
 
     /// Opens a file and, once it's loaded, selects `range` and scrolls to it.
     func open(file url: URL, select range: NSRange) {
-        if openFile == url {
+        if openFile == url, !editor.isLoading {
             // Already loaded: select now.
             let length = (editor.text as NSString).length
             let clamped = NSRange(location: min(range.location, length), length: min(range.length, max(0, length - range.location)))
@@ -190,7 +249,8 @@ final class WorkspaceModel {
             editor.scrollRangeToVisible(clamped)
             return
         }
-        open(file: url)
+        // Not open yet, or still loading (opened a moment ago): select once its text is in.
+        if openFile != url { open(file: url) }
         guard openFile == url else { return }
         editor.onLoaded = { [weak self] in
             guard let self else { return }
@@ -437,15 +497,9 @@ final class WorkspaceModel {
         guard let openFile else { return }
         if FileManager.default.fileExists(atPath: openFile.path(percentEncoded: false)),
            let loaded = try? TextFile.load(openFile, presenter: watcher) {
-            let selection = editor.selectedRange
+            // The editor keeps the caret where it is now (clamped), not where it was when this began.
             editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
             isDirty = false
-            editor.onLoaded = { [weak self] in
-                guard let self else { return }
-                let length = (loaded as NSString).length
-                editor.selectedRange = NSRange(location: min(selection.location, length), length: 0)
-                editor.onLoaded = nil
-            }
         } else {
             closeFile()
         }
@@ -454,14 +508,9 @@ final class WorkspaceModel {
     /// The second editor saved the open file: show its text, unless there are unsaved edits here.
     func reloadOpenFileIfClean() {
         guard let openFile, !isDirty, let loaded = try? TextFile.load(openFile, presenter: watcher), loaded != editor.text else { return }
-        let selection = editor.selectedRange
+        // The editor keeps the caret where it is now (clamped), not where it was when this began.
         editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
         changeCount += 1
-        editor.onLoaded = { [weak self] in
-            guard let self else { return }
-            editor.selectedRange = NSRange(location: min(selection.location, (loaded as NSString).length), length: 0)
-            editor.onLoaded = nil
-        }
     }
 
     /// Re-themes the editor when the appearance or density changes.

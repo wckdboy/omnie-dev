@@ -1,4 +1,4 @@
-# App Review notes and privacy answers (draft)
+# App Review notes and privacy answers (v1.0)
 
 For App Store Connect. Written against PLAN.md §23 (guideline 2.5.2) and the app as it is; read it
 through before pasting, especially the privacy answers, which are yours to give.
@@ -23,6 +23,14 @@ Playgrounds, Pythonista, a-Shell and Code App.
   packages, downloaded when the user asks and kept for offline use), the online model if configured.
   Plane mode in the app blocks all of it.
 - **Git** credentials (SSH keys in the Secure Enclave, tokens) stay in the Keychain on the device.
+- **Pull requests** (Git › Pull Requests…) talk to the forge the project's remote points at
+  (Forgejo, Gitea, GitLab or GitHub), with the token the user saved for that host: opening it lists
+  that repository's open pull requests, and nothing is pushed or created until the user taps
+  "Push and open". Plane mode blocks it like the rest.
+- **Tested before submission:** the full offline "plane test" passes on an iPad Pro (clone, the
+  on-device agent's fix, tests, type check, preview, Stage, commit, the push queued in plane mode
+  and sent after landing, 71 s). An 8-round memory soak with the local model, preview, Stage and
+  tests running at once peaks at 5.9 GB on a 16 GB iPad and doesn't grow.
 
 ## Privacy "nutrition label" (suggested answers)
 

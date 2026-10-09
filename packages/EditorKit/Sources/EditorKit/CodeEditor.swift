@@ -28,6 +28,9 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     public var onLoaded: (() -> Void)?
     private(set) public var language: Language?
     private var loadGeneration = 0
+    private var shownGeneration = 0
+    /// True from `load` until its text is in the view: selection changes meanwhile aren't yours.
+    public var isLoading: Bool { shownGeneration != loadGeneration }
 
     public var theme: EditorTheme {
         didSet {
@@ -238,6 +241,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                 let length = (self.textView.text as NSString).length
                 let location = min(caret.location, length)
                 self.textView.selectedRange = NSRange(location: location, length: min(caret.length, length - location))
+                self.shownGeneration = generation
                 // The state carries the theme from when the load began; if the appearance changed
                 // since (a file opened at launch, before the pane applied light mode), use today's.
                 if box.theme !== self.theme {

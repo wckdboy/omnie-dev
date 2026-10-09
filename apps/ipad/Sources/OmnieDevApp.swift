@@ -331,10 +331,16 @@ struct OmnieDevApp: App {
                     let args = ProcessInfo.processInfo.arguments
                     // Wait for the debug fixtures and the folder's repository (git commands need it).
                     for _ in 0..<100 where !model.launchFolderReady { try? await Task.sleep(for: .milliseconds(100)) }
+                    let commands = args.indices.filter { args[$0] == "-OmnieRunCommand" && args.indices.contains($0 + 1) }
+                    // The last project reopens on its own (in release builds too): its folder, then its repository.
+                    for _ in 0..<50 where !commands.isEmpty && model.workspace.rootURL == nil { try? await Task.sleep(for: .milliseconds(100)) }
                     if let root = model.workspace.rootURL, FileManager.default.fileExists(atPath: root.appending(path: ".git").path(percentEncoded: false)) {
-                        for _ in 0..<50 where model.workspace.git.repo?.workdir.standardizedFileURL.lastPathComponent != root.lastPathComponent {
+                        for _ in 0..<100 where model.workspace.git.repo?.workdir.standardizedFileURL.lastPathComponent != root.lastPathComponent {
                             try? await Task.sleep(for: .milliseconds(100))
                         }
+                    }
+                    if !commands.isEmpty {
+                        print("[launch] \(model.workspace.rootURL?.lastPathComponent ?? "no folder"), repo \(model.workspace.git.repo == nil ? "not open" : "open")")
                     }
                     for (i, arg) in args.enumerated() where arg == "-OmnieRunCommand" && args.indices.contains(i + 1) {
                         model.registry.run(CommandID(rawValue: args[i + 1]))

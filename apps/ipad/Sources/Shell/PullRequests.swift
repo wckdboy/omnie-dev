@@ -35,6 +35,8 @@ struct PullRequestsSheet: View {
     @State private var opened: PullRequest?
 
     private var forgeRepo: ForgeRepo? { remote.flatMap { ForgeRepo(remoteURL: $0.url, kind: kind) } }
+    /// A remote that's a path (or `file://`), with no host to ask.
+    private var isLocal: Bool { remote.map { RemoteInfo.host(of: $0.url) == nil || $0.url.hasPrefix("file:") } ?? false }
     private var requestName: String { (kind ?? .forgejo).requestName }
 
     var body: some View {
@@ -75,17 +77,22 @@ struct PullRequestsSheet: View {
                         Text(forgeRepo.fullName).font(.caption.monospaced()).foregroundStyle(palette.text.tertiary.color)
                     }
                 }
-                Picker("Forge", selection: Binding(get: { kind }, set: { setKind($0) })) {
-                    Text("Not a forge I know").tag(ForgeKind?.none)
-                    ForEach(ForgeKind.allCases) { Text($0.displayName).tag(Optional($0)) }
+                if isLocal {
+                    Text("\(remote.name) is a folder on this device, not a forge, so it has no pull requests.")
+                        .foregroundStyle(palette.text.secondary.color)
+                } else {
+                    Picker("Forge", selection: Binding(get: { kind }, set: { setKind($0) })) {
+                        Text("Not a forge I know").tag(ForgeKind?.none)
+                        ForEach(ForgeKind.allCases) { Text($0.displayName).tag(Optional($0)) }
+                    }
+                    .accessibilityIdentifier("pr-forge")
                 }
-                .accessibilityIdentifier("pr-forge")
                 if let user { LabeledContent("Signed in as", value: user) }
             } else {
                 Text("No remote yet. Add one in Remotes… to open pull requests.").foregroundStyle(palette.text.secondary.color)
             }
         } footer: {
-            if remote != nil, forgeRepo == nil {
+            if remote != nil, forgeRepo == nil, !isLocal {
                 Text("Choose the forge this host runs (Forgejo, Gitea, GitLab or GitHub) to see its \(requestName)s. Git works the same without it.")
             }
         }
@@ -95,7 +102,7 @@ struct PullRequestsSheet: View {
         Section("Open") {
             if loading && pulls.isEmpty {
                 ProgressView().frame(maxWidth: .infinity)
-            } else if pulls.isEmpty {
+            } else if pulls.isEmpty && problem == nil {
                 Text("No open \(requestName)s.").foregroundStyle(palette.text.secondary.color)
             }
             ForEach(pulls) { pull in
@@ -146,7 +153,7 @@ struct PullRequestsSheet: View {
                             if opening { Spacer(); ProgressView() }
                         }
                     }
-                    .disabled(opening || title.trimmingCharacters(in: .whitespaces).isEmpty || base.isEmpty || base == branch)
+                    .disabled(opening || model.networkUnavailable || title.trimmingCharacters(in: .whitespaces).isEmpty || base.isEmpty || base == branch)
                     .accessibilityIdentifier("pr-open")
                 }
             } else {
@@ -220,6 +227,13 @@ struct PullRequestsSheet: View {
     }
 
     private func load() async {
+        // Plane mode and no network block forges like every other request (PLAN.md §12).
+        if model.networkUnavailable {
+            problem = model.policy.planeMode
+                ? "Plane mode is on. \(kind == .gitlab ? "Merge" : "Pull") requests load when it's off."
+                : "No network. \(kind == .gitlab ? "Merge" : "Pull") requests load when you're back online."
+            return
+        }
         guard let forge = forge() else { return }
         loading = true
         defer { loading = false }
@@ -244,7 +258,7 @@ struct PullRequestsSheet: View {
     }
 
     private func open() async {
-        guard let branch, forge() != nil else { return }
+        guard let branch, !model.networkUnavailable, forge() != nil else { return }
         let git = model.workspace.git
         opening = true
         defer { opening = false }

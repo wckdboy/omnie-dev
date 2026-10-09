@@ -185,6 +185,12 @@ final class AppModel {
         let args = ProcessInfo.processInfo.arguments
         // Debug launch arguments open their own folder (fixtures rebuild theirs, so don't reopen it).
         opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmniePRFixture"].contains { args.contains($0) }
+        #if DEBUG
+        // Fixtures and launch files set up the editor themselves; an earlier run's tabs would leak in.
+        if args.contains(where: { $0.hasPrefix("-OmnieUI") || $0 == "-OmniePRFixture" || $0 == "-OmnieOpenFile" }), !args.contains("-OmnieRestoreSessions") {
+            workspace.restoresSessions = false
+        }
+        #endif
         if !opensFolderAtLaunch { workspace.reopenLast() }
         startMonitors()
     }
@@ -240,9 +246,11 @@ final class AppModel {
     }
 
     /// The key a project's layout is kept under: its path from the app's home, which survives
-    /// reinstalls (the container's own path doesn't).
+    /// reinstalls (the container's own path doesn't). A folder from a bookmark ends in "/" and one
+    /// opened by path doesn't; both are the same project.
     nonisolated static func layoutKey(for root: URL) -> String {
-        let path = root.standardizedFileURL.path(percentEncoded: false)
+        var path = root.standardizedFileURL.path(percentEncoded: false)
+        while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
         let home = URL(filePath: NSHomeDirectory()).standardizedFileURL.path(percentEncoded: false)
         return panesKey + "@" + (path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path)
     }

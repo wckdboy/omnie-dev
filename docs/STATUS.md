@@ -87,6 +87,13 @@ Open in P4: a live GitLab check, SSH/mosh tabs, LSP over WebSocket, the remote P
 - **An editor crash:** reloading a file that had shrunk under the caret left the selection past the end, and the keyboard asked Runestone for a line that wasn't there. The caret is now clamped on every load; `ReloadTests` covers it.
 - **The agent wrote to a wrong-case path:** it created `src/Orbit.ts` beside `src/orbit.ts`. A path that matches only when case is ignored is now an error that names the real file, and `create_file` won't make the twin.
 
+**Bug run before 1.0** (every suite, the UI tests, the plane test on the iPad: PASS in 71 s, and the Release build driven through its commands on the iPad) found and fixed:
+- Pull Requests contacted the forge in plane mode; it now waits, and says why. A remote that's a folder on the device says so instead of offering a forge picker.
+- Projects reopened with an empty editor: the open tabs, the open file and its caret now come back per project (`SessionRestoreUITests`).
+- A per-project key mismatch: a folder reopened from its bookmark ends in "/", so its saved pane layout was never found.
+- Jumping to a line while that file was still loading lost the jump; reloading a file changed on disk put the caret back where it was when the reload began.
+- Commands passed at launch (`-OmnieRunCommand`, which Release builds also take) ran before the reopened project's repository was ready.
+
 Still open for v1.0: App Store Connect metadata, which uses the drafts in `docs/release/app-review.md`.
 
 ## How to check things yourself
