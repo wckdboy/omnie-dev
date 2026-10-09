@@ -184,6 +184,19 @@ final class AppModel {
                 guard let self, let folder = workspace.currentFolder else { return }
                 workspace.namePrompt = .init(kind: .newFolder, url: folder)
             },
+            Command(id: "editor.nextTab", title: "Next tab", menu: "View",
+                    shortcut: Shortcut("\t", [.control]), surfaces: .ide, keywords: ["switch tab"]) { [weak self] in
+                self?.workspace.cycleTab(by: 1)
+            },
+            Command(id: "editor.previousTab", title: "Previous tab", menu: "View",
+                    shortcut: Shortcut("\t", [.control, .shift]), surfaces: .ide, keywords: ["switch tab"]) { [weak self] in
+                self?.workspace.cycleTab(by: -1)
+            },
+            Command(id: "editor.closeTab", title: "Close tab", menu: "File",
+                    shortcut: Shortcut("w"), surfaces: .ide, keywords: ["close file"]) { [weak self] in
+                guard let self, let file = workspace.openFile else { return }
+                workspace.closeTab(file)
+            },
             Command(id: "file.quickOpen", title: "Open file…", menu: "File",
                     shortcut: Shortcut("p"), keywords: ["go to file", "quick open", "find file"]) { [weak self] in
                 guard let self, workspace.rootURL != nil else { return }

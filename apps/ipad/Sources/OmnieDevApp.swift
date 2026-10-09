@@ -30,7 +30,9 @@ struct OmnieDevApp: App {
                     // `-OmnieOpenFile <path relative to the folder>` opens a file in the editor.
                     if let i = args.firstIndex(of: "-OmnieOpenFile"), args.indices.contains(i + 1),
                        let root = model.workspace.rootURL {
-                        model.workspace.open(file: root.appending(path: args[i + 1]))
+                        // Comma-separated: each opens in a tab; the last stays a preview tab.
+                        let files = args[i + 1].split(separator: ",").map(String.init)
+                        for (n, file) in files.enumerated() { model.workspace.open(file: root.appending(path: file), preview: n == files.count - 1) }
                     }
                     // `-OmnieDemoMarks` puts sample diagnostics, diff and authorship marks on the open file.
                     if args.contains("-OmnieDemoMarks") {

@@ -15,7 +15,9 @@ struct EditorPane: View {
     var body: some View {
         @Bindable var workspace = model.workspace
         VStack(spacing: 0) {
-            if let path = workspace.relativePath {
+            if workspace.tabs.count > 1 {
+                TabBar()
+            } else if let path = workspace.relativePath {
                 HStack(spacing: 6) {
                     Text(path)
                         .font(.system(size: 12))
@@ -79,5 +81,91 @@ struct Banner: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(palette.surface.raised.color)
+    }
+}
+
+/// Editor tabs (PLAN.md §3.10): italic while previewing, a dirty dot that becomes a close button on
+/// hover, the oldest folded into an overflow menu past 8. Only shown with more than one file.
+struct TabBar: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+    @Environment(\.density) private var density
+
+    static let visibleLimit = 8
+
+    var body: some View {
+        let workspace = model.workspace
+        let tabs = workspace.tabs
+        let overflow = tabs.count > Self.visibleLimit ? Array(tabs.prefix(tabs.count - Self.visibleLimit)) : []
+        let visible = Array(tabs.suffix(Self.visibleLimit))
+        HStack(spacing: 0) {
+            if !overflow.isEmpty {
+                Menu {
+                    ForEach(overflow) { tab in
+                        Button(tab.url.lastPathComponent) { workspace.open(file: tab.url, preview: false) }
+                    }
+                } label: {
+                    Image(systemName: "chevron.left.2").font(.system(size: 11)).frame(width: 28, height: density.tab)
+                }
+                .accessibilityLabel("\(overflow.count) more tabs")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    ForEach(visible) { tab in TabButton(tab: tab) }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(height: density.tab)
+        .background(palette.surface.pane.color)
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline) }
+    }
+}
+
+private struct TabButton: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+    let tab: WorkspaceModel.EditorTab
+    @State private var hovering = false
+
+    var body: some View {
+        let workspace = model.workspace
+        let isCurrent = workspace.openFile == tab.url
+        let dirty = isCurrent && workspace.isDirty
+        HStack(spacing: 6) {
+            Text(tab.url.lastPathComponent)
+                .font(.system(size: 12))
+                .italic(tab.isPreview)
+                .foregroundStyle(isCurrent ? palette.text.primary.color : palette.text.secondary.color)
+                .lineLimit(1)
+            ZStack {
+                if dirty && !hovering {
+                    Circle().fill(palette.text.secondary.color).frame(width: 6, height: 6)
+                } else if hovering || isCurrent {
+                    Button { workspace.closeTab(tab.url) } label: {
+                        Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(palette.text.secondary.color)
+                    .accessibilityLabel("Close \(tab.url.lastPathComponent)")
+                }
+            }
+            .frame(width: 12)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxHeight: .infinity)
+        .background(isCurrent ? palette.surface.editor.color : .clear)
+        .overlay(alignment: .top) { if isCurrent { Rectangle().fill(palette.accent.ion.color).frame(height: 2) } }
+        .overlay(alignment: .trailing) { Rectangle().fill(palette.surface.hairline.color).frame(width: Metrics.hairline) }
+        .contentShape(Rectangle())
+        .onTapGesture { workspace.open(file: tab.url, preview: false) }
+        .onHover { hovering = $0 }
+        .contextMenu {
+            Button("Close") { workspace.closeTab(tab.url) }
+            Button("Close Others") { for other in workspace.tabs where other.url != tab.url { workspace.closeTab(other.url) } }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(tab.url.lastPathComponent + (tab.isPreview ? ", preview" : "") + (dirty ? ", unsaved" : ""))
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 }

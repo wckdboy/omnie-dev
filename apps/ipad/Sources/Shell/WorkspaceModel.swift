@@ -28,6 +28,17 @@ final class WorkspaceModel {
     private(set) var recentProjects: [ProjectRef] = []
     /// Files opened in this project, newest first (quick open lists them first).
     private(set) var recentFiles: [String] = []
+
+    /// Editor tabs (PLAN.md §3.10). A preview tab is replaced by the next file you open, until
+    /// you edit it.
+    struct EditorTab: Identifiable, Equatable {
+        var id: URL { url }
+        var url: URL
+        var isPreview: Bool
+        /// Where the caret was, restored when you come back.
+        var selection = NSRange(location: 0, length: 0)
+    }
+    private(set) var tabs: [EditorTab] = []
     @ObservationIgnored private var watcher: ProjectWatcher?
     /// The model for ghost text, when one is installed and suggestions are on. Set by AppModel.
     @ObservationIgnored var completionModel: (() async -> TextModel?)?
@@ -60,6 +71,7 @@ final class WorkspaceModel {
             guard let self else { return }
             isDirty = true
             editGeneration += 1
+            if let i = tabs.firstIndex(where: { $0.url == openFile }), tabs[i].isPreview { tabs[i].isPreview = false }
             scheduleAutosave()
             scheduleSuggestion()
         }
@@ -81,6 +93,7 @@ final class WorkspaceModel {
         policy.projectRoot = url
         closeFile()
         recentFiles = []
+        tabs = []
         root = nil
         reload()
         guard root != nil else {
@@ -157,6 +170,14 @@ final class WorkspaceModel {
 
     /// Opens a file and, once it's loaded, selects `range` and scrolls to it.
     func open(file url: URL, select range: NSRange) {
+        if openFile == url {
+            // Already loaded: select now.
+            let length = (editor.text as NSString).length
+            let clamped = NSRange(location: min(range.location, length), length: min(range.length, max(0, length - range.location)))
+            editor.selectedRange = clamped
+            editor.scrollRangeToVisible(clamped)
+            return
+        }
         open(file: url)
         guard openFile == url else { return }
         editor.onLoaded = { [weak self] in
@@ -206,10 +227,12 @@ final class WorkspaceModel {
         do {
             let renamed = try FileOperations.rename(url, to: name)
             // Keep the editor on the file (or on a file inside a renamed folder).
-            if let openFile, openFile.path.hasPrefix(url.path) {
-                let rest = String(openFile.path.dropFirst(url.path.count))
-                self.openFile = URL(filePath: renamed.path + rest)
+            func moved(_ u: URL) -> URL? {
+                guard u.path == url.path || u.path.hasPrefix(url.path + "/") else { return nil }
+                return URL(filePath: renamed.path + String(u.path.dropFirst(url.path.count)))
             }
+            if let openFile, let new = moved(openFile) { self.openFile = new }
+            for i in tabs.indices { if let new = moved(tabs[i].url) { tabs[i].url = new } }
             reload()
         } catch { banner = error.localizedDescription }
     }
@@ -224,7 +247,10 @@ final class WorkspaceModel {
         await git.checkpoint(.delete)
         do {
             try FileOperations.delete(url)
-            if let openFile, openFile.path.hasPrefix(url.path) { closeFile() }
+            let gone = { (u: URL) in u.path == url.path || u.path.hasPrefix(url.path + "/") }
+            if let openFile, gone(openFile) { closeFile() }
+            tabs.removeAll { gone($0.url) }
+            if openFile == nil, let next = tabs.first { open(file: next.url, preview: false) }
             reload()
             banner = "Deleted \(url.lastPathComponent). It's in the timeline's checkpoints if you need it back."
         } catch { banner = error.localizedDescription }
@@ -244,7 +270,12 @@ final class WorkspaceModel {
         editor.scrollRangeToVisible(range)
     }
 
-    func open(file url: URL) {
+    func open(file url: URL, preview: Bool = true) {
+        if let current = openFile, current == url {
+            if !preview, let i = tabs.firstIndex(where: { $0.url == url }) { tabs[i].isPreview = false }
+            return
+        }
+        if let current = openFile, let i = tabs.firstIndex(where: { $0.url == current }) { tabs[i].selection = editor.selectedRange }
         if isDirty { saveCurrent() }
         do {
             let loaded = try TextFile.load(url, presenter: watcher)
@@ -253,6 +284,24 @@ final class WorkspaceModel {
             editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
             isDirty = false
             openFile = url
+            if let i = tabs.firstIndex(where: { $0.url == url }) {
+                if !preview { tabs[i].isPreview = false }
+                let selection = tabs[i].selection
+                if selection.location > 0 {
+                    editor.onLoaded = { [weak self] in
+                        guard let self else { return }
+                        let length = (editor.text as NSString).length
+                        let r = NSRange(location: min(selection.location, length), length: 0)
+                        editor.selectedRange = r
+                        editor.scrollRangeToVisible(r)
+                        editor.onLoaded = nil
+                    }
+                }
+            } else if preview, let i = tabs.firstIndex(where: \.isPreview) {
+                tabs[i] = EditorTab(url: url, isPreview: true)
+            } else {
+                tabs.append(EditorTab(url: url, isPreview: preview))
+            }
             if let path = relativePath {
                 recentFiles.removeAll { $0 == path }
                 recentFiles.insert(path, at: 0)
@@ -267,6 +316,24 @@ final class WorkspaceModel {
         } catch {
             banner = "Can't open \(url.lastPathComponent): \(error.localizedDescription)"
         }
+    }
+
+    /// Closes a tab, moving to its neighbor if it was the open one.
+    func closeTab(_ url: URL) {
+        guard let i = tabs.firstIndex(where: { $0.url == url }) else { return }
+        if openFile == url {
+            if isDirty { saveCurrent() }
+            tabs.remove(at: i)
+            if tabs.isEmpty { closeFile() } else { open(file: tabs[min(i, tabs.count - 1)].url, preview: false) }
+        } else {
+            tabs.remove(at: i)
+        }
+    }
+
+    /// ⌃Tab / ⌃⇧Tab.
+    func cycleTab(by step: Int) {
+        guard tabs.count > 1, let current = openFile, let i = tabs.firstIndex(where: { $0.url == current }) else { return }
+        open(file: tabs[(i + step + tabs.count) % tabs.count].url, preview: false)
     }
 
     private func closeFile() {
