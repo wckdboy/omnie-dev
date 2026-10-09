@@ -34,6 +34,9 @@ struct StagePanel: View {
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
                 StageWebView(root: root, model: current) { event in
+                    #if DEBUG
+                    print("[stage] \(event)")
+                    #endif
                     switch event {
                     case .loaded(let meshes, let animations):
                         status = "\(meshes) \(meshes == 1 ? "mesh" : "meshes")" + (animations > 0 ? ", \(animations) animation\(animations == 1 ? "" : "s")" : "")

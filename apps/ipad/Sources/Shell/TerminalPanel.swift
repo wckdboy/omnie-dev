@@ -136,8 +136,12 @@ struct TerminalPanel: View {
         if history.last != command { history.append(command) }
         lines.append(Line(kind: .command, text: "\(shell.prompt) \(command)"))
         busy = true
+        let started = Date()
         let output = await shell.execute(command)
         busy = false
+        #if DEBUG
+        print("[term] $ \(command)  (\(Int(Date().timeIntervalSince(started) * 1000)) ms)\n\(output ?? "")")
+        #endif
         guard let output else { lines = []; return }
         let isError = output.hasSuffix("not a built-in command. Type help to see them.") || output.contains(": outside the project")
         for text in output.split(separator: "\n", omittingEmptySubsequences: false) where !(output.isEmpty) {

@@ -34,7 +34,7 @@ Open: an agreed pass rate on a larger task set; API models (P4) for tasks the lo
 - **Terminal tab (TermKit):** built-in commands over the project (ls, cd, cat, grep, run, test, git status/log/diff, open), Run tests and Run file.
 - **Preview:** a project's index.html live, TypeScript transpiled on the fly, reload on save, console with an error count.
 - **Offline package cache, first tier:** three.js bundled and import-mapped, so `import * as THREE from "three"` works offline in previews, runs and tests.
-- **Stage:** glTF/GLB, OBJ and STL from the project in three.js, with a native performance HUD.
+- **Stage:** glTF/GLB, OBJ and STL from the project in three.js, with a native performance HUD. On the iPad: 60 fps (WKWebView caps animation frames at 60 Hz). Python starts and runs in under a second. See `spikes/runkit-p3.md`.
 - **Tools tab (ToolsKit):** SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
 
 Open: WASI tools in RunKit, npm/PyPI packages beyond the bundled tier, the HTTP client and mock server, Markdown/Mermaid preview, the Stage inspector and shader hot reload, "Prepare for offline".
