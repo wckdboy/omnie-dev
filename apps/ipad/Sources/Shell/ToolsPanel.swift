@@ -3,6 +3,7 @@
 
 import DesignKit
 import PolicyKit
+import SecretsKit
 import SwiftUI
 import ToolsKit
 
@@ -10,10 +11,10 @@ import ToolsKit
 /// the Patterns lab.
 struct ToolsPanel: View {
     @Environment(\.palette) private var palette
-    @State private var tool = Tool.sqlite
+    @State private var tool = Tool.http
 
     enum Tool: String, CaseIterable, Identifiable {
-        case sqlite = "SQLite", patterns = "Patterns"
+        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns"
         var id: Self { self }
     }
 
@@ -26,6 +27,7 @@ struct ToolsPanel: View {
             .padding(12)
             Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
             switch tool {
+            case .http: HTTPTool()
             case .sqlite: SQLiteTool()
             case .patterns: PatternsTool()
             }
@@ -233,5 +235,182 @@ private struct PatternsTool: View {
             .scrollContentBackground(.hidden)
             .background(palette.surface.raised.color, in: RoundedRectangle(cornerRadius: Metrics.Radius.sm))
             .autocorrectionDisabled().textInputAutocapitalization(.never)
+    }
+}
+
+/// The HTTP client (PLAN.md §11.1): requests from the project's `.http` files, sent with
+/// URLSession under the network policy (plane mode blocks them), secrets filled from the Keychain.
+private struct HTTPTool: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+    @State private var file: String?
+    @State private var requests: [HTTPRequestSpec] = []
+    @State private var selected: Int?
+    @State private var result: HTTPResult?
+    @State private var error: String?
+    @State private var sending = false
+    @State private var showSecrets = false
+
+    var body: some View {
+        let root = model.workspace.rootURL
+        let files = root.map(Self.httpFiles(in:)) ?? []
+        VStack(alignment: .leading, spacing: 8) {
+            if let root {
+                HStack {
+                    if files.isEmpty {
+                        Button("Create requests.http") { createSample(root) }.buttonStyle(.bordered)
+                    } else {
+                        Menu {
+                            ForEach(files, id: \.self) { f in Button(f) { load(f, root: root) } }
+                        } label: { Label(file ?? "Choose a .http file", systemImage: "network").font(.system(size: 12, design: .monospaced)) }
+                    }
+                    Spacer()
+                    Button("Secrets") { showSecrets = true }.disabled(requests.isEmpty)
+                }
+                .font(.system(size: 13))
+                .onAppear {
+                    if file == nil, let first = files.first { load(first, root: root) }
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("-OmnieHTTPSend"), let first = requests.first { Task { await send(first) } }
+                    #endif
+                }
+                ForEach(requests) { spec in
+                    HStack {
+                        Text(spec.method).font(.system(size: 11, weight: .semibold, design: .monospaced)).frame(width: 52, alignment: .leading)
+                            .foregroundStyle(palette.accent.ion.color)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(spec.name).font(.system(size: 13)).lineLimit(1)
+                            Text(spec.url).font(.system(size: 11, design: .monospaced)).foregroundStyle(palette.text.secondary.color).lineLimit(1)
+                        }
+                        Spacer()
+                        Button(sending && selected == spec.line ? "…" : "Send") { Task { await send(spec) } }
+                            .buttonStyle(.bordered).font(.system(size: 12)).disabled(sending)
+                    }
+                }
+                if let error { Text(error).font(.system(size: 12)).foregroundStyle(palette.status.error.color) }
+                if let result {
+                    HStack {
+                        Text("\(result.status)").fontWeight(.semibold)
+                            .foregroundStyle(result.status < 300 ? palette.status.ok.color : result.status < 500 ? palette.status.warn.color : palette.status.error.color)
+                        Text("\(result.ms) ms · \(ByteCountFormatter.string(fromByteCount: Int64(result.bytes), countStyle: .file))")
+                            .foregroundStyle(palette.text.secondary.color)
+                        Spacer()
+                        Button("Copy") { UIPasteboard.general.string = result.displayBody }
+                    }
+                    .font(.system(size: 12))
+                    ScrollView {
+                        Text(result.displayBody.prefix(200_000))
+                            .font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    Spacer()
+                }
+            } else {
+                NotYet(title: "HTTP", detail: "Open a project to send the requests in its .http files.")
+            }
+        }
+        .padding(12)
+        .sheet(isPresented: $showSecrets) { SecretsSheet(names: Array(Set(requests.flatMap(HTTPFile.secrets(in:)))).sorted()) }
+    }
+
+    static func httpFiles(in root: URL) -> [String] {
+        var found: [String] = []
+        let base = root.standardizedFileURL.resolvingSymlinksInPath()
+        let e = FileManager.default.enumerator(at: base, includingPropertiesForKeys: nil)
+        while let url = e?.nextObject() as? URL {
+            if [".git", "node_modules", ".build"].contains(url.lastPathComponent) { e?.skipDescendants(); continue }
+            if ["http", "rest"].contains(url.pathExtension.lowercased()) {
+                found.append(String(url.standardizedFileURL.resolvingSymlinksInPath().path.dropFirst(base.path.count + 1)))
+            }
+        }
+        return found.sorted()
+    }
+
+    private func load(_ path: String, root: URL) {
+        file = path
+        requests = HTTPFile.parse((try? String(contentsOf: root.appending(path: path), encoding: .utf8)) ?? "")
+        result = nil
+        error = nil
+    }
+
+    private func createSample(_ root: URL) {
+        let sample = """
+            # Requests for this project. Run them from Tools › HTTP.
+            # Secrets go in {{secret NAME}} placeholders and are kept in the Keychain, not here.
+            @host = https://httpbin.org
+
+            ### Echo a GET
+            GET {{host}}/get?from=omnie
+            Accept: application/json
+
+            ### Post JSON
+            POST {{host}}/post
+            Content-Type: application/json
+
+            {"hello": "world"}
+
+            """
+        try? sample.write(to: root.appending(path: "requests.http"), atomically: true, encoding: .utf8)
+        model.workspace.reload()
+        load("requests.http", root: root)
+    }
+
+    private func send(_ spec: HTTPRequestSpec) async {
+        error = nil
+        selected = spec.line
+        do {
+            let request = try HTTPClient.request(spec) { HTTPSecrets.load($0) }
+            let host = request.url?.host() ?? ""
+            guard await model.policy.authorize(.network(domain: host)) else {
+                error = model.policy.lastRefusal ?? "Not sent."
+                return
+            }
+            sending = true
+            defer { sending = false }
+            result = try await HTTPClient.send(request)
+        } catch {
+            self.error = error.localizedDescription
+            result = nil
+        }
+    }
+}
+
+/// Values for the `{{secret NAME}}` placeholders in the open file, stored in the Keychain.
+private struct SecretsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let names: [String]
+    @State private var values: [String: String] = [:]
+    @State private var revision = 0
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if names.isEmpty {
+                    Text("This file has no {{secret NAME}} placeholders.")
+                }
+                ForEach(names, id: \.self) { name in
+                    Section(name) {
+                        let _ = revision
+                        if HTTPSecrets.load(name) != nil {
+                            HStack {
+                                Label("Saved", systemImage: "key.fill")
+                                Spacer()
+                                Button("Remove", role: .destructive) { HTTPSecrets.delete(name); revision += 1 }
+                            }
+                        } else {
+                            HStack {
+                                SecureField("Value", text: Binding(get: { values[name] ?? "" }, set: { values[name] = $0 }))
+                                Button("Save") { try? HTTPSecrets.save(values[name] ?? "", name: name); values[name] = nil; revision += 1 }
+                                    .disabled((values[name] ?? "").isEmpty)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Secrets")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
     }
 }

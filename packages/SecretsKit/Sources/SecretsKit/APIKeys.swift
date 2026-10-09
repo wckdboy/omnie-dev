@@ -20,3 +20,16 @@ public enum APIKeys {
 
     public static func has(provider: String) -> Bool { load(provider: provider) != nil }
 }
+
+/// Named secrets for the HTTP client's `{{secret NAME}}` placeholders, in the Keychain.
+public enum HTTPSecrets {
+    static func account(_ name: String) -> String { "http.secret.\(name)" }
+
+    public static func load(_ name: String) -> String? {
+        Keychain.data(for: account(name)).map { String(decoding: $0, as: UTF8.self) }.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    public static func save(_ value: String, name: String) throws { try Keychain.set(Data(value.utf8), for: account(name)) }
+
+    public static func delete(_ name: String) { Keychain.delete(account(name)) }
+}
