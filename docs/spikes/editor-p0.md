@@ -1,8 +1,35 @@
 # P0 spike: editor engine (PLAN §5.1.5)
 
-**Status (9 Oct 2026): measured on the device. Tests 1, 2, 4 and 11 pass. Test 3 (typing) misses by about 1 ms at p95. Tests 5–10 not yet run.**
+**Status (9 Oct 2026, engine 0.6.5): every automated test passes on the iPad (1, 2, 3, 4, 9, 10, 11). The decision now waits only on the hands-on tests 5–8 (IME, Scribble, hardware keyboard, VoiceOver).** Patch 0013 changed how selection changes are announced to the input system, so IME and shift-selection (tests 5 and 7) are the ones to watch.
 
-## Device results: iPad Pro 13" M5 (iPad17,4), iPadOS 27.0, release build, engine 0.6.2
+## Device results, engine 0.6.5 (iPad Pro 13" M5, iPadOS 27.0, release build)
+
+Raw results: `results/ipad-pro-13-m5-engine-0.6.5-*.json`.
+
+| Test (target) | Engine + TS highlighting | Engine, plain | UITextView (no highlighting) |
+|---|---|---|---|
+| 1 open 100k lines (≤ 300 ms, ≤ 150 MB) | ✅ 102 ms, highlighted at 262 ms, 135 MB | ✅ 88 ms, 22 MB | ✅ 58 ms, 7 MB |
+| 2 fling, wrap off/on (< 5 ms/s, no jumps) | ✅ 0, every frame 8.3 ms | ✅ 0 | ✅ 0, document height changed 353× |
+| 2 indicator drag (info) | 0 | 0 | 9.6–9.9 ms/s, frames to 35 ms |
+| 3 typing p95, no on-screen keyboard (≤ 4 ms) | ✅ **0.5 ms**, worst 3.0 | ✅ 0.4 ms | ❌ 4.2 ms, worst 54 ms |
+| 3 typing, on-screen keyboard (info) | 0.4 ms | 0.4 ms | 1.4 ms, worst 79 ms |
+| 4 one 20k-char line (no stall > 100 ms) | ✅ 1 ms | ✅ 1 ms | ✅ 21 ms |
+| 9 decoration load: 500 diagnostics + 50 agent hunks | ✅ fling 0 hitches, typing 0.5 ms, setting marks 0.4 ms | | |
+| 10 multi-cursor, 50 carets (≤ 8.3 ms, IME on primary) | ✅ 3.0 ms p95, all lines correct | | |
+| 11 no private API | ✅ | | |
+
+Not yet built: ghost text (part of test 9's load) and mirroring committed IME text to secondary carets (test 10 prototype limit).
+
+## Hands-on checklist (tests 5–8, on the iPad, Omnie-dev with a code file open)
+
+- **5 IME:** Japanese kana→kanji, Chinese pinyin, Korean (including ㅇ+ㅓ→어), an emoji ZWJ sequence (👩‍💻), dictation. Text lands where the caret was; candidates and marked text look right.
+- **6 Scribble (Pencil Pro):** write into an empty line, between two tokens, scratch-out to delete, circle to select.
+- **7 Hardware keyboard:** arrows, ⌥/⌘ + arrows, shift-selection, ⌥⇧ word selection followed by ⇧ arrows, ⌘Z/⇧⌘Z, ⌘A/⌘C/⌘V.
+- **8 VoiceOver:** the editor reads its name and "Line N, column M"; swipe by character/word/line; the Diagnostics rotor jumps between marks (try `-OmnieDemoMarks` in a debug build).
+
+## Earlier device results (engine 0.6.2)
+
+
 
 Raw results: `results/ipad-pro-13-m5-engine-0.6.2-*.json` (and the earlier 0.6.1 run next to it).
 
