@@ -65,6 +65,14 @@ struct OmnieDevApp: App {
                             print("[history] applied \(ok) in \(Int(Date().timeIntervalSince(started) * 1000)) ms: \(await log()); a.txt = \((try? String(contentsOf: folderOf(model).appending(path: "a.txt"), encoding: .utf8))?.trimmingCharacters(in: .newlines) ?? "?"), b.txt exists \(FileManager.default.fileExists(atPath: folderOf(model).appending(path: "b.txt").path))")
                             await git.undo()
                             print("[history] undone: \(await log()); error \(git.error ?? "none")")
+                            if let header = git.log.first(where: { $0.summary == "Add the header" }) {
+                                await git.tag("v0.1", at: header, message: "")
+                                await git.reset(to: header)
+                                print("[history] tagged and reset: \(await log()); tags \(git.tags.values.flatMap { $0 }); uncommitted \(git.status?.entries.count ?? -1)")
+                                await git.undo()
+                                let reflog = await git.reflog()
+                                print("[history] undone again: \(await log()); reflog \(reflog.count) entries, latest “\(reflog.first?.message ?? "")”")
+                            }
                         }
                     }
                     if let i = args.firstIndex(of: "-OmnieOpenFolder"), args.indices.contains(i + 1) {

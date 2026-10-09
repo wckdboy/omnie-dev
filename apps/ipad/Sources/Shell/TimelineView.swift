@@ -11,6 +11,12 @@ struct TimelineView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
     @Environment(\.density) private var density
+    @State private var tagging: CommitInfo?
+    @State private var tagName = ""
+    @State private var tagMessage = ""
+    @State private var resetting: CommitInfo?
+    @State private var showEverything = false
+    @State private var reflog: [ReflogEntry] = []
 
     var body: some View {
         let git = model.workspace.git
@@ -30,6 +36,27 @@ struct TimelineView: View {
             }
         }
         .background(palette.surface.pane.color)
+        .alert("Tag \(tagging?.id.short ?? "")", isPresented: Binding(get: { tagging != nil }, set: { if !$0 { tagging = nil } })) {
+            TextField("v1.0", text: $tagName)
+            TextField("Message (optional)", text: $tagMessage)
+            Button("Tag") {
+                if let commit = tagging { Task { await git.tag(tagName, at: commit, message: tagMessage) } }
+                tagging = nil
+            }
+            Button("Cancel", role: .cancel) { tagging = nil }
+        }
+        .confirmationDialog("Reset to “\(resetting?.summary ?? "")”?", isPresented: Binding(get: { resetting != nil }, set: { if !$0 { resetting = nil } }),
+                            titleVisibility: .visible) {
+            Button("Reset, keep the changes") {
+                if let commit = resetting { Task { await git.reset(to: commit) } }
+                resetting = nil
+            }
+        } message: {
+            Text("The commits after it are taken off the branch; what they changed stays in your files, uncommitted. Undo puts them back.")
+        }
+        .task(id: "\(showEverything) \(git.log.first?.id.hex ?? "")") {
+            reflog = showEverything ? await git.reflog() : []
+        }
     }
 
     private func list(_ git: GitModel) -> some View {
@@ -98,6 +125,29 @@ struct TimelineView: View {
                 }
             }
 
+            Section {
+                Toggle("Show everything (reflog)", isOn: $showEverything)
+                    .font(.footnote)
+                    .listRowBackground(Color.clear)
+                if showEverything {
+                    ForEach(reflog) { entry in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.message.isEmpty ? "(no message)" : entry.message).font(.footnote).lineLimit(2)
+                            HStack(spacing: 6) {
+                                Text(entry.commit.short).monospaced()
+                                Text(entry.date, format: .relative(presentation: .named))
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(palette.text.tertiary.color)
+                        }
+                        .listRowBackground(Color.clear)
+                        .contextMenu {
+                            Button("Copy commit ID", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.commit.hex }
+                        }
+                    }
+                }
+            }
+
             Section(git.status?.head.branch ?? "History") {
                 if git.log.isEmpty {
                     Text("No commits yet")
@@ -106,7 +156,7 @@ struct TimelineView: View {
                         .listRowBackground(Color.clear)
                 }
                 ForEach(git.log) { commit in
-                    CommitRow(commit: commit)
+                    CommitRow(commit: commit, tags: git.tags[commit.id] ?? [])
                         .id(commit.id)
                         // A commit opened from blame is marked.
                         .listRowBackground(model.timelineFocus == commit.id.hex ? palette.accent.ion.color.opacity(0.15) : Color.clear)
@@ -116,6 +166,20 @@ struct TimelineView: View {
                             }
                             Button("Copy commit ID", systemImage: "doc.on.doc") {
                                 UIPasteboard.general.string = commit.id.hex
+                            }
+                            Button("Tag…", systemImage: "tag") {
+                                tagging = commit
+                                tagName = ""
+                            }
+                            ForEach(git.tags[commit.id] ?? [], id: \.self) { name in
+                                Button("Delete tag “\(name)”", systemImage: "tag.slash", role: .destructive) {
+                                    Task { await git.deleteTag(name) }
+                                }
+                            }
+                            if commit.id != git.log.first?.id {
+                                Button("Reset to here (keep changes)", systemImage: "arrow.counterclockwise") {
+                                    resetting = commit
+                                }
                             }
                         }
                 }
@@ -153,6 +217,7 @@ struct CommitRow: View {
     @Environment(\.palette) private var palette
     @Environment(\.density) private var density
     let commit: CommitInfo
+    var tags: [String] = []
 
     var body: some View {
         let isAgent = commit.assistedBy != nil
@@ -168,6 +233,12 @@ struct CommitRow: View {
                     .foregroundStyle(isAgent ? palette.accent.agent.color : palette.text.primary.color)
                     .lineLimit(2)
                 HStack(spacing: 6) {
+                    ForEach(tags, id: \.self) { tag in
+                        Label(tag, systemImage: "tag.fill")
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(palette.accent.ion.color.opacity(0.15), in: Capsule())
+                            .foregroundStyle(palette.accent.ion.color)
+                    }
                     Text(commit.id.short).monospaced()
                     Text(commit.authorName)
                     if let model = commit.assistedBy { Text("· \(model)") }

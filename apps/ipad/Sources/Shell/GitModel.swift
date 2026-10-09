@@ -19,6 +19,8 @@ final class GitModel {
     private(set) var repo: Repository?
     private(set) var status: RepoStatus?
     private(set) var log: [CommitInfo] = []
+    /// Tag names by commit, for the timeline.
+    private(set) var tags: [ObjectID: [String]] = [:]
     private(set) var checkpoints: [Checkpoint] = []
     private(set) var isBusy = false
     /// Set when the folder is not a git repository.
@@ -335,6 +337,47 @@ final class GitModel {
         await refresh()
     }
 
+    // MARK: Tags, reset, reflog (PLAN.md §9.10)
+
+    func tag(_ name: String, at commit: CommitInfo, message: String) async {
+        guard let repo, let author = await author() else {
+            error = "Set your name and email (Commit asks for them) first."
+            return
+        }
+        do {
+            try await repo.tag(name.trimmingCharacters(in: .whitespaces), at: commit.id, message: message, tagger: author)
+            syncMessage = "Tagged \(commit.id.short) “\(name)”"
+        } catch {
+            self.error = (error as? LocalizedError)?.errorDescription ?? describe(error)
+        }
+        await refresh()
+    }
+
+    func deleteTag(_ name: String) async {
+        guard let repo else { return }
+        do { try await repo.deleteTag(name) } catch { self.error = describe(error) }
+        await refresh()
+    }
+
+    /// Moves the branch back to `commit`; what came after stays in the folder, uncommitted.
+    func reset(to commit: CommitInfo) async {
+        guard let repo else { return }
+        beforeWorktreeChange?()
+        do {
+            try await repo.resetKeepingChanges(to: commit.id)
+            syncMessage = "Reset to \(commit.id.short); later changes are uncommitted"
+        } catch {
+            self.error = (error as? LocalizedError)?.errorDescription ?? describe(error)
+        }
+        afterWorktreeChange?()
+        await refresh()
+    }
+
+    func reflog() async -> [ReflogEntry] {
+        guard let repo else { return [] }
+        return (try? await repo.reflog()) ?? []
+    }
+
     // MARK: History (interactive rebase, PLAN.md §9.10)
 
     /// The commits "Edit history" offers: unpushed, or the last 30.
@@ -445,6 +488,7 @@ final class GitModel {
             undoTitle = await repo.undoStack().last?.title
             log = try await repo.log(limit: 200)
             checkpoints = try await repo.checkpointsSinceHead()
+            tags = (try? await repo.tags()) ?? [:]
         } catch {
             self.error = "Git status failed: \(describe(error))"
         }
