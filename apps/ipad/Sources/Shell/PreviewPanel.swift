@@ -36,6 +36,10 @@ struct PreviewPanel: View {
                         .accessibilityLabel("Reload")
                     Text(entry).font(.system(.caption, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
                     Spacer()
+                    if markdown != nil {
+                        Button { exportPDF(for: entry) } label: { Label("PDF", systemImage: "doc.richtext") }
+                            .accessibilityLabel("Export as PDF next to the file")
+                    }
                     Button { drawer = drawer == nil ? .console : nil } label: {
                         Label("\(errors)", systemImage: drawer == nil ? "wrench.and.screwdriver" : "chevron.down")
                             .foregroundStyle(errors > 0 ? palette.status.error.color : palette.text.secondary.color)
@@ -63,6 +67,11 @@ struct PreviewPanel: View {
                     console.removeAll(); network.removeAll(); dom = []; inspected = nil; inspectedPath = nil
                 }
                 .id(url)
+                // A Markdown preview follows the caret: the block holding its line scrolls into view.
+                .onChange(of: workspace.cursor?.line) { _, line in
+                    guard markdown != nil, let line else { return }
+                    webViewRef.webView?.evaluateJavaScript("window.__omnieScrollToLine?.(\(line))", completionHandler: nil)
+                }
                 if let current = drawer {
                     Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
                     VStack(spacing: 0) {
@@ -91,6 +100,11 @@ struct PreviewPanel: View {
         .task {
             // `-OmniePreviewDevTools Network|Elements` opens that drawer.
             let args = ProcessInfo.processInfo.arguments
+            if args.contains("-OmnieExportPDF") {
+                for _ in 0..<50 where model.workspace.relativePath == nil { try? await Task.sleep(for: .milliseconds(100)) }
+                try? await Task.sleep(for: .seconds(3))
+                if let path = model.workspace.relativePath, RunKit.Preview.isMarkdown(path) { exportPDF(for: path) }
+            }
             if let i = args.firstIndex(of: "-OmniePreviewDevTools"), args.indices.contains(i + 1), let d = Drawer(rawValue: args[i + 1]) {
                 try? await Task.sleep(for: .seconds(2))
                 drawer = d
@@ -190,6 +204,31 @@ struct PreviewPanel: View {
             }
         }
         .onDisappear { webViewRef.webView?.evaluateJavaScript(RunKit.Preview.clearInspectScript, completionHandler: nil) }
+    }
+
+    /// Prints the rendered Markdown to an A4 PDF beside the file ("README.md" → "README.pdf").
+    private func exportPDF(for path: String) {
+        guard let webView = webViewRef.webView, let root = model.workspace.rootURL else { return }
+        let renderer = UIPrintPageRenderer()
+        renderer.addPrintFormatter(webView.viewPrintFormatter(), startingAtPageAt: 0)
+        let page = CGRect(x: 0, y: 0, width: 595.2, height: 841.8)  // A4 in points
+        renderer.setValue(page, forKey: "paperRect")
+        renderer.setValue(page.insetBy(dx: 40, dy: 48), forKey: "printableRect")
+        let data = NSMutableData()
+        UIGraphicsBeginPDFContextToData(data, page, nil)
+        for index in 0..<renderer.numberOfPages {
+            UIGraphicsBeginPDFPage()
+            renderer.drawPage(at: index, in: UIGraphicsGetPDFContextBounds())
+        }
+        UIGraphicsEndPDFContext()
+        let target = root.appending(path: (path as NSString).deletingPathExtension + ".pdf")
+        do {
+            try (data as Data).write(to: target, options: .atomic)
+            model.workspace.reload()
+            model.workspace.banner = "Saved \(target.lastPathComponent): \(renderer.numberOfPages) \(renderer.numberOfPages == 1 ? "page" : "pages")."
+        } catch {
+            model.workspace.banner = "Couldn't save the PDF: \(error.localizedDescription)"
+        }
     }
 
     private func loadDOM() async {

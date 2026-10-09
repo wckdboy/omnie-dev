@@ -10,6 +10,14 @@ const doc = document.getElementById("doc");
 const escape = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const resolve = (href) => (/^[a-z]+:|^#|^\//i.test(href) ? href : dir + href);
 
+/// Scrolls to the block that holds source `line` (called by the app as the caret moves).
+window.__omnieScrollToLine = (line) => {
+  const blocks = [...doc.querySelectorAll("[data-line]")];
+  let target = blocks[0];
+  for (const b of blocks) { if (Number(b.dataset.line) <= line) target = b; else break; }
+  target?.scrollIntoView({ block: "start", behavior: "smooth" });
+};
+
 const marked = new Marked({
   gfm: true,
   renderer: {
@@ -24,7 +32,16 @@ const marked = new Marked({
 try {
   const response = await fetch("omnie-run://local/" + path.split("/").map(encodeURIComponent).join("/"));
   if (!response.ok) throw new Error(`Can't read ${path}`);
-  doc.innerHTML = marked.parse(await response.text());
+  // Each top-level block carries its first source line, so the preview can follow the editor.
+  const source = await response.text();
+  const tokens = marked.lexer(source);
+  let line = 1, html = "";
+  for (const token of tokens) {
+    const one = Object.assign([token], { links: tokens.links });
+    html += token.type === "space" ? marked.parser(one) : `<div data-line="${line}">${marked.parser(one)}</div>`;
+    line += (token.raw.match(/\n/g) || []).length;
+  }
+  doc.innerHTML = html;
   const dark = matchMedia("(prefers-color-scheme: dark)").matches;
   if (window.mermaid && doc.querySelector(".mermaid")) {
     window.mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "default", securityLevel: "strict" });

@@ -91,6 +91,9 @@ struct MarkdownPreviewTests {
         let pwned = try await webView.evaluateJavaScript("String(window.pwned)") as? String
         #expect(pwned == "undefined")
         #expect(Preview.isMarkdown("README.md") && !Preview.isMarkdown("a.ts"))
+        // Blocks know their source lines, for following the editor's caret.
+        let lines = try await webView.evaluateJavaScript("[...document.querySelectorAll('[data-line]')].map((e) => e.dataset.line).join(',')") as? String
+        #expect(lines == "1,3,5,7")
     }
 }
 }
