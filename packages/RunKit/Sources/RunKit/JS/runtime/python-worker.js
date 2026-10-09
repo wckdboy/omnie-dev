@@ -25,6 +25,11 @@ self.onmessage = async (event) => {
     const shim = await (await fetch(base + "__omnie/runtime/pytest_shim.py")).text();
     py.FS.mkdirTree("/omnie");
     py.FS.writeFile("/omnie/pytest.py", shim);
+    // Packages from the offline cache: Pyodide's builds by name, PyPI wheels by URL.
+    const packages = await (await fetch(base + "__omnie/python-packages.json")).json();
+    const quiet = { messageCallback: () => {}, errorCallback: (text) => send({ type: "console", level: "error", text }) };
+    if (packages.lock.length) await py.loadPackage(packages.lock, quiet);
+    if (packages.wheels.length) await py.loadPackage(packages.wheels, quiet);
     py.runPython("import os, sys\nos.chdir('/project')\nsys.path[:0] = ['/project', '/omnie']");
     if (mode === "python") {
       py.globals.set("omnie_entry", entry);

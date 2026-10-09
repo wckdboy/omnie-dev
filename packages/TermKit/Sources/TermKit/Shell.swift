@@ -12,7 +12,7 @@ public final class Shell {
         public var run: (_ file: String) async -> String
         public var test: (_ file: String?) async -> String
         public var git: (_ args: [String]) async -> String
-        /// npm-style package commands: ["install", specs…] or ["ls"].
+        /// Package commands, manager first: ["npm" | "pip", "install", specs…] or [manager, "ls"].
         public var packages: (_ args: [String]) async -> String
         public var open: (_ file: String) -> Void
 
@@ -87,10 +87,22 @@ public final class Shell {
                 if args.first == "test" || args == ["run", "test"] { return await hooks.test(nil) }
                 let sub = args.first ?? ""
                 if ["install", "i", "add", "ci"].contains(sub) {
-                    return await hooks.packages(["install"] + args.dropFirst().filter { !$0.hasPrefix("-") })
+                    return await hooks.packages(["npm", "install"] + args.dropFirst().filter { !$0.hasPrefix("-") })
                 }
-                if ["ls", "list"].contains(sub) { return await hooks.packages(["ls"]) }
+                if ["ls", "list"].contains(sub) { return await hooks.packages(["npm", "ls"]) }
                 throw Failure("\(command): install, ls and test work here. Packages go into the offline cache, not node_modules.")
+            case "pip", "pip3", "uv":
+                var rest = args
+                if command == "uv", rest.first == "pip" { rest.removeFirst() }
+                let sub = rest.first ?? ""
+                if sub == "install" || sub == "add" {
+                    let specs = rest.dropFirst().filter { !$0.hasPrefix("-") }
+                    // "-r requirements.txt" means the project's requirements.
+                    if rest.contains("-r") { return await hooks.packages(["pip", "install"]) }
+                    return await hooks.packages(["pip", "install"] + specs)
+                }
+                if ["list", "freeze"].contains(sub) { return await hooks.packages(["pip", "ls"]) }
+                throw Failure("\(command): install and list work here. Packages go into the offline cache.")
             case "git":
                 guard let sub = args.first, ["status", "log", "diff", "branch"].contains(sub) else {
                     throw Failure("git: status, log, diff and branch work here. Commit, sync and branches are in the Git menu.")
@@ -113,6 +125,8 @@ public final class Shell {
           test [file]     run the project's tests (vitest/jest-style and pytest-style)
           npm install [name[@range]…]   fetch packages into the offline cache (asks first)
           npm ls          what the project gets from the cache
+          pip install [-r requirements.txt | name…]   the same for Python (PyPI and Pyodide's builds)
+          pip list
           git status|log|diff|branch
           open <file>     open in the editor
         """

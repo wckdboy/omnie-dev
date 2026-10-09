@@ -46,7 +46,7 @@ struct PrepareOfflineSheet: View {
                 Section {
                     Label("three.js, Python, Markdown and Mermaid are built in", systemImage: "checkmark.circle")
                     Label("Tests, previews, the Stage and the tools run offline", systemImage: "checkmark.circle")
-                    Label("Each project's npm dependencies are cached; PyPI packages beyond Pyodide's aren't yet", systemImage: "checkmark.circle")
+                    Label("Each project's npm and Python dependencies are cached", systemImage: "checkmark.circle")
                         .foregroundStyle(palette.text.secondary.color)
                     Label("Offline docs bundles aren't built yet", systemImage: "exclamationmark.circle")
                         .foregroundStyle(palette.text.secondary.color)
@@ -124,6 +124,14 @@ struct PrepareOfflineSheet: View {
                 do {
                     let added = try await Packages.cache.installProject(url)
                     notes.append(added.isEmpty ? "Packages cached" : "\(added.count) \(added.count == 1 ? "package" : "packages") cached")
+                } catch {
+                    failure = failure ?? error.localizedDescription
+                }
+            }
+            if !PyCache.projectRequirements(url).isEmpty {
+                do {
+                    let added = try await Packages.python.installProject(url)
+                    notes.append(added.isEmpty ? "Python packages cached" : "\(added.count) Python \(added.count == 1 ? "package" : "packages") cached")
                 } catch {
                     failure = failure ?? error.localizedDescription
                 }

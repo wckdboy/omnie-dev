@@ -250,6 +250,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         }
         if full == "__omnie/manifest.json" { area = "manifest" }
         if full == "__omnie/npm-types.json" { area = "npm-types" }
+        if full == "__omnie/python-packages.json" { area = "python-packages" }
+        if full.hasPrefix("__omnie/pypi/") { area = "pypi"; path = String(full.dropFirst("__omnie/pypi/".count)) }
         if full.hasPrefix("__omnie/npm-raw/") { area = "npm-raw"; path = String(full.dropFirst("__omnie/npm-raw/".count)) }
         if full.hasPrefix("__omnie/source/") { area = "source"; path = String(full.dropFirst("__omnie/source/".count)) }
         do {
@@ -297,6 +299,16 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func body(area: String, path: String) throws -> (Data, String) {
+        if area == "python-packages" {
+            let (lock, wheels) = PyCache.sharedRoot.map { PyCache.resolve(project: resolver.root, cache: $0) } ?? ([], [])
+            let urls = wheels.map { "omnie-run://local/__omnie/pypi/" + $0 }
+            return (try JSONSerialization.data(withJSONObject: ["lock": lock, "wheels": urls]), "application/json")
+        }
+        if area == "pypi" {
+            guard let cache = PyCache.sharedRoot, !path.split(separator: "/").contains(".."),
+                  let data = try? Data(contentsOf: cache.appending(path: "wheels").appending(path: path)) else { throw NotFound(path: path) }
+            return (data, "application/octet-stream")
+        }
         if area == "npm-types" {
             let list = NpmCache.sharedRoot.map { NpmModules.typeFiles(project: resolver.root, cache: $0) } ?? []
             return (try JSONSerialization.data(withJSONObject: list), "application/json")
@@ -311,8 +323,13 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         }
         if area == "runtime" || area == "pyodide" || area == "packages" {
             let directory = ("JS/\(area)/" + path as NSString).deletingLastPathComponent
+            // Pyodide packages fetched into the Python cache are served beside its bundled files, so
+            // its own loader (dependencies, shared libraries, checksums) works on them.
+            let isPackage = area == "pyodide" && !path.contains("/") && (path.hasSuffix(".whl") || path.hasSuffix(".zip"))
+            let cached = isPackage ? PyCache.sharedRoot.map { $0.appending(path: "pyodide").appending(path: path) } : nil
             guard let url = Bundle.module.url(forResource: ((path as NSString).lastPathComponent as NSString).deletingPathExtension,
-                                              withExtension: (path as NSString).pathExtension, subdirectory: directory),
+                                              withExtension: (path as NSString).pathExtension, subdirectory: directory)
+                    ?? cached.flatMap({ FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }),
                   var data = try? Data(contentsOf: url) else { throw NotFound(path: path) }
             let ext = (path as NSString).pathExtension.lowercased()
             if area == "runtime", ext == "html" {

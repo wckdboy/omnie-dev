@@ -9,6 +9,7 @@ import RunKit
 @MainActor
 enum Packages {
     static var root: URL { AppPaths.support.appendingPathComponent("packages/npm", isDirectory: true) }
+    static var pythonRoot: URL { AppPaths.support.appendingPathComponent("packages/python", isDirectory: true) }
 
     static let cache = NpmCache(root: root) { url in
         let (data, response) = try await URLSession.shared.data(from: url)
@@ -16,8 +17,17 @@ enum Packages {
         return data
     }
 
-    /// Previews, runs and tests read the cache from here.
-    static func activate() { NpmCache.sharedRoot = root }
+    static let python = PyCache(root: pythonRoot) { url in
+        let (data, response) = try await URLSession.shared.data(from: url)
+        if (response as? HTTPURLResponse)?.statusCode == 404 { throw URLError(.fileDoesNotExist) }
+        return data
+    }
+
+    /// Previews, runs and tests read the caches from here.
+    static func activate() {
+        NpmCache.sharedRoot = root
+        PyCache.sharedRoot = pythonRoot
+    }
 
     /// "react", "zod@^3", "@scope/pkg@1.2" → (name, range).
     static func parse(_ spec: String) -> (String, String) {
@@ -29,10 +39,13 @@ enum Packages {
         return (name, range.isEmpty ? "latest" : range)
     }
 
-    /// The terminal's `npm install|ls`.
+    /// The terminal's `npm|pip install|ls`.
     static func command(_ args: [String], root project: URL, workspace: WorkspaceModel) async -> String {
-        if args.first == "ls" { return list(project) }
-        let specs = Array(args.dropFirst())
+        guard let manager = args.first else { return "" }
+        let rest = Array(args.dropFirst())
+        if manager == "pip" { return await pip(rest, project: project, workspace: workspace) }
+        if rest.first == "ls" { return list(project) }
+        let specs = Array(rest.dropFirst())
         let wanted = specs.isEmpty ? NpmCache.projectDependencies(project).map { "\($0.0)@\($0.1)" } : specs
         if wanted.isEmpty { return "package.json lists no dependencies. Try npm install <name>." }
         // Already cached: no network, no question.
@@ -67,6 +80,61 @@ enum Packages {
         // New declarations to check against.
         if !lines.isEmpty { workspace.problems.schedule(root: project, after: .zero) }
         lines.append(lines.isEmpty ? "Everything is already in the offline cache." : "Previews, runs and tests import these from the offline cache, with no connection.")
+        return lines.joined(separator: "\n")
+    }
+
+    static func pip(_ args: [String], project: URL, workspace: WorkspaceModel) async -> String {
+        if args.first == "ls" {
+            let reqs = PyCache.projectRequirements(project)
+            guard !reqs.isEmpty else { return "No requirements.txt or pyproject.toml dependencies." }
+            return reqs.map { r in
+                if PyCache.isCached(lockPackage: r.name, in: pythonRoot) { return "\(r.name)  (Pyodide build)" }
+                if let v = PyCache.best(r.name, specifier: r.specifier, in: pythonRoot) { return "\(r.name)==\(v)" + (r.specifier.isEmpty ? "" : "  (\(r.specifier))") }
+                return "\(r.name)\(r.specifier)  not cached: pip install fetches it"
+            }.joined(separator: "\n")
+        }
+        let specs = Array(args.dropFirst())
+        var requirements: [PyRequirement] = []
+        for spec in specs {
+            guard let r = PyRequirement(spec) else { return "pip: can't read \"\(spec)\" as a requirement." }
+            requirements.append(r)
+        }
+        if specs.isEmpty { requirements = PyCache.projectRequirements(project) }
+        if requirements.isEmpty { return "No requirements.txt or pyproject.toml dependencies. Try pip install <name>." }
+        let missing = requirements.filter { r in
+            r.appliesHere && !PyCache.isCached(lockPackage: r.name, in: pythonRoot) && PyCache.best(r.name, specifier: r.specifier, in: pythonRoot) == nil
+        }
+        var lines: [String] = []
+        if !missing.isEmpty {
+            guard await workspace.policy.authorize(.installPackage(name: missing.map(\.name).joined(separator: ", "), fromNetwork: true)) else {
+                return "Not installed: fetching packages needs the network and your OK" + (workspace.policy.planeMode ? " (plane mode is on)." : ".")
+            }
+            do {
+                for r in missing { lines += try await python.install(r).map { "+ \($0.name) \($0.version)" } }
+            } catch {
+                return (lines + [error.localizedDescription]).joined(separator: "\n")
+            }
+        }
+        if !specs.isEmpty {
+            let listed = Set(PyCache.projectRequirements(project).map(\.name))
+            let new = zip(specs, requirements).filter { !listed.contains($0.1.name) }.map(\.0)
+            let requirementsFile = project.appending(path: "requirements.txt")
+            let hasPyproject = FileManager.default.fileExists(atPath: project.appending(path: "pyproject.toml").path)
+            if !new.isEmpty {
+                if hasPyproject && !FileManager.default.fileExists(atPath: requirementsFile.path) {
+                    lines.append("Add to pyproject.toml's dependencies: " + new.map { "\"\($0)\"" }.joined(separator: ", "))
+                } else {
+                    workspace.saveCurrent()
+                    var text = (try? String(contentsOf: requirementsFile, encoding: .utf8)) ?? ""
+                    if !text.isEmpty, !text.hasSuffix("\n") { text += "\n" }
+                    text += new.joined(separator: "\n") + "\n"
+                    do { try text.write(to: requirementsFile, atomically: true, encoding: .utf8); lines.append("requirements.txt: " + new.joined(separator: ", ")) }
+                    catch { lines.append("Couldn't update requirements.txt: \(error.localizedDescription)") }
+                    workspace.reloadFromDisk()
+                }
+            }
+        }
+        lines.append(lines.isEmpty ? "Everything is already in the offline cache." : "Scripts and tests import these from the offline cache, with no connection.")
         return lines.joined(separator: "\n")
     }
 
