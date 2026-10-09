@@ -267,6 +267,22 @@ final class WorkspaceModel {
     }
 
     /// Selects the start of a 1-based line in the open file.
+    /// Opens a project file at a 1-based line and column (jump to source from output).
+    func open(path: String, line: Int, column: Int?) {
+        guard let rootURL else { return }
+        let url = rootURL.appending(path: path)
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return }
+        let ns = text as NSString
+        var location = 0
+        for _ in 1..<max(1, line) {
+            let next = ns.range(of: "\n", options: [], range: NSRange(location: location, length: ns.length - location))
+            guard next.location != NSNotFound else { break }
+            location = next.location + 1
+        }
+        location = min(ns.length, location + max(0, (column ?? 1) - 1))
+        open(file: url, select: NSRange(location: location, length: 0))
+    }
+
     func goToLine(_ line: Int) {
         let text = editor.text as NSString
         var location = 0

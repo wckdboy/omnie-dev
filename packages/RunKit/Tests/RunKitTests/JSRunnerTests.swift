@@ -30,6 +30,7 @@ struct JSRunnerTests {
             "scripts/loop.js": "while (true) {}\n",
             "scripts/net.js": "await fetch(\"https://example.com\");\nconsole.log(\"reached the network\");\n",
             "scripts/broken.ts": "import { nope } from \"./missing\";\nconsole.log(nope);\n",
+            "scripts/throws.ts": "const x: number = 1;\nfunction boom(): never { throw new Error(\"boom\"); }\nboom();\n",
             "node_modules/x/a.test.ts": "",
         ]
         for (path, text) in files {
@@ -68,6 +69,11 @@ struct JSRunnerTests {
         let result = await (try JSRunner(root: root)).runScript("scripts/net.js", timeout: 10)
         #expect(!result.output.contains { $0.text == "reached the network" })
         #expect(result.output.contains { $0.stream == .err })
+    }
+
+    @Test func errorsSayWhereTheyWereThrown() async throws {
+        let result = await (try JSRunner(root: root)).runScript("scripts/throws.ts")
+        #expect(result.output.first?.text.hasPrefix("Uncaught Error: boom (scripts/throws.ts:2:") == true, "\(result.report)")
     }
 
     @Test func missingModulesAreErrors() async throws {

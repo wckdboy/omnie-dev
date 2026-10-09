@@ -20,6 +20,11 @@ struct TerminalPanel: View {
     @State private var historyIndex: Int?
     @State private var busy = false
     @FocusState private var focused: Bool
+    /// The log viewer (PLAN.md §11.1): a text filter, errors only, JSON lines opened up.
+    @State private var filter = ""
+    @State private var errorsOnly = false
+    @State private var expanded: Set<UUID> = []
+    @State private var projectFiles: Set<String> = []
 
     struct Line: Identifiable {
         let id = UUID()
@@ -31,12 +36,20 @@ struct TerminalPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Button { Task { await submit("test") } } label: { Label("Run tests", systemImage: "checkmark.diamond") }
+                Button { Task { await submit("test") } } label: { Label("Run tests", systemImage: "checkmark.diamond").lineLimit(1) }
                     .disabled(shell == nil || busy)
-                Button { Task { await submit("run \(model.workspace.relativePath ?? "")") } } label: { Label("Run file", systemImage: "play") }
+                    .fixedSize()
+                Button { Task { await submit("run \(model.workspace.relativePath ?? "")") } } label: { Label("Run file", systemImage: "play").lineLimit(1) }
                     .disabled(!canRunOpenFile || busy)
+                    .fixedSize()
                 Spacer()
                 if busy { ProgressView().controlSize(.small) }
+                TextField("Filter", text: $filter)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .frame(minWidth: 44, maxWidth: 120)
+                Toggle(isOn: $errorsOnly) { Image(systemName: "exclamationmark.triangle") }
+                    .toggleStyle(.button)
+                    .accessibilityLabel("Errors only")
             }
             .buttonStyle(.bordered)
             .font(.footnote)
@@ -49,11 +62,7 @@ struct TerminalPanel: View {
                             Text(shell == nil ? "Open a project to use the terminal." : "Type help to see the built-in commands.")
                                 .foregroundStyle(palette.text.secondary.color)
                         }
-                        ForEach(lines) { line in
-                            Text(line.text.isEmpty ? " " : line.text)
-                                .foregroundStyle(color(for: line))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
+                        ForEach(visibleLines) { line in lineView(line) }
                         Color.clear.frame(height: 1).id("end")
                     }
                     .font(.system(.caption, design: .monospaced))
@@ -81,6 +90,9 @@ struct TerminalPanel: View {
         }
         .background(palette.surface.pane.color)
         .onAppear(perform: attach)
+        .task(id: model.workspace.changeCount) {
+            if let root = model.workspace.rootURL { projectFiles = Set(await Task.detached { ProjectSearch.files(in: root) }.value) }
+        }
         .onChange(of: model.workspace.rootURL) { attach() }
         // "Run task: …" in the palette: type the task into this terminal.
         .task(id: model.terminalRequest) {
@@ -107,12 +119,45 @@ struct TerminalPanel: View {
         return [".ts", ".tsx", ".js", ".mjs", ".jsx", ".py"].contains { path.hasSuffix($0) }
     }
 
+    private var visibleLines: [Line] {
+        guard errorsOnly || !filter.isEmpty else { return lines }
+        return lines.filter { line in
+            (!errorsOnly || line.kind == .error || line.kind == .command || LogLine.isError(line.text))
+                && (filter.isEmpty || line.kind == .command || line.text.localizedCaseInsensitiveContains(filter))
+        }
+    }
+
+    /// A line: a link when it names a place in the project, expandable when it's JSON.
+    @ViewBuilder
+    private func lineView(_ line: Line) -> some View {
+        let text = Text(line.text.isEmpty ? " " : line.text).foregroundStyle(color(for: line))
+        if line.kind != .command, let place = LogLine.location(in: line.text, exists: { projectFiles.contains($0) }) {
+            Button { model.workspace.open(path: place.path, line: place.line, column: place.column) } label: {
+                text.underline().frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens \(place.path) at line \(place.line)")
+        } else if line.kind != .command, let pretty = LogLine.prettyJSON(line.text) {
+            Button {
+                if expanded.contains(line.id) { expanded.remove(line.id) } else { expanded.insert(line.id) }
+            } label: {
+                Text(expanded.contains(line.id) ? pretty : line.text)
+                    .foregroundStyle(color(for: line))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(expanded.contains(line.id) ? "Collapse the JSON" : "Show the JSON formatted")
+        } else {
+            text.frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     private func color(for line: Line) -> Color {
         switch line.kind {
         case .command: return palette.accent.ion.color
         case .error: return palette.status.error.color
         case .output:
-            if line.text.hasPrefix("✗") || line.text.hasPrefix("! ") || line.text.hasPrefix("Stopped") { return palette.status.error.color }
+            if LogLine.isError(line.text) { return palette.status.error.color }
             if line.text.hasPrefix("✓") { return palette.status.ok.color }
             return palette.text.primary.color
         }

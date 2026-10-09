@@ -3,9 +3,15 @@
 // RunKit's page: runs one script or a set of test files from the project and reports to Swift.
 const send = (message) => window.webkit.messageHandlers.run.postMessage(message);
 
+/// Where in the project an error was thrown: the first project frame of its stack, "(src/a.ts:3:9)".
+function where(error) {
+  const frame = String(error?.stack ?? "").split("\n").map((l) => l.match(/omnie-run:\/\/local\/(?!__omnie\/)([^:?\s)]+)(?:\?[^:\s)]*)?:(\d+):(\d+)/)).find(Boolean);
+  return frame ? ` (${frame[1]}:${frame[2]}:${frame[3]})` : "";
+}
+
 export function format(value) {
   if (typeof value === "string") return value;
-  if (value instanceof Error) return `${value.name}: ${value.message}`;
+  if (value instanceof Error) return `${value.name}: ${value.message}${where(value)}`;
   try { return JSON.stringify(value) ?? String(value); } catch { return String(value); }
 }
 
