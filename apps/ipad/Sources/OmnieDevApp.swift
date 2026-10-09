@@ -38,12 +38,19 @@ struct OmnieDevApp: App {
                         let path = args[i + 1]
                         model.workspace.open(folder: path.hasPrefix("/") ? URL(filePath: path) : URL.documentsDirectory.appending(path: path))
                     }
-                    // `-OmnieOpenFile <path relative to the folder>` opens a file in the editor.
+                    // `-OmnieOpenFile <path relative to the folder>[:line]` opens a file in the editor.
                     if let i = args.firstIndex(of: "-OmnieOpenFile"), args.indices.contains(i + 1),
                        let root = model.workspace.rootURL {
                         // Comma-separated: each opens in a tab; the last stays a preview tab.
                         let files = args[i + 1].split(separator: ",").map(String.init)
-                        for (n, file) in files.enumerated() { model.workspace.open(file: root.appending(path: file), preview: n == files.count - 1) }
+                        for (n, file) in files.enumerated() {
+                            // `path:line` puts the caret on that line.
+                            if let colon = file.lastIndex(of: ":"), let line = Int(file[file.index(after: colon)...]) {
+                                model.workspace.open(path: String(file[..<colon]), line: line, column: nil)
+                            } else {
+                                model.workspace.open(file: root.appending(path: file), preview: n == files.count - 1)
+                            }
+                        }
                     }
                     // `-OmnieDocs <query>` opens the docs sheet searching for it.
                     if let i = args.firstIndex(of: "-OmnieDocs"), args.indices.contains(i + 1) { model.docsQuery = args[i + 1] }

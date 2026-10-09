@@ -4,6 +4,7 @@
 import SwiftUI
 import DesignKit
 import EditorKit
+import LangKit
 import WorkspaceKit
 
 /// The code editor: the Runestone-derived Core Text engine (PLAN §5.1) with tree-sitter highlighting.
@@ -11,33 +12,15 @@ struct EditorPane: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
     @Environment(\.density) private var density
+    @State private var scopes: [Outline.Scope] = []
+    @State private var firstLine = 1
 
     var body: some View {
         @Bindable var workspace = model.workspace
         VStack(spacing: 0) {
+            // One file: the breadcrumbs below say which (and whether it's saved).
             if workspace.tabs.count > 1 {
                 TabBar()
-            } else if let path = workspace.relativePath {
-                HStack(spacing: 6) {
-                    Text(path)
-                        .font(.caption)
-                        // The editor itself announces "Code editor, <file>".
-                        .accessibilityHidden(true)
-                        .foregroundStyle(palette.text.secondary.color)
-                        .lineLimit(1)
-                        .truncationMode(.head)
-                    if workspace.isDirty {
-                        Circle().fill(palette.text.secondary.color).frame(width: 6, height: 6)
-                            .accessibilityLabel("Unsaved changes")
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .frame(minHeight: density.tab)
-                .background(palette.surface.pane.color)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
-                }
             }
 
             if let banner = workspace.banner ?? workspace.git.error {
@@ -48,8 +31,12 @@ struct EditorPane: View {
             }
 
             if workspace.openFile != nil {
+                Breadcrumbs(scopes: scopes)
                 HStack(spacing: 0) {
                     CodeEditor(controller: workspace.editor)
+                        .overlay(alignment: .top) {
+                            StickyScopes(scopes: Outline.enclosing(line: firstLine, in: scopes).filter { $0.startLine < firstLine && $0.endLine > firstLine })
+                        }
                     // The whole file at a glance, marks included; tap or drag to scroll (PLAN.md §5.1).
                     if model.showsMinimap && model.layout != .single {
                         MinimapStrip(controller: workspace.editor)
@@ -66,8 +53,100 @@ struct EditorPane: View {
         .background(palette.surface.editor.color)
         .onChange(of: palette, initial: true) { workspace.applyEditorTheme(palette: palette, density: density) }
         .onChange(of: density) { workspace.applyEditorTheme(palette: palette, density: density) }
+        .onAppear {
+            let editor = workspace.editor
+            editor.onStructureChange = { scopes = editor.scopes }
+            editor.onFirstVisibleLine = { firstLine = $0 }
+            scopes = editor.scopes
+        }
     }
 
+}
+
+/// Where the caret is: folder › file › enclosing symbols. Symbols jump to their line.
+struct Breadcrumbs: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+    let scopes: [Outline.Scope]
+
+    var body: some View {
+        let workspace = model.workspace
+        let path = workspace.relativePath?.split(separator: "/").map(String.init) ?? []
+        let line = workspace.cursor?.line ?? 1
+        let symbols = Outline.enclosing(line: line, in: scopes)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                ForEach(Array(path.enumerated()), id: \.offset) { i, part in
+                    if i > 0 { chevron }
+                    Text(part).foregroundStyle(i == path.count - 1 ? palette.text.primary.color : palette.text.secondary.color)
+                        // The editor itself announces "Code editor, <file>".
+                        .accessibilityHidden(true)
+                }
+                if workspace.isDirty {
+                    Circle().fill(palette.text.secondary.color).frame(width: 6, height: 6)
+                        .accessibilityLabel("Unsaved changes")
+                }
+                ForEach(symbols, id: \.symbol.offset) { scope in
+                    chevron
+                    Button {
+                        workspace.editor.selectedRange = NSRange(location: scope.symbol.offset, length: scope.symbol.length)
+                        workspace.editor.scrollRangeToVisible(NSRange(location: scope.symbol.offset, length: scope.symbol.length))
+                    } label: {
+                        Label(scope.symbol.name, systemImage: CommandPalette.symbolIcon(scope.symbol.kind))
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(palette.text.secondary.color)
+                    .accessibilityHint("Selects it in the editor")
+                }
+            }
+            .font(.caption)
+            .padding(.horizontal, 12)
+        }
+        .frame(minHeight: 26)
+        .background(palette.surface.pane.color)
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline) }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Breadcrumbs")
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right").font(.caption2).foregroundStyle(palette.text.tertiary.color).accessibilityHidden(true)
+    }
+}
+
+/// The headers of the scopes the top of the editor is inside, pinned while you scroll; tap one to
+/// go to it.
+struct StickyScopes: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+    @Environment(\.density) private var density
+    let scopes: [Outline.Scope]
+
+    var body: some View {
+        let editor = model.workspace.editor
+        if !scopes.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(scopes.suffix(3), id: \.symbol.offset) { scope in
+                    Button { editor.scrollToLine(scope.startLine) } label: {
+                        Text(editor.scopeHeaders[scope.startLine] ?? scope.symbol.name)
+                            .font(.system(size: density.codeSize, design: .monospaced))
+                            .foregroundStyle(palette.text.secondary.color)
+                            .lineLimit(1)
+                            .padding(.leading, 44)
+                            .frame(maxWidth: .infinity, minHeight: density.codeSize * 1.5, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Inside \(scope.symbol.name), line \(scope.startLine)")
+                }
+            }
+            .background(Rectangle().fill(palette.surface.editor.color).opacity(1))
+            .compositingGroup()
+            .overlay(alignment: .bottom) { Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline) }
+            .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
+        }
+    }
 }
 
 /// Inline, one line, one action. No modal alerts for recoverable errors.

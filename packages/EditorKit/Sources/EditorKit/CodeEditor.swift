@@ -56,16 +56,76 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         return view
     }
 
-    /// Redraws the minimap from the text and the marks' live ranges; `debounce` while typing.
+    /// The file's symbols and the lines they span (breadcrumbs, sticky scroll), kept current
+    /// 300 ms after edits.
+    public private(set) var scopes: [Outline.Scope] = []
+    /// Each scope's first line, as written (sticky scroll shows them).
+    public private(set) var scopeHeaders: [Int: String] = [:]
+    /// UTF-16 offset of each line's start.
+    private var lineStarts: [Int] = [0]
+    /// After `scopes` change.
+    public var onStructureChange: (() -> Void)?
+    /// The 1-based line at the top of the editor, when it changes while scrolling.
+    public var onFirstVisibleLine: ((Int) -> Void)?
+    public private(set) var firstVisibleLine = 1
+    private var offsetObservation: NSKeyValueObservation?
+
+    /// Redraws the minimap and re-reads the structure from the text; `debounce` while typing.
     func refreshMinimap(debounce: Bool = false) {
-        guard let minimapView else { return }
         minimapRefresh?.cancel()
         minimapRefresh = Task { [weak self] in
             if debounce { try? await Task.sleep(for: .milliseconds(300)) }
             guard let self, !Task.isCancelled else { return }
-            let live = Dictionary(self.textView.decorations.map { ($0.id, $0.range) }, uniquingKeysWith: { a, _ in a })
-            minimapView.update(text: self.textView.text, marks: self.marks.map { var m = $0; m.range = live[m.id] ?? m.range; return m })
+            let text = self.textView.text
+            if let minimapView = self.minimapView {
+                let live = Dictionary(self.textView.decorations.map { ($0.id, $0.range) }, uniquingKeysWith: { a, _ in a })
+                minimapView.update(text: text, marks: self.marks.map { var m = $0; m.range = live[m.id] ?? m.range; return m })
+            }
+            let language = self.language
+            let (starts, scopes, headers) = await Task.detached(priority: .utility) { () -> ([Int], [Outline.Scope], [Int: String]) in
+                var starts = [0], offset = 0
+                for unit in text.utf16 { offset += 1; if unit == 0x0A { starts.append(offset) } }
+                let scopes = language.map { Outline.scopes(in: text, language: $0) } ?? []
+                let ns = text as NSString
+                var headers: [Int: String] = [:]
+                for scope in scopes where scope.startLine <= starts.count {
+                    let start = starts[scope.startLine - 1]
+                    let end = scope.startLine < starts.count ? starts[scope.startLine] - 1 : ns.length
+                    headers[scope.startLine] = ns.substring(with: NSRange(location: start, length: max(0, end - start)))
+                }
+                return (starts, scopes, headers)
+            }.value
+            guard !Task.isCancelled else { return }
+            self.lineStarts = starts
+            self.scopes = scopes
+            self.scopeHeaders = headers
+            self.onStructureChange?()
+            self.updateFirstVisibleLine()
         }
+    }
+
+    /// The line at the top of the editor, from the scroll position.
+    private func updateFirstVisibleLine() {
+        let top = CGPoint(x: textView.textContainerInset.left + 40, y: textView.contentOffset.y + textView.textContainerInset.top + 2)
+        guard let position = textView.closestPosition(to: top) else { return }
+        let offset = textView.offset(from: textView.beginningOfDocument, to: position)
+        var low = 0, high = lineStarts.count - 1
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if lineStarts[mid] <= offset { low = mid } else { high = mid - 1 }
+        }
+        let line = low + 1
+        guard line != firstVisibleLine else { return }
+        firstVisibleLine = line
+        onFirstVisibleLine?(line)
+    }
+
+    /// Scrolls so `line` (1-based) is at the top.
+    public func scrollToLine(_ line: Int) {
+        let index = min(max(line - 1, 0), lineStarts.count - 1)
+        guard let start = textView.position(from: textView.beginningOfDocument, offset: lineStarts[index]) else { return }
+        let rect = textView.caretRect(for: start)
+        textView.setContentOffset(CGPoint(x: textView.contentOffset.x, y: max(0, rect.minY - textView.textContainerInset.top)), animated: true)
     }
 
     /// Marks as last set; their live ranges are in `textView.decorations`.
@@ -109,6 +169,9 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         textView.alwaysBounceVertical = true
         textView.contentInsetAdjustmentBehavior = .never
         textView.textContainerInset = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 8)
+        offsetObservation = textView.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.updateFirstVisibleLine() }
+        }
     }
 
     public var text: String { textView.text }

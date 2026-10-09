@@ -46,4 +46,36 @@ struct OutlineTests {
         let symbol = Outline.symbols(in: text, language: .javascript)[0]
         #expect((text as NSString).substring(with: NSRange(location: symbol.offset, length: symbol.length)) == "go")
     }
+
+    @Test func scopesFollowIndentation() {
+        let ts = """
+            export class Cart {
+              items: string[] = [];
+
+              total(): number {
+                let sum = 0;
+                return sum;
+              }
+            }
+
+            export const one = () => 1;
+            function after() {
+              return 2;
+            }
+            """
+        let scopes = Outline.scopes(in: ts, language: .typescript)
+        let byName = Dictionary(uniqueKeysWithValues: scopes.map { ($0.symbol.name, ($0.startLine, $0.endLine)) })
+        #expect(byName["Cart"]! == (1, 8))
+        #expect(byName["total"]! == (4, 7))
+        #expect(byName["one"]! == (10, 10))
+        #expect(byName["after"]! == (11, 13))
+        #expect(Outline.enclosing(line: 5, in: scopes).map(\.symbol.name) == ["Cart", "total"])
+        #expect(Outline.enclosing(line: 9, in: scopes).isEmpty)
+        #expect(Outline.enclosing(line: 10, in: scopes).map(\.symbol.name) == ["one"])
+
+        let py = "class A:\n    def f(self):\n        return 1\n\n    def g(self):\n        pass\nx = 1\n"
+        let pyScopes = Outline.scopes(in: py, language: .python)
+        #expect(pyScopes.map { "\($0.symbol.name) \($0.startLine)-\($0.endLine)" } == ["A 1-6", "f 2-3", "g 5-6"])
+        #expect(Outline.enclosing(line: 6, in: pyScopes).map(\.symbol.name) == ["A", "g"])
+    }
 }

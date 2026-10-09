@@ -83,4 +83,51 @@ public enum Outline {
         }
         return found.values.sorted { $0.offset < $1.offset }
     }
+
+    /// A symbol and the lines it spans, for breadcrumbs and sticky scroll.
+    public struct Scope: Sendable, Hashable {
+        public let symbol: Symbol
+        /// 1-based, inclusive.
+        public let startLine: Int
+        public let endLine: Int
+    }
+
+    /// Each block symbol's extent, from indentation: it runs until the next non-blank line indented
+    /// as little as it is; in brace languages that closing line (`}`, `)`, `]`) still belongs to it.
+    /// Symbols that don't open a block (a one-line arrow function, a type alias) span their line.
+    public static func scopes(in text: String, language: Language) -> [Scope] {
+        let symbols = symbols(in: text, language: language).filter { $0.kind != .element && $0.kind != .variable }
+        guard !symbols.isEmpty else { return [] }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        func indent(_ line: Substring) -> Int? {
+            var n = 0
+            for c in line { if c == " " { n += 1 } else if c == "\t" { n += 4 } else { return n } }
+            return nil // blank
+        }
+        let braces = language != .python
+        return symbols.map { symbol in
+            let start = symbol.line
+            var end = start
+            var line = start + 1
+            while line <= lines.count {
+                let text = lines[line - 1]
+                if let i = indent(text) {
+                    if i <= symbol.indent {
+                        let first = text.trimmingCharacters(in: .whitespaces).first
+                        if braces, let first, "})]".contains(first) { end = line }
+                        break
+                    }
+                    end = line
+                }
+                line += 1
+            }
+            return Scope(symbol: symbol, startLine: start, endLine: end)
+        }
+    }
+
+    /// The scopes holding `line`, outermost first.
+    public static func enclosing(line: Int, in scopes: [Scope]) -> [Scope] {
+        scopes.filter { $0.startLine <= line && line <= $0.endLine && $0.endLine > $0.startLine || $0.startLine == line }
+            .sorted { ($0.symbol.indent, $0.startLine) < ($1.symbol.indent, $1.startLine) }
+    }
 }
