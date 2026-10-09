@@ -5,11 +5,12 @@ import Foundation
 
 /// Enough YAML for API specs and config files: block mappings and sequences, plain and quoted
 /// scalars, flow `[…]` and `{…}`, `|` and `>` block strings, comments. No anchors, tags or
-/// multiple documents. Returns Foundation values, like JSONSerialization.
-enum MiniYAML {
+/// multiple documents. Returns Foundation values, like JSONSerialization. Used by the Patterns lab
+/// and by RunKit's OpenAPI mocks.
+public enum YAML {
     struct Line { let indent: Int; let text: String }
 
-    static func parse(_ source: String) -> Any? {
+    public static func parse(_ source: String) -> Any? {
         var lines: [Line] = []
         for raw in source.replacingOccurrences(of: "\r\n", with: "\n").split(separator: "\n", omittingEmptySubsequences: false) {
             let text = String(raw)

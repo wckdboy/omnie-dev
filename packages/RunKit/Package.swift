@@ -7,9 +7,10 @@ let package = Package(
     name: "RunKit",
     platforms: [.iOS(.v26), .macOS(.v26)],
     products: [.library(name: "RunKit", targets: ["RunKit"])],
+    dependencies: [.package(path: "../ToolsKit")],
     targets: [
         // JS/sucrase.js and JS/pyodide/ come from scripts/vendor-runkit.sh.
-        .target(name: "RunKit", resources: [.copy("JS")]),
+        .target(name: "RunKit", dependencies: ["ToolsKit"], resources: [.copy("JS")]),
         .testTarget(name: "RunKitTests", dependencies: ["RunKit"]),
     ]
 )

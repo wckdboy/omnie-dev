@@ -185,10 +185,12 @@ private struct PatternsTool: View {
     @State private var filter = ".tags[]"
     @State private var jqOutput: String?
     @State private var jqFailed = false
+    @State private var yamlText = "name: demo\ntags:\n  - ide\n  - ipad\nsettings:\n  density: regular\n"
+    @State private var cron = "30 9 * * 1-5"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Picker("Mode", selection: $mode) { Text("JSON").tag(0); Text("Regex").tag(1) }
+            Picker("Mode", selection: $mode) { Text("JSON").tag(0); Text("YAML").tag(2); Text("Regex").tag(1); Text("Cron").tag(3) }
                 .pickerStyle(.segmented).fixedSize()
             if mode == 0 {
                 editor($json, height: 160)
@@ -217,6 +219,10 @@ private struct PatternsTool: View {
                     }
                     #if DEBUG
                     Color.clear.frame(height: 0).task { if ProcessInfo.processInfo.arguments.contains("-OmnieRunJQ") { await runJQ() } }
+                    Color.clear.frame(height: 0).task {
+                        let args = ProcessInfo.processInfo.arguments
+                        if let i = args.firstIndex(of: "-OmniePatternsMode"), args.indices.contains(i + 1), let m = Int(args[i + 1]) { mode = m }
+                    }
                     #endif
                     if let jqOutput {
                         ScrollView {
@@ -229,6 +235,39 @@ private struct PatternsTool: View {
                         .frame(maxHeight: 220)
                     }
                 }
+            } else if mode == 2 {
+                editor($yamlText, height: 140)
+                HStack {
+                    Button("From the JSON tab") { if let y = Patterns.yamlFromJSON(json) { yamlText = y } }
+                        .buttonStyle(.bordered).font(.caption)
+                    Spacer()
+                }
+                let report = Patterns.yaml(yamlText)
+                if let error = report.error {
+                    Text(error).foregroundStyle(palette.status.error.color).font(.caption)
+                } else if let out = report.json {
+                    Text("As JSON").font(.caption).foregroundStyle(palette.text.secondary.color)
+                    ScrollView {
+                        Text(out).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            } else if mode == 3 {
+                TextField("Cron expression", text: $cron)
+                    .font(.system(.footnote, design: .monospaced))
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                Text("minute  hour  day  month  weekday, or @daily, @hourly…").font(.caption2).foregroundStyle(palette.text.secondary.color)
+                switch Result(catching: { try Cron(cron) }) {
+                case .success(let schedule):
+                    Text(schedule.description).font(.subheadline)
+                    Text("Next runs (local time)").font(.caption).foregroundStyle(palette.text.secondary.color)
+                    ForEach(schedule.next(5, after: .now), id: \.self) { date in
+                        Text(date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year().hour().minute()))
+                            .font(.system(.caption, design: .monospaced))
+                    }
+                case .failure(let error):
+                    Text(error.localizedDescription).foregroundStyle(palette.status.error.color).font(.caption)
+                }
             } else {
                 HStack {
                     TextField("Pattern", text: $pattern).font(.system(.footnote, design: .monospaced))
@@ -238,6 +277,20 @@ private struct PatternsTool: View {
                 }
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 editor($sample, height: 100)
+                DisclosureGroup("Explain") {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(RegexExplainer.explain(pattern).enumerated()), id: \.offset) { _, part in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(part.token).font(.system(.caption, design: .monospaced)).foregroundStyle(palette.accent.ion.color)
+                                    .frame(minWidth: 70, alignment: .leading)
+                                Text(part.meaning).font(.caption)
+                            }
+                            .padding(.leading, CGFloat(part.depth) * 12)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.caption)
                 let report = Patterns.regex(pattern, flags: flags, in: sample, flavor: flavor)
                 if let error = report.error {
                     Text(error).foregroundStyle(palette.status.error.color).font(.caption)

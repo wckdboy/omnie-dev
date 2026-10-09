@@ -74,4 +74,35 @@ struct OpenAPIMocksTests {
         #expect(MockRoutes.match(method: "GET", path: "/v1/users", in: all)?.body == "[]")
         #expect(MockRoutes.match(method: "DELETE", path: "/v1/users/3", in: all)?.status == 204)
     }
+
+    @Test func openAPIFromYAML() {
+        let yaml = """
+            openapi: 3.0.3
+            servers:
+              - url: /api
+            paths:
+              /items/{id}:
+                get:
+                  responses:
+                    '200':
+                      content:
+                        application/json:
+                          schema:
+                            $ref: '#/components/schemas/Item'
+            components:
+              schemas:
+                Item:
+                  type: object
+                  properties:
+                    id: { type: integer, example: 42 }
+                    tags:
+                      type: array
+                      items: { type: string }
+            """
+        let routes = OpenAPIMocks.routes(yaml: yaml)
+        #expect(routes.count == 1)
+        #expect(routes.first?.path == "/api/items/:id")
+        #expect(routes.first?.body.contains("\"id\" : 42") == true)
+        #expect(routes.first?.body.contains("\"string\"") == true)
+    }
 }

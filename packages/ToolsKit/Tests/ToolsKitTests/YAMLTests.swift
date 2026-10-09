@@ -3,9 +3,9 @@
 
 import Foundation
 import Testing
-@testable import RunKit
+@testable import ToolsKit
 
-struct MiniYAMLTests {
+struct YAMLTests {
     @Test func parsesTheCommonShapes() throws {
         let yaml = """
             # a comment
@@ -38,7 +38,7 @@ struct MiniYAMLTests {
               joined
               words
             """
-        let value = try #require(MiniYAML.parse(yaml) as? [String: Any])
+        let value = try #require(YAML.parse(yaml) as? [String: Any])
         #expect(value["name"] as? String == "demo")
         #expect(value["version"] as? Int == 3)
         #expect(value["ratio"] as? Double == 1.5)
@@ -59,36 +59,5 @@ struct MiniYAMLTests {
         #expect(value["nested"] as? [[Int]] == [[1, 2]])
         #expect(value["text"] as? String == "line one\n  indented\n")
         #expect(value["folded"] as? String == "joined words")
-    }
-
-    @Test func openAPIFromYAML() {
-        let yaml = """
-            openapi: 3.0.3
-            servers:
-              - url: /api
-            paths:
-              /items/{id}:
-                get:
-                  responses:
-                    '200':
-                      content:
-                        application/json:
-                          schema:
-                            $ref: '#/components/schemas/Item'
-            components:
-              schemas:
-                Item:
-                  type: object
-                  properties:
-                    id: { type: integer, example: 42 }
-                    tags:
-                      type: array
-                      items: { type: string }
-            """
-        let routes = OpenAPIMocks.routes(yaml: yaml)
-        #expect(routes.count == 1)
-        #expect(routes.first?.path == "/api/items/:id")
-        #expect(routes.first?.body.contains("\"id\" : 42") == true)
-        #expect(routes.first?.body.contains("\"string\"") == true)
     }
 }

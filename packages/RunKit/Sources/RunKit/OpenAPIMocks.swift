@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Foundation
+import ToolsKit
 
 /// Mock routes from an OpenAPI 3 or Swagger 2 document in the project (PLAN.md §11.1), so a
 /// frontend runs against an API that only exists as a spec. Each operation answers with its first
@@ -35,7 +36,7 @@ public enum OpenAPIMocks {
     }
 
     public static func routes(yaml: String) -> [MockRoute] {
-        routes(spec: MiniYAML.parse(yaml))
+        routes(spec: YAML.parse(yaml))
     }
 
     static func routes(spec: Any?) -> [MockRoute] {

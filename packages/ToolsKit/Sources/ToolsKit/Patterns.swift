@@ -102,3 +102,78 @@ public enum Patterns {
         }
     }
 }
+
+extension Patterns {
+    public struct YAMLReport: Sendable, Equatable {
+        /// The YAML as formatted JSON (keys sorted: YAML maps have no order to keep).
+        public let json: String?
+        public let error: String?
+    }
+
+    /// Parses YAML (the subset in YAML.swift) and shows it as JSON.
+    public static func yaml(_ text: String) -> YAMLReport {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return YAMLReport(json: nil, error: "Empty") }
+        guard let value = YAML.parse(text) else { return YAMLReport(json: nil, error: "Not YAML this parser reads (anchors and tags aren't supported).") }
+        guard let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed])
+        else { return YAMLReport(json: nil, error: "Can't show it as JSON.") }
+        return YAMLReport(json: String(decoding: data, as: UTF8.self), error: nil)
+    }
+
+    /// JSON as YAML (block style, two-space indents, strings quoted only when needed).
+    public static func yamlFromJSON(_ text: String) -> String? {
+        guard let value = try? JSONSerialization.jsonObject(with: Data(text.utf8), options: [.fragmentsAllowed]) else { return nil }
+        var lines: [String] = []
+        func scalar(_ v: Any) -> String {
+            if v is NSNull { return "null" }
+            if let n = v as? NSNumber {
+                if CFGetTypeID(n) == CFBooleanGetTypeID() { return n.boolValue ? "true" : "false" }
+                return n.stringValue
+            }
+            let s = "\(v)"
+            let plain = !s.isEmpty && s.range(of: #"^[A-Za-z_][\w .\-/]*$"#, options: .regularExpression) != nil
+                && !["true", "false", "null", "yes", "no", "on", "off", "~"].contains(s.lowercased()) && !s.hasSuffix(" ")
+            if plain { return s }
+            let data = try? JSONSerialization.data(withJSONObject: [s], options: [.withoutEscapingSlashes])
+            return data.map { String(decoding: $0, as: UTF8.self).dropFirst().dropLast() }.map(String.init) ?? "\"\(s)\""
+        }
+        func emit(_ v: Any, _ indent: String) {
+            if let d = v as? [String: Any] {
+                if d.isEmpty { lines.append(indent + "{}"); return }
+                for k in d.keys.sorted() {
+                    let child = d[k]!
+                    if let c = child as? [String: Any], !c.isEmpty { lines.append("\(indent)\(scalar(k)):"); emit(c, indent + "  ") }
+                    else if let a = child as? [Any], !a.isEmpty { lines.append("\(indent)\(scalar(k)):"); emit(a, indent) }
+                    else { lines.append("\(indent)\(scalar(k)): \(inline(child))") }
+                }
+            } else if let a = v as? [Any] {
+                if a.isEmpty { lines.append(indent + "[]"); return }
+                for item in a {
+                    if let d = item as? [String: Any], !d.isEmpty {
+                        var first = true
+                        for k in d.keys.sorted() {
+                            let child = d[k]!
+                            let prefix = first ? "\(indent)- " : "\(indent)  "
+                            first = false
+                            if let c = child as? [String: Any], !c.isEmpty { lines.append("\(prefix)\(scalar(k)):"); emit(c, indent + "    ") }
+                            else if let ca = child as? [Any], !ca.isEmpty { lines.append("\(prefix)\(scalar(k)):"); emit(ca, indent + "  ") }
+                            else { lines.append("\(prefix)\(scalar(k)): \(inline(child))") }
+                        }
+                    } else if let inner = item as? [Any], !inner.isEmpty {
+                        lines.append("\(indent)-"); emit(inner, indent + "  ")
+                    } else {
+                        lines.append("\(indent)- \(inline(item))")
+                    }
+                }
+            } else {
+                lines.append(indent + scalar(v))
+            }
+        }
+        func inline(_ v: Any) -> String {
+            if let d = v as? [String: Any], d.isEmpty { return "{}" }
+            if let a = v as? [Any], a.isEmpty { return "[]" }
+            return scalar(v)
+        }
+        emit(value, "")
+        return lines.joined(separator: "\n") + "\n"
+    }
+}
