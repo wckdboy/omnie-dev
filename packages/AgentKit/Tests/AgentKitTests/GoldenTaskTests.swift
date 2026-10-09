@@ -41,6 +41,26 @@ struct GoldenTaskTests {
             try edit(root, "src/constants.ts") { _ in "export const MAX_ITEMS = 10;\n" }
         case "readme":
             try edit(root, "README.md") { $0 + "\n## Usage\n\nRun `npm start`.\n" }
+        case "python-default":
+            try edit(root, "app/greeting.py") { $0.replacingOccurrences(of: "def greet(name):", with: "def greet(name=\"world\"):") }
+        case "swift-guard":
+            try edit(root, "Sources/Stats.swift") {
+                $0.replacingOccurrences(of: "{\n    values", with: "{\n    if values.isEmpty { return 0 }\n    return values")
+            }
+        case "json-script":
+            try edit(root, "package.json") { $0.replacingOccurrences(of: "\"dev\": \"vite\"", with: "\"dev\": \"vite\",\n    \"test\": \"vitest\"") }
+        case "css-color":
+            try edit(root, "styles/main.css") { $0.replacingOccurrences(of: "#222", with: "#3dd6f5") }
+        case "extract-constant":
+            try edit(root, "src/retry.ts") {
+                "const MAX_RETRIES = 3;\n\n" + $0.replacingOccurrences(of: "i < 3", with: "i < MAX_RETRIES")
+            }
+        case "todo":
+            try edit(root, "src/user.ts") { $0.replacingOccurrences(of: "  // TODO: add an optional email field of type string\n", with: "  email?: string;\n") }
+        case "test-case":
+            try edit(root, "tests/math.test.ts") {
+                $0.replacingOccurrences(of: "  });\n});", with: "  });\n  it(\"adds\", () => {\n    expect(add(2, 3)).toBe(5);\n  });\n});")
+            }
         default:
             Issue.record("no solution for \(task.id)")
         }

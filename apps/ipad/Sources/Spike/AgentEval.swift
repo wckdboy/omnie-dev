@@ -25,7 +25,10 @@ enum AgentEval {
             return
         }
         var rows: [Row] = []
-        for task in GoldenTask.all {
+        // `-OmnieEvalTasks a,b` runs only those.
+        let args = ProcessInfo.processInfo.arguments
+        let only = args.firstIndex(of: "-OmnieEvalTasks").flatMap { args.indices.contains($0 + 1) ? Set(args[$0 + 1].split(separator: ",").map(String.init)) : nil }
+        for task in GoldenTask.all where only?.contains(task.id) ?? true {
             let root = FileManager.default.temporaryDirectory.appending(path: "eval-\(task.id)-\(UUID().uuidString.prefix(6))")
             do { try task.materialize(at: root) } catch { print("[eval] fixture failed: \(error)"); continue }
             // Outside the project, as in the app: the agent's grep must not find its own journal.

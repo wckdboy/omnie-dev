@@ -30,6 +30,7 @@ public enum ToolError: Error, Equatable, LocalizedError {
     case alreadyExists(String)
     case unknownTool(String)
     case duplicatesFollowingLines(String)
+    case wouldBreakSyntax(path: String, reason: String)
 
     public var errorDescription: String? {
         switch self {
@@ -40,6 +41,7 @@ public enum ToolError: Error, Equatable, LocalizedError {
         case .findNotUnique(let n): n == 0 ? "The find text isn't in the file. Copy it exactly from read." : "The find text appears \(n) times; include more surrounding lines so it's unique."
         case .alreadyExists(let p): "\(p) already exists. Use patch to change it."
         case .unknownTool(let n): "There's no tool called \(n)."
+        case .wouldBreakSyntax(let p, let reason): "That would leave \(p) invalid, so nothing was written: \(reason)\nEdit inside the existing structure with patch."
         case .duplicatesFollowingLines(let line): "replace includes \"\(line)\", which already comes right after find in the file, so it would appear twice. Put those lines in find as well, or leave them out of replace."
         }
     }
@@ -93,6 +95,21 @@ public struct Sandbox: Sendable {
     public func relative(_ url: URL) -> String {
         let path = URL(filePath: Self.realPath(url.standardizedFileURL.path)).path
         return path == root.path ? "." : String(path.dropFirst(root.path.count + 1))
+    }
+
+    /// Refuses writes that would break a file the app can check: JSON for now. A small model
+    /// appending a fragment after the closing brace is a common way to break package.json.
+    public static func validate(_ data: Data, path: String) throws {
+        guard path.lowercased().hasSuffix(".json") else { return }
+        do { _ = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) } catch {
+            // Show the would-be file (small ones) so the model can see what went wrong.
+            let text = String(decoding: data, as: UTF8.self)
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            let detail = (error as NSError).userInfo[NSDebugDescriptionErrorKey] as? String
+            var reason = "not valid JSON" + (detail.map { ": \($0)" } ?? "")
+            if lines.count <= 40 { reason += ". The file would have been:\n\(text)" }
+            throw ToolError.wouldBreakSyntax(path: path, reason: reason)
+        }
     }
 
     /// Git's blob id for `data`, so the model can name the exact version it read.
@@ -246,6 +263,7 @@ public struct PatchTool: AgentTool {
         guard count == 1 else { throw ToolError.findNotUnique(count: count) }
         if let updated {
             let out = Data(updated.utf8)
+            try Sandbox.validate(out, path: path)
             try out.write(to: url, options: .atomic)
             return "Patched \(path) (matched ignoring blank lines and indentation). New sha: \(Sandbox.blobSHA(out))"
         }
@@ -253,6 +271,7 @@ public struct PatchTool: AgentTool {
             throw ToolError.duplicatesFollowingLines(repeated)
         }
         let out = Data(text.replacingOccurrences(of: find, with: replace).utf8)
+        try Sandbox.validate(out, path: path)
         try out.write(to: url, options: .atomic)
         return "Patched \(path). New sha: \(Sandbox.blobSHA(out))"
     }
@@ -324,6 +343,7 @@ public struct AppendTool: AgentTool {
         // Keep one blank line between the old end and the addition.
         if !text.isEmpty && !text.hasSuffix("\n\n") && !addition.hasPrefix("\n") { text += "\n" }
         let out = Data((text + addition).utf8)
+        try Sandbox.validate(out, path: path)
         try out.write(to: url, options: .atomic)
         return "Appended to \(path). New sha: \(Sandbox.blobSHA(out))"
     }
@@ -346,6 +366,7 @@ public struct CreateFileTool: AgentTool {
         guard !FileManager.default.fileExists(atPath: url.path) else { throw ToolError.alreadyExists(path) }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let data = Data(try call.string("content").utf8)
+        try Sandbox.validate(data, path: path)
         try data.write(to: url, options: .atomic)
         return "Created \(path). sha: \(Sandbox.blobSHA(data))"
     }

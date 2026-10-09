@@ -33,7 +33,8 @@ extension GoldenTask {
 
     static func firstFailure(_ checks: String?...) -> String? { checks.compactMap { $0 }.first }
 
-    public static let all: [GoldenTask] = [farewell, rename, fixAdd, constants, readme]
+    public static let all: [GoldenTask] = [farewell, rename, fixAdd, constants, readme,
+                                           pythonDefault, swiftGuard, jsonScript, cssColor, extractConstant, todoComment, testCase]
 
     static let farewell = GoldenTask(
         id: "farewell",
@@ -104,5 +105,95 @@ extension GoldenTask {
                 expect(readme.contains("# shop") && readme.contains("A tiny shop backend."), "the existing README text was lost"),
                 expect(readme.range(of: "#+ +Usage", options: .regularExpression) != nil, "there's no Usage heading"),
                 expect(readme.contains("npm start"), "it doesn't mention npm start"))
+        })
+
+    static let pythonDefault = GoldenTask(
+        id: "python-default",
+        goal: "In app/greeting.py, give the name parameter of greet a default value of \"world\"",
+        files: ["app/greeting.py": "def greet(name):\n    return f\"Hello, {name}!\"\n\n\nif __name__ == \"__main__\":\n    print(greet(\"you\"))\n"],
+        check: { read in
+            let py = (read("app/greeting.py") ?? "").replacingOccurrences(of: "'", with: "\"")
+            return firstFailure(
+                expect(py.contains("def greet(name=\"world\")") || py.contains("def greet(name: str = \"world\")")
+                       || py.contains("def greet(name = \"world\")"), "greet's name has no \"world\" default"),
+                expect(py.contains("print(greet(\"you\"))"), "the main block changed"))
+        })
+
+    static let swiftGuard = GoldenTask(
+        id: "swift-guard",
+        goal: "average(of:) in Sources/Stats.swift crashes on an empty array. Make it return 0 for an empty array.",
+        files: ["Sources/Stats.swift": "func average(of values: [Double]) -> Double {\n    values.reduce(0, +) / Double(values.count)\n}\n"],
+        check: { read in
+            let swift = read("Sources/Stats.swift") ?? ""
+            return firstFailure(
+                expect(swift.contains("isEmpty") || swift.contains("count == 0"), "there's no empty check"),
+                expect(swift.contains("return 0"), "it doesn't return 0 for an empty array"),
+                expect(swift.contains("reduce(0, +)"), "the average itself was lost"))
+        })
+
+    static let jsonScript = GoldenTask(
+        id: "json-script",
+        goal: "Add a test script to package.json that runs vitest",
+        files: ["package.json": "{\n  \"name\": \"web\",\n  \"scripts\": {\n    \"dev\": \"vite\"\n  }\n}\n"],
+        check: { read in
+            guard let text = read("package.json"), let data = text.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "package.json isn't valid JSON" }
+            let scripts = json["scripts"] as? [String: String] ?? [:]
+            return firstFailure(
+                expect(scripts["test"]?.contains("vitest") == true, "there's no test script running vitest"),
+                expect(scripts["dev"] == "vite", "the dev script changed"))
+        })
+
+    static let cssColor = GoldenTask(
+        id: "css-color",
+        goal: "Change the button background color in styles/main.css to #3dd6f5",
+        files: ["styles/main.css": "body {\n  margin: 0;\n}\n\n.button {\n  background: #222;\n  color: white;\n}\n"],
+        check: { read in
+            let css = (read("styles/main.css") ?? "").lowercased()
+            return firstFailure(
+                expect(css.contains("#3dd6f5"), "the color isn't #3dd6f5"),
+                expect(!css.contains("#222"), "the old color is still there"),
+                expect(css.contains("margin: 0") && css.contains("color: white"), "other rules changed"))
+        })
+
+    static let extractConstant = GoldenTask(
+        id: "extract-constant",
+        goal: "In src/retry.ts, replace the magic number 3 with a named constant MAX_RETRIES",
+        files: ["src/retry.ts": "export async function retry<T>(fn: () => Promise<T>): Promise<T> {\n  for (let i = 0; i < 3; i++) {\n    try {\n      return await fn();\n    } catch {}\n  }\n  throw new Error(\"failed after 3 tries\");\n}\n"],
+        check: { read in
+            let ts = read("src/retry.ts") ?? ""
+            return firstFailure(
+                expect(ts.contains("MAX_RETRIES = 3"), "MAX_RETRIES isn't defined as 3"),
+                expect(ts.contains("i < MAX_RETRIES"), "the loop still uses the number"),
+                expect(ts.contains("return await fn()"), "the retry logic changed"))
+        })
+
+    static let todoComment = GoldenTask(
+        id: "todo",
+        goal: "Find the TODO comment in the project and do what it says",
+        files: [
+            "src/user.ts": "export interface User {\n  name: string;\n  // TODO: add an optional email field of type string\n}\n",
+            "src/index.ts": "import type { User } from \"./user\";\n\nconst u: User = { name: \"Ada\" };\nconsole.log(u.name);\n",
+        ],
+        check: { read in
+            let user = (read("src/user.ts") ?? "").replacingOccurrences(of: " ", with: "")
+            return firstFailure(
+                expect(user.contains("email?:string"), "User has no optional email: string"),
+                expect(user.contains("name:string"), "name was changed"))
+        })
+
+    static let testCase = GoldenTask(
+        id: "test-case",
+        goal: "Add a test to tests/math.test.ts that checks add(2, 3) is 5",
+        files: [
+            "src/math.ts": "export function add(a: number, b: number): number {\n  return a + b;\n}\n",
+            "tests/math.test.ts": "import { describe, it, expect } from \"vitest\";\nimport { add } from \"../src/math\";\n\ndescribe(\"add\", () => {\n  it(\"adds zero\", () => {\n    expect(add(1, 0)).toBe(1);\n  });\n});\n",
+        ],
+        check: { read in
+            let test = (read("tests/math.test.ts") ?? "").replacingOccurrences(of: " ", with: "")
+            return firstFailure(
+                expect(test.contains("add(2,3)"), "there's no test calling add(2, 3)"),
+                expect(test.contains(").toBe(5)") || test.contains(").toEqual(5)"), "it doesn't expect 5"),
+                expect(test.contains("expect(add(1,0)).toBe(1)"), "the existing test was removed"))
         })
 }

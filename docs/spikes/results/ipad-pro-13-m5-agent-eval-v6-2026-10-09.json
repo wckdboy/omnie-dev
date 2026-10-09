@@ -1,0 +1,91 @@
+{
+  "date" : 813208184.799832,
+  "label" : "v6-12tasks",
+  "rows" : [
+    {
+      "failure" : "greet was removed or changed",
+      "outcome" : "needsInput(reason: \"Reached the 12-step limit. Review what\\'s done, or give more direction.\")",
+      "passed" : false,
+      "seconds" : 127.4788349866867,
+      "steps" : 12,
+      "task" : "farewell"
+    },
+    {
+      "outcome" : "needsInput(reason: \"Reached the 12-step limit. Review what\\'s done, or give more direction.\")",
+      "passed" : true,
+      "seconds" : 99.99199593067169,
+      "steps" : 12,
+      "task" : "rename"
+    },
+    {
+      "outcome" : "finished(summary: \"Fixed the `add` function in `src\/math.ts` to correctly return the sum of two numbers.\")",
+      "passed" : true,
+      "seconds" : 22.901623964309692,
+      "steps" : 4,
+      "task" : "fix-add"
+    },
+    {
+      "outcome" : "finished(summary: \"Created src\/constants.ts with a constant MAX_ITEMS equal to 10.\")",
+      "passed" : true,
+      "seconds" : 12.715374946594238,
+      "steps" : 3,
+      "task" : "constants"
+    },
+    {
+      "outcome" : "finished(summary: \"Added a Usage section to README.md instructing users to run `npm start`.\")",
+      "passed" : true,
+      "seconds" : 32.02386689186096,
+      "steps" : 5,
+      "task" : "readme"
+    },
+    {
+      "outcome" : "finished(summary: \"Added a default value of \\'world\\' to the \\'name\\' parameter of the \\'greet\\' function in app\/greeting.py.\")",
+      "passed" : true,
+      "seconds" : 19.084558963775635,
+      "steps" : 4,
+      "task" : "python-default"
+    },
+    {
+      "outcome" : "finished(summary: \"Fixed the `average(of:)` function in Sources\/Stats.swift to return 0 for an empty array.\")",
+      "passed" : true,
+      "seconds" : 19.46400797367096,
+      "steps" : 4,
+      "task" : "swift-guard"
+    },
+    {
+      "outcome" : "finished(summary: \"Added a test script to package.json that runs vitest.\")",
+      "passed" : true,
+      "seconds" : 35.898736000061035,
+      "steps" : 6,
+      "task" : "json-script"
+    },
+    {
+      "outcome" : "finished(summary: \"Changed the button background color in styles\/main.css to #3dd6f5.\")",
+      "passed" : true,
+      "seconds" : 19.364320039749146,
+      "steps" : 4,
+      "task" : "css-color"
+    },
+    {
+      "outcome" : "finished(summary: \"Replaced the magic number 3 with a named constant MAX_RETRIES in src\/retry.ts.\")",
+      "passed" : true,
+      "seconds" : 20.141077995300293,
+      "steps" : 4,
+      "task" : "extract-constant"
+    },
+    {
+      "outcome" : "finished(summary: \"Added an optional email field of type string to the User interface in src\/user.ts and removed the TODO comment.\")",
+      "passed" : true,
+      "seconds" : 32.72459006309509,
+      "steps" : 6,
+      "task" : "todo"
+    },
+    {
+      "outcome" : "finished(summary: \"Added a test to tests\/math.test.ts to check that add(2, 3) is 5.\")",
+      "passed" : true,
+      "seconds" : 29.042860984802246,
+      "steps" : 5,
+      "task" : "test-case"
+    }
+  ]
+}

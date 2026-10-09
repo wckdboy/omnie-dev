@@ -207,6 +207,25 @@ struct AgentLoopTests {
         }
     }
 
+    @Test func writesThatWouldBreakJSONAreRefused() async throws {
+        // The 7B on json-script: a fragment appended after the closing brace.
+        let json = "{\n  \"name\": \"web\",\n  \"scripts\": {\n    \"dev\": \"vite\"\n  }\n}\n"
+        try json.write(to: root.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
+        let jsonSHA = Sandbox.blobSHA(Data(json.utf8))
+        let sandbox = Sandbox(root: root)
+        let error = await #expect(throws: ToolError.self) {
+            _ = try await AppendTool(sandbox: sandbox).run(ToolCall(name: "append_to_file", arguments: [
+                "path": .string("package.json"), "sha": .string(jsonSHA), "text": .string("  \"scripts\": { \"test\": \"vitest\" },")]))
+        }
+        // The message shows the would-be file, so the model can see the stray fragment.
+        #expect(error?.localizedDescription.contains("\"scripts\": { \"test\": \"vitest\" },") == true)
+        #expect(try String(contentsOf: root.appendingPathComponent("package.json"), encoding: .utf8) == json)
+        // A correct edit inside the object goes through.
+        _ = try await PatchTool(sandbox: sandbox).run(ToolCall(name: "patch", arguments: [
+            "path": .string("package.json"), "sha": .string(jsonSHA),
+            "find": .string("\"dev\": \"vite\""), "replace": .string("\"dev\": \"vite\",\n    \"test\": \"vitest\"")]))
+    }
+
     @Test func readDoesntShowAPhantomLastLine() async throws {
         let out = try await ReadTool(sandbox: Sandbox(root: root)).run(ToolCall(name: "read", arguments: ["path": .string("src/greet.ts")]))
         #expect(out.contains("lines 1-1 of 1\n---\nexport const greeting = \"hi\";"))
