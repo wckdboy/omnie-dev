@@ -1,0 +1,544 @@
+{
+    "suiteCommit": "e0aa527fab67f2f311882bcee4f62cc755433b73",
+    "totalMs": 2341,
+    "passed": 55,
+    "total": 73,
+    "byLang": {
+        "c": {
+            "pass": 11,
+            "total": 14
+        },
+        "rust": {
+            "pass": 31,
+            "total": 46
+        },
+        "assemblyscript": {
+            "pass": 12,
+            "total": 12
+        },
+        "omnie": {
+            "pass": 1,
+            "total": 1
+        }
+    },
+    "page": {
+        "origin": "omnie-wasi://spike",
+        "isSecureContext": true,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": false,
+        "sharedWasmMemory": "SharedArrayBuffer"
+    },
+    "results": [
+        {
+            "lang": "c",
+            "name": "clock_getres-monotonic",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "c",
+            "name": "clock_getres-realtime",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "c",
+            "name": "clock_gettime-monotonic",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "c",
+            "name": "clock_gettime-realtime",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "c",
+            "name": "fdopendir-with-access",
+            "pass": true,
+            "reason": "",
+            "ms": 8
+        },
+        {
+            "lang": "c",
+            "name": "fopen-with-access",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "c",
+            "name": "fopen-with-no-access",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "c",
+            "name": "lseek",
+            "pass": true,
+            "reason": "",
+            "ms": 7
+        },
+        {
+            "lang": "c",
+            "name": "pread-with-access",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "c",
+            "name": "pwrite-with-access",
+            "pass": true,
+            "reason": "",
+            "ms": 7
+        },
+        {
+            "lang": "c",
+            "name": "pwrite-with-append",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 Assertion failed: lseek(fd, 0, SEEK_CUR) == 4 (tests/c/src/pwrite-with-append.c: main: 21)",
+            "ms": 7
+        },
+        {
+            "lang": "c",
+            "name": "sock_shutdown-invalid_fd",
+            "pass": false,
+            "reason": "sockets not supported",
+            "ms": 3
+        },
+        {
+            "lang": "c",
+            "name": "sock_shutdown-not_sock",
+            "pass": false,
+            "reason": "sockets not supported",
+            "ms": 3
+        },
+        {
+            "lang": "c",
+            "name": "stat-dev-ino",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "big_random_buf",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "clock_time_get",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "close_preopen",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "dangling_fd",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "dangling_symlink",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "dir_fd_op_failures",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "directory_seek",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "fd_advise",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "fd_fdstat_set_rights",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "fd_filestat_set",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 attempt to subtract with overflow",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "fd_flags_set",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014  right: 100",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "fd_readdir",
+            "pass": true,
+            "reason": "",
+            "ms": 8
+        },
+        {
+            "lang": "rust",
+            "name": "file_allocate",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "file_pread_pwrite",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "file_seek_tell",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "file_truncation",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "file_unbuffered_write",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "fstflags_validate",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 bad error: Err(Errno { code: 58, name: \"NOTSUP\", message: \"Not supported, or operation not supported on socket.\" })",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "interesting_paths",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "isatty",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "nofollow_errors",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 creating a symlink: Errno { code: 58, name: \"NOTSUP\", message: \"Not supported, or operation not supported on socket.\" }",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "overwrite_preopen",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "path_exists",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 create symlink: Errno { code: 58, name: \"NOTSUP\", message: \"Not supported, or operation not supported on socket.\" }",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "path_filestat",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014  right: 0",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "path_link",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 creating a link to existing path should fail: ()",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "path_open_create_existing",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "path_open_dirfd_not_dir",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "path_open_missing",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "path_open_nonblock",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "path_open_preopen",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 fs_rights_base does not have required right `PATH_CREATE_DIRECTORY`",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "path_open_read_write",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 readonly has read right",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "path_rename",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "path_rename_dir_trailing_slashes",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 renaming a directory with a trailing slash in the destination name: Errno { code: 44, name: \"NOENT\", message: \"No such file or directory.\" }",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "path_symlink_trailing_slashes",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 expected errno NOENT; got NOTSUP",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "poll_oneoff_stdio",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 called `Result::unwrap()` on an `Err` value: Errno { code: 58, name: \"NOTSUP\", message: \"Not supported, or operation not supported on socket.\" }",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "readlink",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 creating a symlink: Errno { code: 58, name: \"NOTSUP\", message: \"Not supported, or operation not supported on socket.\" }",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "remove_directory_trailing_slashes",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "remove_nonempty_directory",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "renumber",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "sched_yield",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "rust",
+            "name": "stdio",
+            "pass": true,
+            "reason": "",
+            "ms": 6
+        },
+        {
+            "lang": "rust",
+            "name": "symlink_create",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014 creating a symlink: Errno { code: 58, name: \"NOTSUP\", message: \"Not supported, or operation not supported on socket.\" }",
+            "ms": 7
+        },
+        {
+            "lang": "rust",
+            "name": "symlink_filestat",
+            "pass": false,
+            "reason": "Unreachable code should not be executed (evaluating 'instance.exports._start()') \u2014  right: 0",
+            "ms": 4
+        },
+        {
+            "lang": "rust",
+            "name": "symlink_loop",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "rust",
+            "name": "truncation_rights",
+            "pass": true,
+            "reason": "",
+            "ms": 7
+        },
+        {
+            "lang": "rust",
+            "name": "unlink_file_trailing_slashes",
+            "pass": true,
+            "reason": "",
+            "ms": 4
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "args_get-multiple-arguments",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "args_sizes_get-multiple-arguments",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "args_sizes_get-no-arguments",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "environ_get-multiple-variables",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "environ_sizes_get-multiple-variables",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "environ_sizes_get-no-variables",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "fd_write-to-invalid-fd",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "fd_write-to-stdout",
+            "pass": true,
+            "reason": "",
+            "ms": 2
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "proc_exit-failure",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "proc_exit-success",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "random_get-non-zero-length",
+            "pass": true,
+            "reason": "",
+            "ms": 5
+        },
+        {
+            "lang": "assemblyscript",
+            "name": "random_get-zero-length",
+            "pass": true,
+            "reason": "",
+            "ms": 3
+        },
+        {
+            "lang": "omnie",
+            "name": "timeout-infinite-loop",
+            "pass": true,
+            "reason": "terminated by timeout",
+            "ms": 2001
+        }
+    ]
+}

@@ -40,6 +40,12 @@ targets:
     platform: iOS
     sources:
       - apps/ipad/Sources
+      - path: apps/ipad/Resources/WASISpikeApp
+        type: folder
+      # Vendored by scripts/vendor-wasi-spike.py (gitignored).
+      - path: apps/ipad/Resources/WASISpike
+        type: folder
+        optional: true
     dependencies:
       - package: DesignKit
       - package: CommandKit

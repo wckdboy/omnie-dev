@@ -16,3 +16,6 @@ packages/LangKit/Sources/TreeSitterGrammars/*/
 !packages/LangKit/Sources/TreeSitterGrammars/include/
 packages/LangKit/Sources/LangKit/Resources/queries/
 packages/LangKit/REUSE.toml
+
+# Vendored by scripts/vendor-wasi-spike.py
+apps/ipad/Resources/WASISpike/

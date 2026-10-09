@@ -55,6 +55,7 @@ final class AppModel {
     var editorSpikeOpen = false
     var modelSpikeOpen = false
     var webGPUSpikeOpen = false
+    var wasiSpikeOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -193,6 +194,10 @@ final class AppModel {
             Command(id: "spike.editor", title: "Run editor spike (P0)", menu: "View",
                     keywords: ["benchmark", "performance", "runestone", "textkit"]) { [weak self] in
                 self?.editorSpikeOpen = true
+            },
+            Command(id: "spike.wasi", title: "Run WASI spike (P0)", menu: "View",
+                    keywords: ["wasm", "sandbox", "runkit"]) { [weak self] in
+                self?.wasiSpikeOpen = true
             },
             Command(id: "spike.webgpu", title: "Run WebGPU spike (P0)", menu: "View",
                     keywords: ["webgl", "stage", "three.js", "gpu"]) { [weak self] in
