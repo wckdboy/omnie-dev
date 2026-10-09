@@ -170,6 +170,12 @@ struct OmnieDevApp: App {
         .commands {
             RegistryMenus(model: model)
         }
+
+        // A panel in a window of its own ("Open in new window" in a tab's menu).
+        WindowGroup("Panel", id: PanelWindow.sceneID, for: String.self) { $panel in
+            PanelWindow(panel: panel ?? UtilityTab.preview.rawValue)
+                .environment(model)
+        }
     }
 }
 

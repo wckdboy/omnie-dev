@@ -88,6 +88,8 @@ final class AppModel {
     var panes: PaneLayout = AppModel.loadPanes() {
         didSet { if panes != oldValue { AppModel.savePanes(panes) } }
     }
+    /// Panels open in windows of their own (out of the docks meanwhile).
+    var windowedPanels: Set<String> = []
     /// Under 700 pt the left dock slides over the editor instead.
     var leftOverlay = false
     /// The panel being dragged, while the dock edges offer themselves as drop targets.
@@ -152,6 +154,8 @@ final class AppModel {
     }
 
     func show(_ tab: UtilityTab) {
+        // It's in a window of its own: that window shows it.
+        if windowedPanels.contains(tab.rawValue) { return }
         withAnimation(Motion.pane) {
             panes.reveal(tab.rawValue)
             if layout == .single, panes.location(of: tab.rawValue)?.dock == .left { leftOverlay = true }

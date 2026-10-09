@@ -146,7 +146,8 @@ struct GroupView: View {
     /// Closed panels come back here; the layout presets.
     private var groupMenu: some View {
         Menu {
-            let closed = model.panes.closed(from: UtilityTab.allCases.map(\.rawValue)).compactMap(UtilityTab.init(rawValue:))
+            let closed = model.panes.closed(from: UtilityTab.allCases.map(\.rawValue))
+                .filter { !model.windowedPanels.contains($0) }.compactMap(UtilityTab.init(rawValue:))
             if !closed.isEmpty {
                 Section("Add to this group") {
                     ForEach(closed) { tab in
@@ -211,6 +212,7 @@ private struct PanelDrag: ViewModifier {
 /// A panel's menu: move it to another dock or a group of its own, or close it.
 struct PanelMenu: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
     let tab: UtilityTab
     let dock: PaneLayout.Dock
 
@@ -231,6 +233,13 @@ struct PanelMenu: View {
                         withAnimation(Motion.pane) { model.panes.move(id, toGroup: other.id) }
                     }
                 }
+            }
+        }
+        if UIApplication.shared.supportsMultipleScenes {
+            Button {
+                openWindow(id: PanelWindow.sceneID, value: id)
+            } label: {
+                Label("Open in new window", systemImage: "macwindow.badge.plus")
             }
         }
         Button(role: .destructive) {
@@ -318,6 +327,41 @@ extension PaneLayout.Dock {
         case .left: "rectangle.lefthalf.inset.filled"
         case .right: "rectangle.righthalf.inset.filled"
         case .bottom: "rectangle.bottomhalf.inset.filled"
+        }
+    }
+}
+
+/// One panel in its own window. While the window is open the panel leaves the docks; closing the
+/// window puts it back where panels return (the right dock).
+struct PanelWindow: View {
+    static let sceneID = "panel"
+    @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    let panel: String
+
+    var body: some View {
+        let palette = Palette.resolve(colorScheme: colorScheme, contrast: contrast)
+        Group {
+            if let tab = UtilityTab(rawValue: panel) {
+                PanelContent(tab: tab)
+                    .navigationTitle(tab.rawValue)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.palette, palette)
+        .environment(\.density, model.density)
+        .tint(palette.accent.ion.color)
+        .background(palette.surface.pane.color)
+        .onAppear {
+            model.windowedPanels.insert(panel)
+            withAnimation(Motion.pane) { model.panes.close(panel) }
+        }
+        .onDisappear {
+            model.windowedPanels.remove(panel)
+            if model.panes.location(of: panel) == nil {
+                withAnimation(Motion.pane) { model.panes.reveal(panel) }
+            }
         }
     }
 }

@@ -56,4 +56,23 @@ final class PaneLayoutUITests: XCTestCase {
         XCTAssertTrue(moved.waitForExistence(timeout: 5))
         XCTAssertLessThan(abs(moved.frame.midY - app.buttons["Terminal"].firstMatch.frame.midY), 4, "the preview joined the terminal's tab bar")
     }
+
+    func testOpenPanelInNewWindow() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-OmnieUIFixture", "-OmnieLayout", "standard", "-OmnieNoPanelDrag"]
+        app.launch()
+        let preview = app.buttons["Preview"].firstMatch
+        XCTAssertTrue(preview.waitForExistence(timeout: 15))
+        let windows = app.windows.count
+        preview.press(forDuration: 1.0)
+        let open = app.buttons["Open in new window"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        open.tap()
+        // A second window, and the preview's tab left the dock.
+        let deadline = Date().addingTimeInterval(10)
+        while app.windows.count <= windows && Date() < deadline { usleep(200_000) }
+        XCTAssertGreaterThan(app.windows.count, windows, "a window opened for the panel")
+        XCTAssertFalse(app.buttons.matching(identifier: "Preview").allElementsBoundByIndex.contains { $0.isHittable && $0.frame.height < 80 },
+                       "no Preview tab is left in the docks")
+    }
 }
