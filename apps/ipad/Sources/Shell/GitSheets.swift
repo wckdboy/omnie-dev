@@ -194,6 +194,7 @@ extension View {
             .sheet(isPresented: $model.cloneSheetOpen) { CloneSheet() }
             .sheet(item: $git.pendingHostKey) { HostKeySheet(key: $0) }
             .sheet(isPresented: $model.branchSheetOpen) { BranchSheet() }
+            .sheet(isPresented: $model.historySheetOpen) { HistorySheet() }
             .fullScreenCover(isPresented: $model.editorSpikeOpen) { EditorSpikeView() }
             .fullScreenCover(isPresented: $model.modelSpikeOpen) { ModelSpikeView() }
             .fullScreenCover(isPresented: $model.webGPUSpikeOpen) { WebGPUSpikeView() }

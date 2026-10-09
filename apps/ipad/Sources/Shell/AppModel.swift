@@ -60,6 +60,7 @@ final class AppModel {
     var sshKeySheetOpen = false
     var cloneSheetOpen = false
     var branchSheetOpen = false
+    var historySheetOpen = false
     var editorSpikeOpen = false
     var modelSpikeOpen = false
     var webGPUSpikeOpen = false
@@ -370,6 +371,11 @@ final class AppModel {
                 guard let self else { return }
                 self.workspace.saveCurrent()
                 Task { await self.workspace.git.sync(isOffline: self.networkUnavailable) }
+            },
+            Command(id: "git.editHistory", title: "Edit history…", menu: "Git",
+                    keywords: ["interactive rebase", "squash", "reorder commits", "reword", "fixup"]) { [weak self] in
+                guard let self, self.workspace.git.repo != nil else { return }
+                self.historySheetOpen = true
             },
             Command(id: "git.branches", title: "Switch branch", menu: "Git",
                     shortcut: Shortcut("b", [.command, .shift]), keywords: ["checkout", "new branch"]) { [weak self] in

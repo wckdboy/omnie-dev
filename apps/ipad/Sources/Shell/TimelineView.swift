@@ -51,6 +51,13 @@ struct TimelineView: View {
                 }
                 .disabled(git.isSyncing)
                 .listRowBackground(Color.clear)
+                Button {
+                    model.registry.run("git.editHistory")
+                } label: {
+                    Label("Edit history…", systemImage: "arrow.up.arrow.down")
+                        .font(.footnote)
+                }
+                .listRowBackground(Color.clear)
                 if let undo = git.undoTitle {
                     Button {
                         model.registry.run("git.undo")

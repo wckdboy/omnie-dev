@@ -33,6 +33,40 @@ struct OmnieDevApp: App {
                         model.workspace.open(folder: folder)
                         model.workspace.open(file: folder.appending(path: "main.ts"), preview: false)
                     }
+                    // `-OmnieUIHistoryFixture`: a git project with four commits after a base (UI tests of Edit history).
+                    if args.contains("-OmnieUIHistoryFixture") {
+                        let folder = URL.documentsDirectory.appending(path: "uitest-history")
+                        try? FileManager.default.removeItem(at: folder)
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        if let repo = try? Repository.create(at: folder) {
+                            let me = Signature(name: "UI Test", email: "ui@omnie.invalid")
+                            for (file, text, message) in [("base.txt", "base", "Start the page"), ("a.txt", "a", "Add the header"),
+                                                          ("b.txt", "b", "WIP try a footer"), ("a.txt", "a2", "Fix header typo"),
+                                                          ("d.txt", "d", "Add the sign-in form")] {
+                                try? (text + "\n").write(to: folder.appending(path: file), atomically: true, encoding: .utf8)
+                                _ = try? await repo.commitAll(message: message + "\n", author: me)
+                            }
+                        }
+                        // An author for the rewritten commits, unless one is set.
+                        if model.workspace.git.fallbackName.isEmpty { model.workspace.git.fallbackName = "UI Test" }
+                        if model.workspace.git.fallbackEmail.isEmpty { model.workspace.git.fallbackEmail = "ui@omnie.invalid" }
+                        model.workspace.open(folder: folder)
+                    }
+                    // `-OmnieHistoryDemo` (with the fixture): drop one commit, fix up another, then undo; logs each history.
+                    if args.contains("-OmnieHistoryDemo") {
+                        for _ in 0..<50 where model.workspace.git.repo == nil { try? await Task.sleep(for: .milliseconds(100)) }
+                        let git = model.workspace.git
+                        func log() async -> String { ((try? await git.repo?.log(limit: 10)) ?? []).map(\.summary).joined(separator: " < ") }
+                        print("[history] before: \(await log())")
+                        if let (base, commits) = await git.editableHistory(), commits.count == 4 {
+                            let steps = [HistoryStep(commits[0].id), HistoryStep(commits[2].id, .fixup), HistoryStep(commits[1].id, .drop), HistoryStep(commits[3].id)]
+                            let started = Date()
+                            let ok = await git.applyHistory(base: base, steps: steps)
+                            print("[history] applied \(ok) in \(Int(Date().timeIntervalSince(started) * 1000)) ms: \(await log()); a.txt = \((try? String(contentsOf: folderOf(model).appending(path: "a.txt"), encoding: .utf8))?.trimmingCharacters(in: .newlines) ?? "?"), b.txt exists \(FileManager.default.fileExists(atPath: folderOf(model).appending(path: "b.txt").path))")
+                            await git.undo()
+                            print("[history] undone: \(await log()); error \(git.error ?? "none")")
+                        }
+                    }
                     if let i = args.firstIndex(of: "-OmnieOpenFolder"), args.indices.contains(i + 1) {
                         // Relative paths are inside Documents (handy on a device, where the container path is unknown).
                         let path = args[i + 1]
@@ -231,3 +265,7 @@ struct ExperienceRoot: View {
         .background(palette.surface.chrome.color)
     }
 }
+
+#if DEBUG
+@MainActor private func folderOf(_ model: AppModel) -> URL { model.workspace.rootURL ?? URL.documentsDirectory }
+#endif

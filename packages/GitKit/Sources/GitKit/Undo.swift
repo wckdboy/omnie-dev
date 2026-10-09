@@ -8,6 +8,8 @@ import Foundation
 public struct UndoEntry: Sendable, Hashable, Codable, Identifiable {
     public enum Kind: String, Sendable, Codable {
         case commit, merge, sync, switchBranch
+        /// An interactive rebase (History.swift).
+        case history
     }
 
     public let id: UUID
@@ -56,7 +58,7 @@ extension Repository {
             guard head.branch == entry.switchedTo, let from = entry.branch else { throw UndoError.changedSince }
             try switchBranch(to: from, recordUndo: false)
 
-        case .commit, .merge, .sync:
+        case .commit, .merge, .sync, .history:
             guard head.branch == entry.branch, head.commit?.hex == entry.headAfter else { throw UndoError.changedSince }
             if let after = entry.headAfter.flatMap(ObjectID.init(hex:)), try isOnRemote(after) {
                 throw UndoError.alreadyPushed

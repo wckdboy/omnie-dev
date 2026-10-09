@@ -335,6 +335,41 @@ final class GitModel {
         await refresh()
     }
 
+    // MARK: History (interactive rebase, PLAN.md §9.10)
+
+    /// The commits "Edit history" offers: unpushed, or the last 30.
+    func editableHistory() async -> (base: ObjectID, commits: [CommitInfo])? {
+        guard let repo else { return nil }
+        return (try? await repo.editableHistory()) ?? nil
+    }
+
+    /// The result of `steps` without changing anything.
+    func previewHistory(base: ObjectID, steps: [HistoryStep]) async -> Result<[CommitInfo], Error> {
+        guard let repo, let author = await author() else { return .failure(HistoryError.notOnABranch) }
+        do { return .success(try await repo.rewriteHistory(base: base, steps: steps, committer: author, apply: false)) }
+        catch { return .failure(error) }
+    }
+
+    /// Rewrites the branch; one Undo puts it back.
+    func applyHistory(base: ObjectID, steps: [HistoryStep]) async -> Bool {
+        guard let repo, let author = await author() else {
+            error = "Set your name and email (Commit asks for them) first."
+            return false
+        }
+        beforeWorktreeChange?()
+        defer { afterWorktreeChange?() }
+        do {
+            let made = try await repo.rewriteHistory(base: base, steps: steps, committer: author, apply: true)
+            syncMessage = "History edited: \(made.count) commit\(made.count == 1 ? "" : "s")"
+            await refresh()
+            return true
+        } catch {
+            self.error = (error as? LocalizedError)?.errorDescription ?? describe(error)
+            await refresh()
+            return false
+        }
+    }
+
     // MARK: Branches
 
     func switchBranch(_ name: String) async {
