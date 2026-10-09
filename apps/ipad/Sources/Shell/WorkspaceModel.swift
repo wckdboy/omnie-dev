@@ -169,6 +169,67 @@ final class WorkspaceModel {
         }
     }
 
+    // MARK: File operations (navigator)
+
+    /// A name being asked for (new file, new folder, rename); the navigator shows the prompt.
+    struct NamePrompt: Identifiable {
+        enum Kind { case newFile, newFolder, rename }
+        let id = UUID()
+        let kind: Kind
+        /// The folder to create in, or the item to rename.
+        let url: URL
+    }
+    var namePrompt: NamePrompt?
+    /// An item waiting for delete confirmation.
+    var pendingDelete: URL?
+
+    /// The folder new files go in: the open file's folder, else the project root.
+    var currentFolder: URL? {
+        openFile?.deletingLastPathComponent() ?? rootURL
+    }
+
+    /// Creates an empty file and opens it.
+    func newFile(named name: String, in folder: URL) {
+        do {
+            let url = try FileOperations.createFile(named: name, in: folder)
+            reload()
+            open(file: url)
+        } catch { banner = error.localizedDescription }
+    }
+
+    func newFolder(named name: String, in folder: URL) {
+        do { try FileOperations.createFolder(named: name, in: folder); reload() } catch { banner = error.localizedDescription }
+    }
+
+    func rename(_ url: URL, to name: String) {
+        if isDirty { saveCurrent() }
+        do {
+            let renamed = try FileOperations.rename(url, to: name)
+            // Keep the editor on the file (or on a file inside a renamed folder).
+            if let openFile, openFile.path.hasPrefix(url.path) {
+                let rest = String(openFile.path.dropFirst(url.path.count))
+                self.openFile = URL(filePath: renamed.path + rest)
+            }
+            reload()
+        } catch { banner = error.localizedDescription }
+    }
+
+    func duplicate(_ url: URL) {
+        do { try FileOperations.duplicate(url); reload() } catch { banner = error.localizedDescription }
+    }
+
+    /// Deletes after a checkpoint, so even an untracked file can be brought back from the timeline.
+    func delete(_ url: URL) async {
+        if isDirty { saveCurrent() }
+        await git.checkpoint(.delete)
+        do {
+            try FileOperations.delete(url)
+            if let openFile, openFile.path.hasPrefix(url.path) { closeFile() }
+            reload()
+            banner = "Deleted \(url.lastPathComponent). It's in the timeline's checkpoints if you need it back."
+        } catch { banner = error.localizedDescription }
+    }
+
     /// Selects the start of a 1-based line in the open file.
     func goToLine(_ line: Int) {
         let text = editor.text as NSString
@@ -296,6 +357,12 @@ final class WorkspaceModel {
     func applyEditorTheme(palette: Palette, density: Density) {
         guard editor.theme.palette != palette || editor.theme.density != density else { return }
         editor.theme = EditorTheme(palette: palette, density: density)
+    }
+
+    func relativePath(of url: URL) -> String {
+        guard let rootURL else { return url.lastPathComponent }
+        let path = url.path(percentEncoded: false), base = rootURL.path(percentEncoded: false)
+        return path.hasPrefix(base) ? String(path.dropFirst(base.count)).trimmingPrefix("/").description : url.lastPathComponent
     }
 
     var relativePath: String? {

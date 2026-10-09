@@ -15,6 +15,8 @@ public enum CheckpointReason: String, Sendable, CaseIterable {
     case sync
     case undo
     case manual
+    /// Before you delete files from the navigator.
+    case delete
 }
 
 /// A snapshot of the working tree, stored as a commit on a hidden ref.

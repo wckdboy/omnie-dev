@@ -203,6 +203,7 @@ extension View {
             .sheet(isPresented: $model.quickOpenOpen) { QuickOpenSheet() }
             .sheet(isPresented: $model.findOpen) { FindInProjectSheet() }
             .sheet(isPresented: $model.goToLineOpen) { GoToLineSheet() }
+            .modifier(FileOperationPrompts())
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }

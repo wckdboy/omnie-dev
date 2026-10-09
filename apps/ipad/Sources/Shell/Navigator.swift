@@ -45,6 +45,67 @@ struct Navigator: View {
                 model.workspace.open(file: node.url)
                 onOpen(node.url)
             }
+            .contextMenu { menu(for: node) }
+    }
+
+    @ViewBuilder
+    private func menu(for node: FileNode) -> some View {
+        let workspace = model.workspace
+        let folder = node.isDirectory ? node.url : node.url.deletingLastPathComponent()
+        Button { workspace.namePrompt = .init(kind: .newFile, url: folder) } label: { Label("New File…", systemImage: "doc.badge.plus") }
+        Button { workspace.namePrompt = .init(kind: .newFolder, url: folder) } label: { Label("New Folder…", systemImage: "folder.badge.plus") }
+        Divider()
+        Button { workspace.namePrompt = .init(kind: .rename, url: node.url) } label: { Label("Rename…", systemImage: "pencil") }
+        Button { workspace.duplicate(node.url) } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
+        Button { UIPasteboard.general.string = workspace.relativePath(of: node.url) } label: { Label("Copy Path", systemImage: "doc.on.clipboard") }
+        Divider()
+        Button(role: .destructive) { workspace.pendingDelete = node.url } label: { Label("Delete", systemImage: "trash") }
+    }
+}
+
+/// The prompts the navigator's file operations need: a name, or a delete confirmation.
+struct FileOperationPrompts: ViewModifier {
+    @Environment(AppModel.self) private var model
+    @State private var name = ""
+
+    func body(content: Content) -> some View {
+        @Bindable var workspace = model.workspace
+        let prompt = workspace.namePrompt
+        content
+            .alert(title(prompt), isPresented: Binding(get: { workspace.namePrompt != nil }, set: { if !$0 { workspace.namePrompt = nil } })) {
+                TextField("Name", text: $name)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button("Cancel", role: .cancel) { workspace.namePrompt = nil }
+                Button(prompt?.kind == .rename ? "Rename" : "Create") {
+                    guard let prompt else { return }
+                    switch prompt.kind {
+                    case .newFile: workspace.newFile(named: name, in: prompt.url)
+                    case .newFolder: workspace.newFolder(named: name, in: prompt.url)
+                    case .rename: workspace.rename(prompt.url, to: name)
+                    }
+                    workspace.namePrompt = nil
+                }
+            }
+            .onChange(of: prompt?.id) { name = prompt?.kind == .rename ? prompt?.url.lastPathComponent ?? "" : "" }
+            .confirmationDialog("Delete \(workspace.pendingDelete?.lastPathComponent ?? "")?",
+                                isPresented: Binding(get: { workspace.pendingDelete != nil }, set: { if !$0 { workspace.pendingDelete = nil } }),
+                                titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    if let url = workspace.pendingDelete { Task { await workspace.delete(url) } }
+                    workspace.pendingDelete = nil
+                }
+            } message: {
+                Text("A checkpoint is taken first, so you can restore it from the timeline.")
+            }
+    }
+
+    private func title(_ prompt: WorkspaceModel.NamePrompt?) -> String {
+        switch prompt?.kind {
+        case .newFile: "New file in \(prompt?.url.lastPathComponent ?? "")"
+        case .newFolder: "New folder in \(prompt?.url.lastPathComponent ?? "")"
+        case .rename: "Rename \(prompt?.url.lastPathComponent ?? "")"
+        case nil: ""
+        }
     }
 }
 

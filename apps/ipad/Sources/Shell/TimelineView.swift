@@ -180,6 +180,7 @@ extension CheckpointReason {
         case .sync: "before sync"
         case .undo: "before undo"
         case .manual: "manual"
+        case .delete: "before delete"
         }
     }
 }

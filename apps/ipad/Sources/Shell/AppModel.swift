@@ -174,6 +174,16 @@ final class AppModel {
                     shortcut: Shortcut("o"), keywords: ["project", "workspace"]) { [weak self] in
                 self?.workspace.isPickingFolder = true
             },
+            Command(id: "file.new", title: "New file…", menu: "File",
+                    shortcut: Shortcut("n"), keywords: ["create file"]) { [weak self] in
+                guard let self, let folder = workspace.currentFolder else { return }
+                workspace.namePrompt = .init(kind: .newFile, url: folder)
+            },
+            Command(id: "file.newFolder", title: "New folder…", menu: "File",
+                    shortcut: Shortcut("n", [.command, .shift]), keywords: ["create folder", "directory"]) { [weak self] in
+                guard let self, let folder = workspace.currentFolder else { return }
+                workspace.namePrompt = .init(kind: .newFolder, url: folder)
+            },
             Command(id: "file.quickOpen", title: "Open file…", menu: "File",
                     shortcut: Shortcut("p"), keywords: ["go to file", "quick open", "find file"]) { [weak self] in
                 guard let self, workspace.rootURL != nil else { return }
