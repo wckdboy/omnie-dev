@@ -77,6 +77,13 @@ struct OmnieDevApp: App {
                         await ModelSmoke.adopt(model, from: URL.documentsDirectory.appending(path: args[i + 1]))
                     }
                     if args.contains("-OmnieWasiConformance") { await WasiConformance.run() }
+                    // `-OmnieStageSummary` prints what the agent's stage_scene tool would see.
+                    if args.contains("-OmnieStageSummary") {
+                        Task {
+                            try? await Task.sleep(for: .seconds(10))
+                            print("[stage-summary]\n" + StageSnapshot.shared.summary())
+                        }
+                    }
                     // `-OmnieAgentEval <label>` runs the golden task set against the local 7B.
                     if let i = args.firstIndex(of: "-OmnieAgentEval") {
                         await AgentEval.run(model, label: args.indices.contains(i + 1) ? args[i + 1] : "eval")

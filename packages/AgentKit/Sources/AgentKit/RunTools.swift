@@ -52,3 +52,15 @@ public struct DocsLookupTool: AgentTool {
     public func action(for call: ToolCall) throws -> Action { .readProject(path: "docs:" + (try call.string("query"))) }
     public func run(_ call: ToolCall) async throws -> String { await runner(try call.string("query")) }
 }
+
+/// `stage_scene`: what the Stage is showing (PLAN.md §10.2): the scene graph with transforms and
+/// materials, and the performance numbers. Read-only; no GPU access.
+public struct StageSceneTool: AgentTool {
+    let runner: @Sendable () async -> String
+    public init(runner: @escaping @Sendable () async -> String) { self.runner = runner }
+    public let name = "stage_scene"
+    public let description = "Describe the 3D scene open in the Stage: each object's name, type, transform and material, and the fps and triangle counts. Use it to check a three.js scene change."
+    public var parameters: [String: JSONValue] { schema([:], required: []) }
+    public func action(for call: ToolCall) throws -> Action { .readProject(path: "stage:scene") }
+    public func run(_ call: ToolCall) async throws -> String { await runner() }
+}

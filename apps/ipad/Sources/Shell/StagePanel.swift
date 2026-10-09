@@ -65,6 +65,7 @@ struct StagePanel: View {
         // Saving anything reloads the stage, keeping the camera: scene code and shaders hot-reload.
         .onChange(of: model.workspace.changeCount) { reload() }
         .onChange(of: selection) { _, id in controller.run(Stage.selectScript(id)) }
+        .onDisappear { StageSnapshot.shared.file = nil }
     }
 
     private func open(_ path: String) {
@@ -75,10 +76,19 @@ struct StagePanel: View {
 
     private func reload() {
         model.workspace.problems.stageDiagnostics = []
+        StageSnapshot.shared.problems = []
         reloads += 1
     }
 
     private func handle(_ event: Stage.Event, file: String) {
+        let snapshot = StageSnapshot.shared
+        snapshot.file = file
+        switch event {
+        case .graph(let list): snapshot.nodes = list
+        case .stats(let st): snapshot.stats = st
+        case .shaderError(let path, let line, let message): snapshot.problems.append("\(path ?? file):\(line): \(message)")
+        default: break
+        }
         #if DEBUG
         if case .graph = event {} else { print("[stage] \(event)") }
         #endif
@@ -147,6 +157,44 @@ struct StagePanel: View {
         .foregroundStyle(palette.text.secondary.color)
         .padding(.horizontal, 12).padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// What the Stage shows, for the agent's `stage_scene` tool.
+@MainActor
+final class StageSnapshot {
+    static let shared = StageSnapshot()
+    var file: String?
+    var nodes: [Stage.Node] = []
+    var stats: Stage.Stats?
+    var problems: [String] = []
+
+    func summary() -> String {
+        guard let file else { return "The Stage isn't open. Open the Stage tab with a model or a *.stage.js scene to inspect it." }
+        func v(_ a: [Double]) -> String { "[" + a.map { String(format: "%g", $0) }.joined(separator: ", ") + "]" }
+        var lines = ["Stage: \(file)"]
+        if let s = stats { lines.append("\(s.fps) fps, worst frame \(String(format: "%.1f", s.worstFrameMs)) ms, \(s.triangles) triangles, \(s.drawCalls) draw calls, \(s.programs) shader programs") }
+        lines += problems.map { "Shader error: \($0)" }
+        for n in nodes.prefix(120) {
+            var line = String(repeating: "  ", count: n.depth) + "\(n.title) (\(n.type))"
+            if !n.visible { line += " hidden" }
+            line += " position \(v(n.position)) rotation° \(v(n.rotation)) scale \(v(n.scale))"
+            if n.triangles > 0 { line += " \(n.triangles) tris" }
+            if let m = n.material {
+                var parts = [m.type]
+                if let c = m.color { parts.append("color \(c)") }
+                if let r = m.roughness { parts.append("roughness \(String(format: "%g", r))") }
+                if let mt = m.metalness { parts.append("metalness \(String(format: "%g", mt))") }
+                if m.opacity < 1 { parts.append("opacity \(String(format: "%g", m.opacity))") }
+                for (k, u) in m.uniforms.sorted(by: { $0.key < $1.key }) {
+                    switch u { case .number(let x): parts.append("\(k)=\(String(format: "%g", x))"); case .color(let c): parts.append("\(k)=\(c)") }
+                }
+                line += " material " + parts.joined(separator: ", ")
+            }
+            lines.append(line)
+        }
+        if nodes.count > 120 { lines.append("… and \(nodes.count - 120) more objects") }
+        return lines.joined(separator: "\n")
     }
 }
 

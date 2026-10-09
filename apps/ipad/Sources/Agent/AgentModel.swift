@@ -184,7 +184,7 @@ final class AgentModel {
         if remote { config.stepCap = 30 } // PLAN.md §6.2: 12 local, 30 API
         let policy = policy
         let runner = AgentRunner(
-            goal: record.goal, model: model, tools: Self.tools(root: URL(filePath: record.worktreePath)),
+            goal: record.goal, model: model, tools: Self.tools(root: URL(filePath: record.worktreePath), stage: { await StageSnapshot.shared.summary() }),
             journal: journal(for: record), config: config,
             authorize: { action, artifact in await policy.authorize(action, by: .agent, artifact: artifact) },
             onEntry: { entry in
@@ -351,7 +351,7 @@ final class AgentModel {
     // MARK: Helpers
 
     /// The typed tools plus RunKit's runners, all confined to the task's worktree.
-    nonisolated static func tools(root: URL) -> [any AgentTool] {
+    nonisolated static func tools(root: URL, stage: (@Sendable () async -> String)? = nil) -> [any AgentTool] {
         // check_types only where there's TypeScript: one less tool for the model to weigh elsewhere.
         standardTools(root: root) + [
             RunTestsTool { file in await AgentRuns.tests(root: root, file: file) },
@@ -360,6 +360,7 @@ final class AgentModel {
             + (DocsStore(root: DocsModel.root) { _ in Data() }.installed().isEmpty ? [] : [DocsLookupTool { query in
                 await DocsStore(root: DocsModel.root) { _ in throw URLError(.notConnectedToInternet) }.lookup(query)
             }])
+            + (stage.map { [StageSceneTool(runner: $0)] } ?? [])
     }
 
     private func journal(for record: TaskRecord) -> Journal {
