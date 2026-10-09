@@ -56,8 +56,13 @@ final class ModelsModel {
     private(set) var states: [String: ModelStore.State] = [:]
     private(set) var downloads: [String: Download] = [:]
     var error: String?
+    /// Ghost text from the Tiny model while you type. On by default once it's installed.
+    var inlineSuggestions = UserDefaults.standard.object(forKey: "models.inlineSuggestions") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(inlineSuggestions, forKey: "models.inlineSuggestions") }
+    }
     @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var loaded: (pack: ModelPack, model: MLXTextModel)?
+    @ObservationIgnored private var isLoading = false
 
     init(policy: PolicyModel) {
         self.policy = policy
@@ -114,7 +119,9 @@ final class ModelsModel {
     func tinyModel() async -> TextModel? {
         let pack = ModelPack.tiny
         if let loaded, loaded.pack == pack { return loaded.model }
-        guard isInstalled(pack) else { return nil }
+        guard isInstalled(pack), !isLoading else { return nil }
+        isLoading = true
+        defer { isLoading = false }
         guard MemoryBudget.canLoad(pack, available: Int64(os_proc_available_memory())) else {
             error = "Not enough free memory to load \(pack.displayName) right now."
             return nil

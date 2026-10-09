@@ -88,6 +88,10 @@ final class AppModel {
     init() {
         workspace = WorkspaceModel(policy: policy)
         models = ModelsModel(policy: policy)
+        workspace.completionModel = { [models] in
+            guard models.inlineSuggestions else { return nil }
+            return await models.tinyModel()
+        }
         registerCommands()
         // Debug launch arguments open their own folder.
         let args = ProcessInfo.processInfo.arguments

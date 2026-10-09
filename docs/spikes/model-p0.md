@@ -49,3 +49,5 @@ The first real use of the local model in the app: Settings › Models downloads 
 | Commit draft from a README change | 0.19 s: "Improve README.md for better network control" (template: "Update README.md") |
 
 Qwen's FIM special tokens tokenize correctly through swift-transformers, so the instruct model can serve ghost text. Within the plan's 300 ms ghost-text budget only for short completions; ghost text should ask for a single line.
+
+**Ghost text (same run):** typing `return ` at the end of a line in a Swift fibonacci, the suggestion `fibonacci(n - 1) + fibonacci(n - 2)` appeared **454 ms after the last keystroke**: the 300 ms idle pause plus ~150 ms in the model (single line, warm; the first FIM after load also compiles kernels, 0.88 s). Tab inserted it. Against the §16 budget ("≤ 300 ms after an idle pause") that's ~150 ms after the pause, inside the target. Ghost text is offered only at the end of a line, single-line, and is cleared by any edit or caret move.

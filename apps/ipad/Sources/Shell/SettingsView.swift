@@ -162,6 +162,10 @@ private struct ModelsSection: View {
                 }
                 .accessibilityElement(children: .contain)
             }
+            if models.isInstalled(.tiny) {
+                @Bindable var models = models
+                Toggle("Inline suggestions", isOn: $models.inlineSuggestions)
+            }
             if let error = models.error {
                 Text(error).font(.caption).foregroundStyle(.red)
             }

@@ -5,6 +5,7 @@ import DesignKit
 import EditorKit
 import GitKit
 import LangKit
+import ModelKit
 import PolicyKit
 import SwiftUI
 import WorkspaceKit
@@ -26,6 +27,10 @@ final class WorkspaceModel {
     @ObservationIgnored let recents = RecentProjects(fileURL: AppPaths.support.appendingPathComponent("recent-projects.json"))
     private(set) var recentProjects: [ProjectRef] = []
     @ObservationIgnored private var watcher: ProjectWatcher?
+    /// The model for ghost text, when one is installed and suggestions are on. Set by AppModel.
+    @ObservationIgnored var completionModel: (() async -> TextModel?)?
+    @ObservationIgnored private var suggestionTask: Task<Void, Never>?
+    @ObservationIgnored private var editGeneration = 0
 
     private(set) var openFile: URL?
     private(set) var language: Language?
@@ -46,7 +51,9 @@ final class WorkspaceModel {
         editor.onChange = { [weak self] in
             guard let self else { return }
             isDirty = true
+            editGeneration += 1
             scheduleAutosave()
+            scheduleSuggestion()
         }
         recentProjects = recents.load()
         editor.onSelectionChange = { [weak self] range in
@@ -175,6 +182,32 @@ final class WorkspaceModel {
             return
         }
         Task { await git.checkpoint(.save) }
+    }
+
+    /// Ghost text (PLAN.md §7): after a 300 ms pause with the caret at the end of a line, ask the
+    /// local model for the rest of the line. Shown only if nothing changed while it thought.
+    private func scheduleSuggestion() {
+        suggestionTask?.cancel()
+        guard completionModel != nil else { return }
+        let generation = editGeneration
+        suggestionTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled, let self, let model = await completionModel?() else { return }
+            let selection = editor.selectedRange
+            let text = editor.text as NSString
+            guard selection.length == 0, text.length < 2_000_000,
+                  CodeEditorController.restOfLineIsBlank(text, from: selection.location) else { return }
+            let prefix = text.substring(to: selection.location)
+            let suffix = text.substring(from: selection.location)
+            // Nothing to complete on a blank line.
+            guard let lastLine = prefix.split(separator: "\n", omittingEmptySubsequences: false).last,
+                  !lastLine.allSatisfy(\.isWhitespace) else { return }
+            let raw = try? await model.complete(.raw(FIM.qwen(prefix: prefix, suffix: suffix)), maxTokens: 32,
+                                                stop: FIM.qwenStops + ["\n"])
+            guard !Task.isCancelled, generation == editGeneration, let raw else { return }
+            let suggestion = FIM.trim(raw, suffix: suffix)
+            if !suggestion.isEmpty { editor.showGhostText(suggestion, at: selection.location) }
+        }
     }
 
     /// Save after 3 s without typing.

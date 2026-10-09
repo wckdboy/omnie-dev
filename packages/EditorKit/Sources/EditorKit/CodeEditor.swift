@@ -46,6 +46,21 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// Marks as last set; their live ranges are in `textView.decorations`.
     var marks: [EditorMark] = []
 
+    /// An inline suggestion drawn after the caret (PLAN.md §7 ghost text). It isn't part of the
+    /// text: Tab inserts it, and any edit or caret move clears it.
+    public private(set) var ghostText: String?
+    private var ghostLocation = 0
+    /// Called with the text after Tab inserts a suggestion.
+    public var onGhostAccepted: ((String) -> Void)?
+    private lazy var ghostLabel: UILabel = {
+        let label = UILabel()
+        label.isUserInteractionEnabled = false
+        label.isAccessibilityElement = false
+        label.isHidden = true
+        textView.addSubview(label)
+        return label
+    }()
+
     public init(theme: EditorTheme) {
         self.theme = theme
         super.init()
@@ -110,10 +125,63 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
 
     public func scrollRangeToVisible(_ range: NSRange) { textView.scrollRangeToVisible(range) }
 
+    // MARK: Ghost text
+
+    /// Shows `text` after the caret, if the caret is still an insertion point at `location` with
+    /// nothing but whitespace after it on its line. Single line only.
+    public func showGhostText(_ text: String, at location: Int) {
+        let selection = textView.selectedRange
+        guard !text.isEmpty, !text.contains(where: \.isNewline), selection.length == 0, selection.location == location,
+              let start = textView.position(from: textView.beginningOfDocument, offset: location),
+              Self.restOfLineIsBlank(textView.text as NSString, from: location) else { return }
+        let caret = textView.caretRect(for: start)
+        ghostText = text
+        ghostLocation = location
+        ghostLabel.font = theme.font
+        ghostLabel.textColor = theme.palette.text.tertiary.uiColor
+        ghostLabel.text = text
+        ghostLabel.sizeToFit()
+        ghostLabel.frame.origin = CGPoint(x: caret.maxX + 1, y: caret.midY - ghostLabel.frame.height / 2)
+        ghostLabel.isHidden = false
+        UIAccessibility.post(notification: .announcement, argument: "Suggestion: \(text). Press Tab to accept.")
+    }
+
+    public func clearGhostText() {
+        guard ghostText != nil else { return }
+        ghostText = nil
+        ghostLabel.isHidden = true
+    }
+
+    public static func restOfLineIsBlank(_ text: NSString, from location: Int) -> Bool {
+        guard location <= text.length else { return false }
+        let line = text.lineRange(for: NSRange(location: location, length: 0))
+        let rest = text.substring(with: NSRange(location: location, length: NSMaxRange(line) - location))
+        return rest.allSatisfy(\.isWhitespace)
+    }
+
     // MARK: TextViewDelegate
 
-    public func textViewDidChange(_ textView: TextView) { onChange?() }
-    public func textViewDidChangeSelection(_ textView: TextView) { onSelectionChange?(textView.selectedRange) }
+    public func textViewDidChange(_ textView: TextView) {
+        clearGhostText()
+        onChange?()
+    }
+
+    public func textViewDidChangeSelection(_ textView: TextView) {
+        if ghostText != nil, textView.selectedRange != NSRange(location: ghostLocation, length: 0) { clearGhostText() }
+        onSelectionChange?(textView.selectedRange)
+    }
+
+    /// Tab with a suggestion showing inserts the suggestion instead of a tab.
+    public func textView(_ textView: TextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        guard text == "\t", let ghost = ghostText, range == NSRange(location: ghostLocation, length: 0) else { return true }
+        clearGhostText()
+        // Insert outside this callback; the engine is mid-edit.
+        DispatchQueue.main.async { [weak self] in
+            self?.textView.insertText(ghost)
+            self?.onGhostAccepted?(ghost)
+        }
+        return false
+    }
 
     // MARK: Helpers
 
