@@ -220,7 +220,7 @@ private struct TranscriptRow: View {
 }
 
 /// The task's changeset against your branch: files, diffs, Accept (squash merge) or Reject.
-private struct ChangesetReview: View {
+struct ChangesetReview: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
     let record: AgentModel.TaskRecord

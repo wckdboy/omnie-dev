@@ -26,8 +26,14 @@ struct VibeShell: View {
             }
             Tab("Changes", systemImage: "plusminus", value: .changes) {
                 NavigationStack {
-                    // Agent changesets (violet hunks, swipe to accept or reject) join this list in P2.
-                    TimelineView()
+                    VStack(spacing: 0) {
+                        // The agent's changeset waiting for review comes first (PLAN.md §13.2).
+                        if let task = model.agent.current, task.phase == .review {
+                            ScrollView { ChangesetReview(record: task).padding(12) }
+                                .frame(maxHeight: 420)
+                        }
+                        TimelineView()
+                    }
                         .navigationTitle("Changes")
                         .navigationBarTitleDisplayMode(.inline)
                 }
