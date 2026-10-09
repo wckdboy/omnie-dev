@@ -40,6 +40,10 @@ final class WorkspaceModel {
     /// 1-based caret position for the status strip.
     private(set) var cursor: (line: Int, column: Int)?
 
+    /// Goes up whenever files on disk change: a save, a change from outside, git rewriting files.
+    /// The preview reloads on it.
+    private(set) var changeCount = 0
+
     /// One-line inline banner, per the brand rule: what happened and the one next action.
     var banner: String?
 
@@ -131,6 +135,7 @@ final class WorkspaceModel {
     /// Something outside Omnie-dev changed files: refresh the navigator, and the open file if it's
     /// clean. Unsaved edits are never overwritten; you're told instead.
     private func changedOutside(_ urls: Set<URL>) {
+        changeCount += 1
         reload()
         Task { await git.refresh() }
         guard let openFile, urls.contains(openFile.standardizedFileURL) else { return }
@@ -182,6 +187,7 @@ final class WorkspaceModel {
         do {
             try TextFile.save(editor.text, to: openFile, presenter: watcher)
             isDirty = false
+            changeCount += 1
         } catch {
             banner = "Save failed: \(error.localizedDescription). Try again."
             return
@@ -231,6 +237,7 @@ final class WorkspaceModel {
 
     /// Re-reads the navigator and the open file after something other than the editor changed files.
     func reloadFromDisk() {
+        changeCount += 1
         reload()
         guard let openFile else { return }
         if FileManager.default.fileExists(atPath: openFile.path(percentEncoded: false)),

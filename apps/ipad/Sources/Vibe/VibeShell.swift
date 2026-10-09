@@ -40,8 +40,7 @@ struct VibeShell: View {
             }
             Tab("Preview", systemImage: "safari", value: .preview) {
                 NavigationStack {
-                    NotYet(title: "Preview", detail: "Run the project's dev task and see it here. Arrives with RunKit in P3.")
-                        .background(palette.surface.pane.color)
+                    PreviewPanel()
                         .navigationTitle("Preview")
                         .navigationBarTitleDisplayMode(.inline)
                 }

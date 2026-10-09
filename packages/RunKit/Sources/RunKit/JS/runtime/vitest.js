@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
 // SPDX-License-Identifier: Apache-2.0
 // A small vitest/jest-compatible subset, so a project's own *.test.ts files run on the device.
-import { format } from "omnie-run://local/runtime/harness.js";
+import { format } from "omnie-run://local/__omnie/runtime/harness.js";
 
 const tests = [];
 const stack = [];

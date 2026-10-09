@@ -42,7 +42,7 @@ struct UtilityPane: View {
                 case .agent: AgentPanel()
                 case .timeline: TimelineView()
                 case .terminal: RunPanel()
-                case .preview: NotYet(title: "Preview", detail: "Web previews arrive with RunKit in P3.")
+                case .preview: PreviewPanel()
                 case .stage: NotYet(title: "Stage", detail: "The three.js viewer and playground arrive in P3.")
                 case .tools: NotYet(title: "Tools", detail: "HTTP client, SQLite browser, Patterns and the rest arrive in P3.")
                 }

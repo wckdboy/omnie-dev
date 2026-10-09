@@ -16,12 +16,12 @@ window.addEventListener("error", (e) => send({ type: "error", text: `${e.message
 window.addEventListener("unhandledrejection", (e) => send({ type: "error", text: `Unhandled rejection: ${format(e.reason)}` }));
 
 const params = new URLSearchParams(location.search);
-const project = (path) => "omnie-run://local/project/" + path.split("/").map(encodeURIComponent).join("/");
+const project = (path) => "omnie-run://local/" + path.split("/").map(encodeURIComponent).join("/");
 
 (async () => {
   try {
     if (params.get("mode") === "tests") {
-      const runner = await import("omnie-run://local/runtime/vitest.js");
+      const runner = await import("omnie-run://local/__omnie/runtime/vitest.js");
       for (const file of params.getAll("file")) {
         runner.__collect(file);
         try { await import(project(file)); }

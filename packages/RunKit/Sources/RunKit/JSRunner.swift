@@ -120,7 +120,7 @@ public final class JSRunner {
                 let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 240), configuration: config)
                 self.webView = webView
                 // One origin for the harness and the project, so module loads aren't cross-origin.
-                var components = URLComponents(string: "\(JSRunner.scheme)://local/runtime/harness.html")!
+                var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/harness.html")!
                 components.queryItems = query
                 webView.load(URLRequest(url: components.url!))
                 DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
@@ -162,7 +162,7 @@ public final class JSRunner {
     }
 }
 
-/// Serves `omnie-run://local/runtime/…` from RunKit's bundle and `omnie-run://local/project/…` from the
+/// Serves `omnie-run://local/__omnie/runtime/…` from RunKit's bundle and everything else from the
 /// project: resolved like a bundler would, TypeScript transpiled, JSON as a module, and a
 /// Content-Security-Policy that keeps the page off the network.
 final class SchemeHandler: NSObject, WKURLSchemeHandler {
@@ -180,10 +180,12 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
 
     func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
         guard let url = task.request.url else { return }
-        // omnie-run://local/<runtime|project>/<path>
-        let parts = url.path.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true)
-        let area = parts.first.map(String.init) ?? ""
-        let path = parts.count > 1 ? String(parts[1]) : ""
+        // omnie-run://local/__omnie/runtime/<file> is RunKit's; everything else is the project, at the
+        // origin root so a page's "/src/main.ts" works.
+        let full = String(url.path.dropFirst())
+        let runtimePrefix = "__omnie/runtime/"
+        let area = full.hasPrefix(runtimePrefix) ? "runtime" : "project"
+        let path = area == "runtime" ? String(full.dropFirst(runtimePrefix.count)) : full
         do {
             let (data, mime) = try body(area: area, path: path)
             let headers = ["Content-Type": mime, "Content-Length": String(data.count), "Content-Security-Policy": Self.csp,
@@ -228,8 +230,17 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             let js = try transpiler.transpile(String(decoding: data, as: UTF8.self), path: path)
             return (Data(js.utf8), "text/javascript")
         }
-        return (data, "text/javascript")
+        return (data, Self.mimeTypes[(name as NSString).pathExtension.lowercased()] ?? "application/octet-stream")
     }
+
+    static let mimeTypes: [String: String] = [
+        "js": "text/javascript", "mjs": "text/javascript", "cjs": "text/javascript",
+        "html": "text/html", "htm": "text/html", "css": "text/css", "svg": "image/svg+xml",
+        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp",
+        "ico": "image/x-icon", "woff": "font/woff", "woff2": "font/woff2", "ttf": "font/ttf", "otf": "font/otf",
+        "txt": "text/plain", "md": "text/plain", "wasm": "application/wasm", "glb": "model/gltf-binary",
+        "gltf": "model/gltf+json", "map": "application/json",
+    ]
 
     static func jsString(_ text: String) -> String {
         let data = try? JSONSerialization.data(withJSONObject: [text])

@@ -76,6 +76,8 @@ struct OmnieDevApp: App {
                     }
                     // `-OmnieRunTests` opens the Run panel and runs the project's tests.
                     if args.contains("-OmnieRunTests") { model.show(.terminal) }
+                    // `-OmniePreview` opens the Preview tab.
+                    if args.contains("-OmniePreview") { model.show(.preview) }
                     // `-OmnieAgentDemo` runs a scripted agent task in the open project (UI checks).
                     if args.contains("-OmnieAgentDemo") {
                         try? await Task.sleep(for: .milliseconds(800))
