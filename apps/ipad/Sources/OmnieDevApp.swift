@@ -159,6 +159,22 @@ struct OmnieDevApp: App {
                             }
                         }
                     }
+                    // `-OmnieForgeToken <host> <user> <token>`: a forge token in the Keychain (a test forge's).
+                    if let i = args.firstIndex(of: "-OmnieForgeToken"), args.indices.contains(i + 3) {
+                        try? HTTPSToken.save(HTTPSToken(username: args[i + 2], token: args[i + 3]), host: args[i + 1])
+                    }
+                    // `-OmniePRFixture <url>`: clones it, commits on a new branch `feature`, opens the clone
+                    // (PullRequestUITests opens a pull request from it).
+                    if let i = args.firstIndex(of: "-OmniePRFixture"), args.indices.contains(i + 1),
+                       let folder = await model.workspace.git.clone(args[i + 1]),
+                       let repo = try? await Repository.open(at: folder) {
+                        let me = Signature(name: "Pad", email: "pad@example.com")
+                        _ = try? await repo.createBranch("feature")
+                        try? await repo.switchBranch(to: "feature")
+                        try? "Orbits are in radians.\n".write(to: folder.appending(path: "NOTES.md"), atomically: true, encoding: .utf8)
+                        _ = try? await repo.commitAll(message: "Add orbit notes\n\nSays which unit the angles use.\n", author: me)
+                        model.workspace.open(folder: folder)
+                    }
                     // Fixtures and folders are in place: launch commands can run now.
                     model.launchFolderReady = true
                     // `-OmnieDocs <query>` opens the docs sheet searching for it.

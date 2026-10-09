@@ -64,6 +64,7 @@ final class AppModel {
     var branchSheetOpen = false
     var historySheetOpen = false
     var remotesSheetOpen = false
+    var pullRequestsOpen = false
     /// First run, or Help › Welcome.
     var welcomeOpen = false
     var editorSpikeOpen = false
@@ -183,7 +184,7 @@ final class AppModel {
         #endif
         let args = ProcessInfo.processInfo.arguments
         // Debug launch arguments open their own folder (fixtures rebuild theirs, so don't reopen it).
-        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture"].contains { args.contains($0) }
+        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmniePRFixture"].contains { args.contains($0) }
         if !opensFolderAtLaunch { workspace.reopenLast() }
         startMonitors()
     }
@@ -455,6 +456,11 @@ final class AppModel {
                     keywords: ["move repo", "migrate", "mirror", "forge", "upstream", "add remote"]) { [weak self] in
                 guard let self, self.workspace.git.repo != nil else { return }
                 self.remotesSheetOpen = true
+            },
+            Command(id: "git.pullRequests", title: "Pull Requests…", menu: "Git",
+                    keywords: ["merge request", "pr", "mr", "review", "checks", "ci", "forgejo", "gitea", "gitlab", "github"]) { [weak self] in
+                guard let self, self.workspace.git.repo != nil else { return }
+                self.pullRequestsOpen = true
             },
             Command(id: "git.editHistory", title: "Edit history…", menu: "Git",
                     keywords: ["interactive rebase", "squash", "reorder commits", "reword", "fixup"]) { [weak self] in

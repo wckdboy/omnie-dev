@@ -234,6 +234,24 @@ public actor Repository {
         return result
     }
 
+    /// Commits on HEAD that none of `refs` has, newest first: what a pull request from this branch
+    /// into those would bring. Refs that don't exist are skipped.
+    public func log(notIn refs: [String], limit: Int = 100) throws -> [CommitInfo] {
+        guard try head().commit != nil else { return [] }
+        var walk: OpaquePointer?
+        try check(git_revwalk_new(&walk, pointer), "log")
+        defer { git_revwalk_free(walk) }
+        git_revwalk_sorting(walk, GIT_SORT_TIME.rawValue | GIT_SORT_TOPOLOGICAL.rawValue)
+        try check(git_revwalk_push_head(walk), "log")
+        for ref in refs { _ = git_revwalk_hide_ref(walk, ref) }
+        var result: [CommitInfo] = []
+        var oid = git_oid()
+        while result.count < limit, git_revwalk_next(&oid, walk) == 0 {
+            result.append(try commit(ObjectID(oid)))
+        }
+        return result
+    }
+
     // MARK: Shared helpers
 
     func repositoryIndex() throws -> OpaquePointer {

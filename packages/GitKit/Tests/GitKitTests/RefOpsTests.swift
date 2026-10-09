@@ -18,6 +18,22 @@ struct RefOpsTests {
         try text.write(to: dir.appendingPathComponent(path), atomically: true, encoding: .utf8)
     }
 
+    /// What a pull request from a branch brings: its commits that the base doesn't have.
+    @Test func logNotInAnotherBranch() async throws {
+        let repo = try Repository.create(at: dir)
+        try write("a.txt", "1\n")
+        _ = try await repo.commitAll(message: "Base\n", author: me)
+        let base = try #require(try await repo.head().branch)
+        _ = try await repo.createBranch("feature")
+        try await repo.switchBranch(to: "feature")
+        try write("a.txt", "2\n")
+        _ = try await repo.commitAll(message: "One\n", author: me)
+        try write("a.txt", "3\n")
+        _ = try await repo.commitAll(message: "Two\n", author: me)
+        #expect(try await repo.log(notIn: ["refs/heads/\(base)", "refs/remotes/origin/\(base)"]).map(\.summary) == ["Two", "One"])
+        #expect(try await repo.log(notIn: ["refs/heads/feature"]).isEmpty)
+    }
+
     @Test func tagsResetAndReflog() async throws {
         let repo = try Repository.create(at: dir)
         try write("a.txt", "1\n")

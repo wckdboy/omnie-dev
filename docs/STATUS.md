@@ -73,6 +73,14 @@ Open: an agreed pass rate on a larger task set (the router can already send what
 
 Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with compiled code that Pyodide doesn't build, a better local model for small structural edits.
 
+## P4 online power: HostKit started
+
+- **Pull requests (HostKit):** Git › Pull Requests… finds the forge behind the branch's remote (Forgejo/Gitea, GitLab, GitHub by host; any other host can be set by hand, remembered per host). It lists the open pull requests (merge requests on GitLab) with their checks folded to one badge (commit statuses, GitHub check runs, GitLab pipelines). It also opens a new one from the current branch: title and description come from the branch's commits, the branch is pushed first through Sync's approval, and a draft is possible. It uses the same per-host token as git over HTTPS, asked for over the sheet when missing or refused.
+- **Verified against a real Gitea 28.1** (Forgejo's API), running locally. HostKit's live test opens a PR, lists it, sees a duplicate refused with the forge's reason, and reads pending then success statuses (`OMNIE_LIVE_GITEA`, `OMNIE_GITEA_TOKEN`). `PullRequestUITests` does the whole thing from the app on the simulator: clone, commit on a branch, push, open (`TEST_RUNNER_OMNIE_GITEA`, `TEST_RUNNER_OMNIE_GITEA_TOKEN`; skipped otherwise).
+- GitLab and GitHub are covered by request/response tests against recorded shapes, not yet live.
+
+Open in P4: a live GitLab check, SSH/mosh tabs, LSP over WebSocket, the remote Podman runner and deploy (these need a server).
+
 ## v1.0 bar: memory soak passes
 
 `-OmnieSoak <rounds>` (debug) runs the local 7B agent on the sample with the preview, Stage and the terminal all on screen, `npm test` every 4 s and a file switch every 3 s, logging the footprint jetsam counts. On the iPad (M5, 16 GB), 8 rounds in 7 minutes: peak 5.9 GB with the model loaded, never less than 6.4 GB left, and after-round footprints of 4.3–4.7 GB that follow the goal (each third goal is the longest task) with no growth (round 8 ended 35 MB under round 1). The soak found two bugs, both fixed:
@@ -83,7 +91,7 @@ Still open for v1.0: App Store Connect metadata, which uses the drafts in `docs/
 
 ## How to check things yourself
 
-- Debug launch arguments (debug builds): `-OmniePlaneTest <bare repo in Documents>`, `-OmnieWasiConformance`, `-OmnieOpenFolder <path in Documents>`, `-OmnieRunTests`, `-OmniePreview`, `-OmnieAgentDemo`, `-OmnieAgentTask "<goal>"`, `-OmnieAgentEval <label>`, `-OmnieModelSmoke`, `-OmnieSoak <rounds>`.
+- Debug launch arguments (debug builds): `-OmniePlaneTest <bare repo in Documents>`, `-OmnieWasiConformance`, `-OmnieOpenFolder <path in Documents>`, `-OmnieRunTests`, `-OmniePreview`, `-OmnieAgentDemo`, `-OmnieAgentTask "<goal>"`, `-OmnieAgentEval <label>`, `-OmnieModelSmoke`, `-OmnieSoak <rounds>`, `-OmniePRFixture <url>`, `-OmnieForgeToken <host> <user> <token>`.
 - Packages: `swift test` in each `packages/*` (EditorKit runs on the simulator: `xcodebuild test -scheme EditorKit`).
 - CI (`.github/workflows/ci.yml`): REUSE lint on Linux; every package's tests on `macos-26` for each push and pull request; the UI tests on main, nightly and by hand. Standard GitHub-hosted runners are free for this public repository; the vendored inputs are cached on their scripts' hashes.
 - `scripts/test-all.sh [--ui]` runs every package's tests (EditorKit on an iPad simulator) and, with `--ui`, the app's UI tests; one line per suite, non-zero exit on any failure. 13 suites, 274 tests, about 1.5 minutes.

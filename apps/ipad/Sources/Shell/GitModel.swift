@@ -113,6 +113,13 @@ final class GitModel {
         await retry?()
     }
 
+    /// Asks for `host`'s token (the token sheet), then runs `retry`: for forge calls, which aren't
+    /// git operations but use the same per-host token.
+    func askForToken(host: String, rejected: Bool, retry: @escaping () async -> Void) {
+        pendingTokenHost = TokenRequest(host: host, rejected: rejected)
+        retryAfterTrust = retry
+    }
+
     func cancelTokenRequest() {
         pendingTokenHost = nil
         retryAfterTrust = nil
