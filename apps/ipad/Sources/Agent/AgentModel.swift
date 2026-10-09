@@ -6,6 +6,7 @@ import Foundation
 import GitKit
 import ModelKit
 import PolicyKit
+import RunKit
 import SecretsKit
 
 /// Agent tasks for the open project (PLAN.md §6, §9.5): each runs on its own branch and worktree,
@@ -350,10 +351,11 @@ final class AgentModel {
 
     /// The typed tools plus RunKit's runners, all confined to the task's worktree.
     nonisolated static func tools(root: URL) -> [any AgentTool] {
+        // check_types only where there's TypeScript: one less tool for the model to weigh elsewhere.
         standardTools(root: root) + [
             RunTestsTool { file in await AgentRuns.tests(root: root, file: file) },
             RunScriptTool { file in await AgentRuns.script(root: root, file: file) },
-        ]
+        ] + (JSRunner.hasTypeScript(root) ? [CheckTypesTool { await AgentRuns.types(root: root) }] : [])
     }
 
     private func journal(for record: TaskRecord) -> Journal {

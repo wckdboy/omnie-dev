@@ -6,6 +6,7 @@
 #   - Pyodide (MPL-2.0; CPython is PSF-2.0): Python in WebAssembly, copied into JS/pyodide/
 #   - three.js (MIT): the first entry of the offline package cache, copied into JS/packages/three/
 #   - marked and Mermaid (MIT): the Markdown preview, copied into JS/packages/
+#   - TypeScript 5.9 (Apache-2.0): type checking, copied into JS/packages/typescript/
 # Output is gitignored.
 set -eu
 cd "$(dirname "$0")/runkit"
@@ -34,6 +35,13 @@ for f in three.module.js three.core.js three.webgpu.js three.webgpu.nodes.js thr
 done
 cp -R node_modules/three/examples/jsm "$JS/packages/three/examples/jsm"
 cp node_modules/three/LICENSE "$JS/packages/three/LICENSE"
+# Type checking: the TypeScript 5 compiler (Apache-2.0; 7.x is the native Go port) and its lib files.
+rm -rf "$JS/packages/typescript" && mkdir -p "$JS/packages/typescript/lib"
+cp node_modules/typescript/lib/typescript.js "$JS/packages/typescript/typescript.js"
+cp node_modules/typescript/lib/lib.d.ts node_modules/typescript/lib/lib.*.d.ts "$JS/packages/typescript/lib/"
+cp node_modules/typescript/LICENSE.txt node_modules/typescript/ThirdPartyNoticeText.txt "$JS/packages/typescript/"
+(cd "$JS/packages/typescript/lib" && ls lib.d.ts lib.*.d.ts) > "$JS/packages/typescript/libs.txt"
+
 # Markdown preview: marked (MIT) and Mermaid (MIT).
 rm -rf "$JS/packages/marked" "$JS/packages/mermaid" && mkdir -p "$JS/packages/marked" "$JS/packages/mermaid"
 cp node_modules/marked/lib/marked.esm.js "$JS/packages/marked/marked.esm.js"

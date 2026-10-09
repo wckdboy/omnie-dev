@@ -144,6 +144,8 @@ public final class JSRunner {
         var webView: WKWebView?
         var result = RunResult()
         var continuation: CheckedContinuation<RunResult, Never>?
+        /// Messages the session doesn't handle itself (the type checker's diagnostics).
+        var onMessage: (([String: Any]) -> Void)?
 
         init(root: URL, transpiler: Transpiler) {
             handler = SchemeHandler(resolver: ModuleResolver(root: root), transpiler: transpiler)
@@ -183,7 +185,7 @@ public final class JSRunner {
             case "done":
                 finish(.finished)
             default:
-                break
+                onMessage?(body)
             }
         }
 
@@ -247,6 +249,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             path = String(full.dropFirst("__omnie/\(bundled)/".count))
         }
         if full == "__omnie/manifest.json" { area = "manifest" }
+        if full.hasPrefix("__omnie/source/") { area = "source"; path = String(full.dropFirst("__omnie/source/".count)) }
         do {
             let (data, mime) = try body(area: area, path: path)
             let headers = ["Content-Type": mime, "Content-Length": String(data.count), "Content-Security-Policy": Self.csp,
@@ -304,6 +307,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             return (try JSONSerialization.data(withJSONObject: Self.projectFiles(resolver.root)), "application/json")
         }
         guard let file = resolver.resolve(path), let data = try? Data(contentsOf: file) else { throw NotFound(path: path) }
+        // A project file as it is on disk, not transpiled (the type checker reads sources).
+        if area == "source" { return (data, "text/plain; charset=utf-8") }
         let name = file.lastPathComponent
         if name.hasSuffix(".html") || name.hasSuffix(".htm") {
             return (Data(PackageCache.inject(into: String(decoding: data, as: UTF8.self)).utf8), "text/html")

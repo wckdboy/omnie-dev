@@ -204,6 +204,7 @@ extension View {
             .sheet(isPresented: $model.prepareOfflineOpen) { PrepareOfflineSheet() }
             .sheet(isPresented: $model.findOpen) { FindInProjectSheet() }
             .sheet(isPresented: $model.goToLineOpen) { GoToLineSheet() }
+            .sheet(isPresented: $model.problemsOpen) { ProblemsSheet() }
             .modifier(FileOperationPrompts())
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }

@@ -24,6 +24,8 @@ final class WorkspaceModel {
     private(set) var root: FileNode?
     private(set) var rootURL: URL?
     private var isAccessingRoot = false
+    /// Type errors, for TypeScript projects.
+    let problems = ProblemsModel()
     @ObservationIgnored let recents = RecentProjects(fileURL: AppPaths.support.appendingPathComponent("recent-projects.json"))
     private(set) var recentProjects: [ProjectRef] = []
     /// Files opened in this project, newest first (quick open lists them first).
@@ -67,6 +69,11 @@ final class WorkspaceModel {
         // first and reload it after, so a stale buffer never overwrites what git just wrote.
         git.beforeWorktreeChange = { [weak self] in self?.saveCurrent() }
         git.afterWorktreeChange = { [weak self] in self?.reloadFromDisk() }
+        // New results mark the open file, unless it changed since the save they describe.
+        problems.onUpdate = { [weak self] in
+            guard let self, openFile != nil, !isDirty else { return }
+            editor.setMarks(problems.marks(for: relativePath))
+        }
         editor.onChange = { [weak self] in
             guard let self else { return }
             isDirty = true
@@ -107,6 +114,8 @@ final class WorkspaceModel {
         _ = try? recents.remember(url)
         recentProjects = recents.available().map(\.ref)
         startWatching(url)
+        problems.clear()
+        problems.schedule(root: url, after: .milliseconds(300))
         Task {
             await git.attach(url)
             onProjectOpened?(url)
@@ -152,6 +161,7 @@ final class WorkspaceModel {
     /// clean. Unsaved edits are never overwritten; you're told instead.
     private func changedOutside(_ urls: Set<URL>) {
         changeCount += 1
+        if let rootURL { problems.schedule(root: rootURL) }
         reload()
         Task { await git.refresh() }
         guard let openFile, urls.contains(openFile.standardizedFileURL) else { return }
@@ -280,7 +290,7 @@ final class WorkspaceModel {
         do {
             let loaded = try TextFile.load(url, presenter: watcher)
             language = Language(url: url)
-            editor.load(loaded, language: language)
+            editor.load(loaded, language: language, marks: problems.marks(for: relativePath(of: url)))
             editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
             isDirty = false
             openFile = url
@@ -352,6 +362,7 @@ final class WorkspaceModel {
             try TextFile.save(editor.text, to: openFile, presenter: watcher)
             isDirty = false
             changeCount += 1
+            if let rootURL { problems.schedule(root: rootURL) }
         } catch {
             banner = "Save failed: \(error.localizedDescription). Try again."
             return
@@ -402,12 +413,13 @@ final class WorkspaceModel {
     /// Re-reads the navigator and the open file after something other than the editor changed files.
     func reloadFromDisk() {
         changeCount += 1
+        if let rootURL { problems.schedule(root: rootURL) }
         reload()
         guard let openFile else { return }
         if FileManager.default.fileExists(atPath: openFile.path(percentEncoded: false)),
            let loaded = try? TextFile.load(openFile, presenter: watcher) {
             let selection = editor.selectedRange
-            editor.load(loaded, language: language)
+            editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
             isDirty = false
             editor.onLoaded = { [weak self] in
                 guard let self else { return }

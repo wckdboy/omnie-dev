@@ -19,6 +19,7 @@ struct StatusStrip: View {
                 Text("Unsaved")
             }
             SyncLabel()
+            ProblemsLabel()
             Spacer()
             Button { model.showAgent() } label: {
                 AgentPill(state: model.agent.pillState)

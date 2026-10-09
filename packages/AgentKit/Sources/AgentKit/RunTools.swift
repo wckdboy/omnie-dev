@@ -28,3 +28,15 @@ public struct RunScriptTool: AgentTool {
     public func action(for call: ToolCall) throws -> Action { .runSandboxed(command: "run_script \(try call.string("path"))", network: false) }
     public func run(_ call: ToolCall) async throws -> String { await runner(try call.string("path")) }
 }
+
+/// `check_types`: the TypeScript compiler over the whole project, offline. Returns each error with
+/// its file, line and column, or that there are none.
+public struct CheckTypesTool: AgentTool {
+    let runner: @Sendable () async -> String
+    public init(runner: @escaping @Sendable () async -> String) { self.runner = runner }
+    public let name = "check_types"
+    public let description = "Type-check the project's TypeScript (uses tsconfig.json if there is one). Returns each type error with file:line:column. Use it after editing .ts files."
+    public var parameters: [String: JSONValue] { schema([:], required: []) }
+    public func action(for call: ToolCall) throws -> Action { .runSandboxed(command: "check_types", network: false) }
+    public func run(_ call: ToolCall) async throws -> String { await runner() }
+}

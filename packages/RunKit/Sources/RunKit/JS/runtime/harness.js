@@ -20,7 +20,16 @@ const project = (path) => "omnie-run://local/" + path.split("/").map(encodeURICo
 
 (async () => {
   try {
-    if (params.get("mode") === "python" || params.get("mode") === "pytest") {
+    if (params.get("mode") === "typecheck") {
+      const worker = new Worker("omnie-run://local/__omnie/runtime/typecheck-worker.js");
+      await new Promise((resolve) => {
+        worker.onmessage = (e) => { if (e.data.type === "done") resolve(); else send(e.data); };
+        worker.onerror = (e) => { send({ type: "error", text: e.message || "Type checker failed" }); resolve(); };
+        worker.postMessage({});
+      });
+      worker.terminate();
+      send({ type: "done" });
+    } else if (params.get("mode") === "python" || params.get("mode") === "pytest") {
       // Python runs in a worker, so a runaway script can't freeze the page.
       const worker = new Worker("omnie-run://local/__omnie/runtime/python-worker.js", { type: "module" });
       await new Promise((resolve) => {

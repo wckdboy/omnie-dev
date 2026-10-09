@@ -78,6 +78,8 @@ def main() -> None:
     packages = ROOT / "packages/RunKit/Sources/RunKit/JS/packages"
     items.append(entry("marked", "18.1.0", [packages / "marked/LICENSE"], "https://marked.js.org"))
     items.append(entry("Mermaid", "12.1.0", [packages / "mermaid/LICENSE"], "https://mermaid.js.org"))
+    items.append(entry("TypeScript", "5.9.3", [packages / "typescript/LICENSE.txt", packages / "typescript/ThirdPartyNoticeText.txt"],
+                       "https://www.typescriptlang.org"))
     pyodide = ROOT / "packages/RunKit/Sources/RunKit/JS/pyodide"
     items.append(entry("Pyodide", "314.0.7", [pyodide / "MPL-2.0.txt"], "https://github.com/pyodide/pyodide"))
     items.append(entry("CPython (in Pyodide)", "3.14", [pyodide / "PSF-2.0.txt"], "https://www.python.org"))

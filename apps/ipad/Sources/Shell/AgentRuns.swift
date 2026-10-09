@@ -42,6 +42,10 @@ enum AgentRuns {
         return lines.isEmpty ? "" : "\nCode under test (read it before changing anything):\n" + lines.joined(separator: "\n")
     }
 
+    static func types(root: URL) async -> String {
+        do { return await (try JSRunner(root: root)).typeCheck().report } catch { return error.localizedDescription }
+    }
+
     static func script(root: URL, file: String) async -> String {
         do { return await (try JSRunner(root: root)).runFile(file).report } catch { return error.localizedDescription }
     }

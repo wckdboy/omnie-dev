@@ -14,7 +14,7 @@ public protocol EditorView: AnyObject {
     /// The full text. O(n): read it to save, not per keystroke.
     var text: String { get }
     var selectedRange: NSRange { get set }
-    func load(_ text: String, language: Language?)
+    func load(_ text: String, language: Language?, marks: [EditorMark])
     func scrollRangeToVisible(_ range: NSRange)
 }
 
@@ -97,7 +97,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// Shows text first, highlighting second: line data is built off the main thread and shown as plain
     /// text (first paint), then the tree-sitter language mode is attached and parses on its own
     /// background queue, coloring the visible lines when it finishes. Later loads cancel earlier ones.
-    public func load(_ text: String, language: Language?) {
+    /// Loads a file's text; `marks` (its diagnostics) replace the previous file's.
+    public func load(_ text: String, language: Language?, marks: [EditorMark] = []) {
         self.language = language
         loadGeneration += 1
         let generation = loadGeneration
@@ -109,6 +110,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             await MainActor.run {
                 guard generation == self.loadGeneration, let state = box.state else { return }
                 self.textView.setState(state)
+                self.setMarks(marks)
                 self.onLoaded?()
                 guard let language else {
                     self.onHighlighted?()

@@ -64,6 +64,7 @@ final class AppModel {
     var prepareOfflineOpen = false
     var findOpen = false
     var goToLineOpen = false
+    var problemsOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -219,6 +220,12 @@ final class AppModel {
                     shortcut: Shortcut("f", [.command, .shift]), keywords: ["search", "grep", "find all"]) { [weak self] in
                 guard let self, workspace.rootURL != nil else { return }
                 findOpen = true
+            },
+            Command(id: "problems.show", title: "Show problems", menu: "File",
+                    shortcut: Shortcut("m", [.command, .shift]), keywords: ["type errors", "diagnostics", "typescript", "tsc", "check types"]) { [weak self] in
+                guard let self, workspace.rootURL != nil else { return }
+                if let root = workspace.rootURL, workspace.problems.diagnostics.isEmpty { workspace.problems.schedule(root: root, after: .zero) }
+                problemsOpen = true
             },
             Command(id: "editor.goToLine", title: "Go to line…", menu: "File",
                     shortcut: Shortcut("l"), keywords: ["line number", "jump"]) { [weak self] in
