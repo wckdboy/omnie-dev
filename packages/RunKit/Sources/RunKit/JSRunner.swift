@@ -223,7 +223,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
 
     /// The project's files for Pyodide's file system: under 2 MB each, at most 3,000, skipping
     /// version control, dependencies and build output.
-    static func projectFiles(_ root: URL) -> [String] {
+    nonisolated static func projectFiles(_ root: URL) -> [String] {
         var files: [String] = []
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
         while let url = enumerator?.nextObject() as? URL, files.count < 3_000 {
@@ -244,7 +244,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         // origin root so a page's "/src/main.ts" works.
         let full = String(url.path.dropFirst())
         var area = "project", path = full
-        for bundled in ["runtime", "pyodide", "packages"] where full.hasPrefix("__omnie/\(bundled)/") {
+        for bundled in ["runtime", "pyodide", "packages", "npm"] where full.hasPrefix("__omnie/\(bundled)/") {
             area = bundled
             path = String(full.dropFirst("__omnie/\(bundled)/".count))
         }
@@ -289,7 +289,16 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         var errorDescription: String? { "Can't find module \(path) in the project." }
     }
 
+    /// The project's packages from the npm cache, by bare specifier.
+    var npmImports: [String: String] {
+        NpmCache.sharedRoot.map { NpmModules.importMap(project: resolver.root, cache: $0) } ?? [:]
+    }
+
     func body(area: String, path: String) throws -> (Data, String) {
+        if area == "npm" {
+            guard let cache = NpmCache.sharedRoot, let found = NpmModules.body(path: path, cache: cache, project: resolver.root) else { throw NotFound(path: path) }
+            return found
+        }
         if area == "runtime" || area == "pyodide" || area == "packages" {
             let directory = ("JS/\(area)/" + path as NSString).deletingLastPathComponent
             guard let url = Bundle.module.url(forResource: ((path as NSString).lastPathComponent as NSString).deletingPathExtension,
@@ -299,7 +308,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             if area == "runtime", ext == "html" {
                 data = Data(String(decoding: data, as: UTF8.self)
                     .replacingOccurrences(of: "<!--omnie:importmap-->",
-                                          with: PackageCache.importMapTag(adding: ["vitest": "omnie-run://local/__omnie/runtime/vitest.js"])).utf8)
+                                          with: PackageCache.importMapTag(adding: npmImports.merging(["vitest": "omnie-run://local/__omnie/runtime/vitest.js"]) { _, v in v })).utf8)
             }
             return (data, Self.mimeTypes[ext] ?? (ext == "py" ? "text/plain" : "application/octet-stream"))
         }
@@ -311,7 +320,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if area == "source" { return (data, "text/plain; charset=utf-8") }
         let name = file.lastPathComponent
         if name.hasSuffix(".html") || name.hasSuffix(".htm") {
-            return (Data(PackageCache.inject(into: String(decoding: data, as: UTF8.self)).utf8), "text/html")
+            return (Data(PackageCache.inject(into: String(decoding: data, as: UTF8.self), adding: npmImports).utf8), "text/html")
         }
         if name.hasSuffix(".json") {
             return (Data("export default \(String(decoding: data, as: UTF8.self));".utf8), "text/javascript")
@@ -323,7 +332,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         return (data, Self.mimeTypes[(name as NSString).pathExtension.lowercased()] ?? "application/octet-stream")
     }
 
-    static let mimeTypes: [String: String] = [
+    nonisolated static let mimeTypes: [String: String] = [
         "js": "text/javascript", "mjs": "text/javascript", "cjs": "text/javascript",
         "html": "text/html", "htm": "text/html", "css": "text/css", "svg": "image/svg+xml",
         "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp",
@@ -332,7 +341,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         "gltf": "model/gltf+json", "map": "application/json",
     ]
 
-    static func jsString(_ text: String) -> String {
+    nonisolated static func jsString(_ text: String) -> String {
         let data = try? JSONSerialization.data(withJSONObject: [text])
         return data.map { String(decoding: $0, as: UTF8.self).dropFirst().dropLast() }.map(String.init) ?? "\"error\""
     }

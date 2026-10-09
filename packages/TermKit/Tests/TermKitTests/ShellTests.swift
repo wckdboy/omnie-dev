@@ -48,13 +48,18 @@ struct ShellTests {
     @Test func runsThroughHooks() async {
         var opened: String?
         let shell = Shell(root: root, hooks: .init(run: { "ran \($0)" }, test: { "tested \($0 ?? "all")" },
-                                                  git: { "git \($0.joined(separator: " "))" }, open: { opened = $0 }))
+                                                  git: { "git \($0.joined(separator: " "))" },
+                                                  packages: { "packages \($0.joined(separator: " "))" }, open: { opened = $0 }))
         #expect(await shell.execute("node src/a.ts") == "ran src/a.ts")
         #expect(await shell.execute("npm test") == "tested all")
         #expect(await shell.execute("pytest") == "tested all")
         #expect(await shell.execute("git status") == "git status")
         #expect(await shell.execute("git push")?.contains("Git menu") == true)
-        #expect(await shell.execute("npm install three")?.contains("offline package cache") == true)
+        #expect(await shell.execute("npm install three zod@^3 --save") == "packages install three zod@^3")
+        #expect(await shell.execute("pnpm add react") == "packages install react")
+        #expect(await shell.execute("npm i") == "packages install")
+        #expect(await shell.execute("npm ls") == "packages ls")
+        #expect(await shell.execute("npm publish")?.contains("offline cache") == true)
         _ = await shell.execute("open README.md")
         #expect(opened == "README.md")
     }

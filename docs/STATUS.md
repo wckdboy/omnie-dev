@@ -37,12 +37,13 @@ Open: an agreed pass rate on a larger task set; API models (P4) for tasks the lo
 - **Terminal tab (TermKit):** built-in commands over the project (ls, cd, cat, grep, run, test, git status/log/diff, open), Run tests and Run file.
 - **Preview:** a project's index.html live, TypeScript transpiled on the fly, reload on save, console with an error count.
 - **Offline package cache, first tier:** three.js bundled and import-mapped, so `import * as THREE from "three"` works offline in previews, runs and tests.
+- **Offline package cache, npm tier:** `npm install [name[@range]]` in the terminal (or Prepare for offline, per project) fetches packages and their dependencies from the registry, checks each against its integrity hash and unpacks it into Application Support. Previews, runs and tests then import them from the project's package.json with no connection: ES modules as they are, CommonJS wrapped as ES modules with named exports found statically. Checked with React 18 (server render), zod, date-fns, nanoid and lodash-es.
 - **Stage:** glTF/GLB, OBJ and STL from the project in three.js, with a native performance HUD. On the iPad: 60 fps (WKWebView caps animation frames at 60 Hz). Python starts and runs in under a second. See `spikes/runkit-p3.md`.
 - **Tools tab (ToolsKit):** HTTP client (`.http` files, secrets from the Keychain), API mock server (recorded responses, and routes generated from an OpenAPI or Swagger spec, JSON or YAML, in the project, served to previews), SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
 - **Markdown + Mermaid preview** in the Preview tab for the open `.md` file.
 - **Type checking:** TypeScript 5.9 runs offline over the whole project (tsconfig.json honoured) when it opens and after saves: underlines in the editor, an error count in the status strip, a Problems list (⇧⌘M). The agent has `check_types` in TypeScript projects.
 
-Open: WASI tools in RunKit, npm/PyPI packages beyond the bundled tier, the Stage inspector and shader hot reload, offline docs.
+Open: WASI tools in RunKit, PyPI packages beyond Pyodide's, types from cached packages for the type checker, the Stage inspector and shader hot reload, offline docs.
 
 ## How to check things yourself
 

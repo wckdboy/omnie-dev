@@ -12,15 +12,19 @@ public final class Shell {
         public var run: (_ file: String) async -> String
         public var test: (_ file: String?) async -> String
         public var git: (_ args: [String]) async -> String
+        /// npm-style package commands: ["install", specs…] or ["ls"].
+        public var packages: (_ args: [String]) async -> String
         public var open: (_ file: String) -> Void
 
         public init(run: @escaping (String) async -> String = { _ in "Running isn't available." },
                     test: @escaping (String?) async -> String = { _ in "Tests aren't available." },
                     git: @escaping ([String]) async -> String = { _ in "Git isn't available." },
+                    packages: @escaping ([String]) async -> String = { _ in "The package cache isn't available." },
                     open: @escaping (String) -> Void = { _ in }) {
             self.run = run
             self.test = test
             self.git = git
+            self.packages = packages
             self.open = open
         }
     }
@@ -81,7 +85,12 @@ public final class Shell {
                 return await hooks.test(nil)
             case "npm", "npx", "pnpm", "yarn":
                 if args.first == "test" || args == ["run", "test"] { return await hooks.test(nil) }
-                throw Failure("\(command): package managers need the offline package cache, which isn't built yet. `test` runs the project's tests.")
+                let sub = args.first ?? ""
+                if ["install", "i", "add", "ci"].contains(sub) {
+                    return await hooks.packages(["install"] + args.dropFirst().filter { !$0.hasPrefix("-") })
+                }
+                if ["ls", "list"].contains(sub) { return await hooks.packages(["ls"]) }
+                throw Failure("\(command): install, ls and test work here. Packages go into the offline cache, not node_modules.")
             case "git":
                 guard let sub = args.first, ["status", "log", "diff", "branch"].contains(sub) else {
                     throw Failure("git: status, log, diff and branch work here. Commit, sync and branches are in the Git menu.")
@@ -102,6 +111,8 @@ public final class Shell {
           ls [path]  cd <path>  pwd  cat <file>  head|tail [-n N] <file>  grep <text> [path]  echo  clear
           run <file>      run JavaScript, TypeScript or Python (node, python and tsx work too)
           test [file]     run the project's tests (vitest/jest-style and pytest-style)
+          npm install [name[@range]…]   fetch packages into the offline cache (asks first)
+          npm ls          what the project gets from the cache
           git status|log|diff|branch
           open <file>     open in the editor
         """

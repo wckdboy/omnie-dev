@@ -4,8 +4,8 @@
 import Foundation
 
 /// Libraries RunKit carries, so a project's bare imports work offline (PLAN.md §8, the offline
-/// package cache; this is its first, built-in tier). Mapped with an import map, injected into the
-/// pages RunKit serves.
+/// package cache; this is its first, built-in tier; NpmCache is the second). Mapped with an import
+/// map, injected into the pages RunKit serves.
 public enum PackageCache {
     /// Import-map entries: bare specifier → URL served from RunKit's bundle.
     public static let imports: [String: String] = [
@@ -25,10 +25,10 @@ public enum PackageCache {
 
     /// Adds the import map to an HTML page that doesn't have its own (a page's own map wins; it
     /// usually points at a CDN, which is offline here anyway, so the page will say so).
-    static func inject(into html: String) -> String {
+    static func inject(into html: String, adding extra: [String: String] = [:]) -> String {
         guard html.range(of: "type=\"importmap\"", options: .caseInsensitive) == nil,
               html.range(of: "type='importmap'", options: .caseInsensitive) == nil else { return html }
-        let tag = importMapTag()
+        let tag = importMapTag(adding: extra)
         // Before the first script, so module resolution sees it.
         for marker in ["<head>", "<HEAD>"] {
             if let range = html.range(of: marker) { return html.replacingCharacters(in: range, with: marker + tag) }

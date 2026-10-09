@@ -94,6 +94,7 @@ final class AppModel {
     private let pathMonitor = NWPathMonitor()
 
     init() {
+        Packages.activate()
         workspace = WorkspaceModel(policy: policy)
         models = ModelsModel(policy: policy)
         agent = AgentModel(workspace: workspace, models: models, policy: policy)

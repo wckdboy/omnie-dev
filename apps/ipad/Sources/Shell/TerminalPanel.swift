@@ -124,6 +124,7 @@ struct TerminalPanel: View {
                 return await AgentRuns.tests(root: root, file: file)
             },
             git: { args in await Self.git(args, workspace: workspace) },
+            packages: { args in await Packages.command(args, root: root, workspace: workspace) },
             open: { file in workspace.open(file: root.appending(path: file)) }))
         lines = []
     }

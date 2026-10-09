@@ -4,6 +4,7 @@
 import DesignKit
 import GitKit
 import ModelKit
+import RunKit
 import SwiftUI
 
 /// "Prepare for offline" (PLAN.md §13.1, before boarding): fetches every recent project's remote,
@@ -45,7 +46,7 @@ struct PrepareOfflineSheet: View {
                 Section {
                     Label("three.js, Python, Markdown and Mermaid are built in", systemImage: "checkmark.circle")
                     Label("Tests, previews, the Stage and the tools run offline", systemImage: "checkmark.circle")
-                    Label("npm and PyPI packages beyond the built-in ones aren't cached yet", systemImage: "exclamationmark.circle")
+                    Label("Each project's npm dependencies are cached; PyPI packages beyond Pyodide's aren't yet", systemImage: "checkmark.circle")
                         .foregroundStyle(palette.text.secondary.color)
                     Label("Offline docs bundles aren't built yet", systemImage: "exclamationmark.circle")
                         .foregroundStyle(palette.text.secondary.color)
@@ -104,16 +105,30 @@ struct PrepareOfflineSheet: View {
             let url = entry.url
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            guard Repository.exists(at: url) else { projects[i].state = .done("Not a git project"); continue }
-            do {
-                let repo = try Repository.open(at: url)
-                try await repo.fetch(auth: auth)
-                projects[i].state = .done("Fetched")
-            } catch {
-                let text = (error as? GitError)?.message ?? error.localizedDescription
-                projects[i].state = text.lowercased().contains("remote") && text.lowercased().contains("origin")
-                    ? .done("No remote") : .failed(text)
+            var notes: [String] = []
+            var failure: String?
+            if Repository.exists(at: url) {
+                do {
+                    let repo = try Repository.open(at: url)
+                    try await repo.fetch(auth: auth)
+                    notes.append("Fetched")
+                } catch {
+                    let text = (error as? GitError)?.message ?? error.localizedDescription
+                    if text.lowercased().contains("remote") && text.lowercased().contains("origin") { notes.append("No remote") } else { failure = text }
+                }
+            } else {
+                notes.append("Not a git project")
             }
+            // Its npm dependencies into the offline cache.
+            if !NpmCache.projectDependencies(url).isEmpty {
+                do {
+                    let added = try await Packages.cache.installProject(url)
+                    notes.append(added.isEmpty ? "Packages cached" : "\(added.count) \(added.count == 1 ? "package" : "packages") cached")
+                } catch {
+                    failure = failure ?? error.localizedDescription
+                }
+            }
+            projects[i].state = failure.map { .failed($0) } ?? .done(notes.joined(separator: " · "))
         }
         for (i, pack) in ModelPack.catalog.filter({ model.models.isInstalled($0) }).enumerated() where i < models.count {
             models[i].state = .working
