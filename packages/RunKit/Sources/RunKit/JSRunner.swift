@@ -217,7 +217,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
 
     /// Only this scheme, never the network: fetch can read the project and RunKit's files (Pyodide
     /// loads its runtime that way), and WebAssembly may compile.
-    static let csp = "default-src omnie-run:; script-src omnie-run: 'unsafe-inline' 'wasm-unsafe-eval'; connect-src omnie-run:; img-src omnie-run: data: blob:; style-src omnie-run: 'unsafe-inline'; worker-src omnie-run:"
+    static let csp = "default-src omnie-run:; script-src omnie-run: blob: 'unsafe-inline' 'wasm-unsafe-eval'; connect-src omnie-run: data: blob:; img-src omnie-run: data: blob:; style-src omnie-run: 'unsafe-inline'; worker-src omnie-run: blob:"
 
     /// The project's files for Pyodide's file system: under 2 MB each, at most 3,000, skipping
     /// version control, dependencies and build output.
