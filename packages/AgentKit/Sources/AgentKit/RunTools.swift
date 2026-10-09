@@ -40,3 +40,15 @@ public struct CheckTypesTool: AgentTool {
     public func action(for call: ToolCall) throws -> Action { .runSandboxed(command: "check_types", network: false) }
     public func run(_ call: ToolCall) async throws -> String { await runner() }
 }
+
+/// `docs_lookup`: the offline docs (MDN, Python, Node… whatever is installed). Returns the best
+/// page as text and other matches.
+public struct DocsLookupTool: AgentTool {
+    let runner: @Sendable (_ query: String) async -> String
+    public init(runner: @escaping @Sendable (_ query: String) async -> String) { self.runner = runner }
+    public let name = "docs_lookup"
+    public let description = "Look up an API in the offline documentation (e.g. \"Array.prototype.flatMap\", \"pathlib.Path.glob\"). Returns the reference page as text. Use it when unsure how an API behaves."
+    public var parameters: [String: JSONValue] { schema(["query": ("string", "The API or topic to look up.")], required: ["query"]) }
+    public func action(for call: ToolCall) throws -> Action { .readProject(path: "docs:" + (try call.string("query"))) }
+    public func run(_ call: ToolCall) async throws -> String { await runner(try call.string("query")) }
+}

@@ -8,6 +8,7 @@ import ModelKit
 import PolicyKit
 import RunKit
 import SecretsKit
+import ToolsKit
 
 /// Agent tasks for the open project (PLAN.md §6, §9.5): each runs on its own branch and worktree,
 /// so your folder is never touched while it works, and ends in a changeset you review.
@@ -356,6 +357,9 @@ final class AgentModel {
             RunTestsTool { file in await AgentRuns.tests(root: root, file: file) },
             RunScriptTool { file in await AgentRuns.script(root: root, file: file) },
         ] + (JSRunner.hasTypeScript(root) ? [CheckTypesTool { await AgentRuns.types(root: root) }] : [])
+            + (DocsStore(root: DocsModel.root) { _ in Data() }.installed().isEmpty ? [] : [DocsLookupTool { query in
+                await DocsStore(root: DocsModel.root) { _ in throw URLError(.notConnectedToInternet) }.lookup(query)
+            }])
     }
 
     private func journal(for record: TaskRecord) -> Journal {

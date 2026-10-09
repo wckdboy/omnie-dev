@@ -48,7 +48,8 @@ struct PrepareOfflineSheet: View {
                     Label("Tests, previews, the Stage and the tools run offline", systemImage: "checkmark.circle")
                     Label("Each project's npm and Python dependencies are cached", systemImage: "checkmark.circle")
                         .foregroundStyle(palette.text.secondary.color)
-                    Label("Offline docs bundles aren't built yet", systemImage: "exclamationmark.circle")
+                    Label(model.docs.installed.isEmpty ? "No offline docs yet: Help › Search docs to download them" : "Offline docs: " + model.docs.installed.map(\.title).joined(separator: ", "),
+                          systemImage: model.docs.installed.isEmpty ? "exclamationmark.circle" : "checkmark.circle")
                         .foregroundStyle(palette.text.secondary.color)
                 } header: { Text("Offline") }
             }

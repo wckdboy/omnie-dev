@@ -65,6 +65,8 @@ final class AppModel {
     var findOpen = false
     var goToLineOpen = false
     var problemsOpen = false
+    /// The docs sheet's starting query, or nil when it's closed.
+    var docsQuery: String?
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -83,6 +85,7 @@ final class AppModel {
     let policy = PolicyModel()
     let workspace: WorkspaceModel
     let models: ModelsModel
+    let docs: DocsModel
     let agent: AgentModel
 
     var density: Density {
@@ -97,6 +100,7 @@ final class AppModel {
         Packages.activate()
         workspace = WorkspaceModel(policy: policy)
         models = ModelsModel(policy: policy)
+        docs = DocsModel(policy: policy)
         agent = AgentModel(workspace: workspace, models: models, policy: policy)
         agent.isOffline = { [weak self] in self?.isOffline ?? false }
         workspace.onProjectOpened = { [agent] root in agent.attach(root) }
@@ -221,6 +225,11 @@ final class AppModel {
                     shortcut: Shortcut("f", [.command, .shift]), keywords: ["search", "grep", "find all"]) { [weak self] in
                 guard let self, workspace.rootURL != nil else { return }
                 findOpen = true
+            },
+            Command(id: "help.docs", title: "Search docs…", menu: "Help",
+                    shortcut: Shortcut("d", [.command, .shift]), keywords: ["documentation", "mdn", "reference", "look up", "devdocs"]) { [weak self] in
+                guard let self else { return }
+                docsQuery = workspace.wordAtCaret ?? ""
             },
             Command(id: "problems.show", title: "Show problems", menu: "File",
                     shortcut: Shortcut("m", [.command, .shift]), keywords: ["type errors", "diagnostics", "typescript", "tsc", "check types"]) { [weak self] in

@@ -205,6 +205,9 @@ extension View {
             .sheet(isPresented: $model.findOpen) { FindInProjectSheet() }
             .sheet(isPresented: $model.goToLineOpen) { GoToLineSheet() }
             .sheet(isPresented: $model.problemsOpen) { ProblemsSheet() }
+            .sheet(isPresented: Binding(get: { model.docsQuery != nil }, set: { if !$0 { model.docsQuery = nil } })) {
+                DocsSheet(query: model.docsQuery ?? "").presentationSizing(.page)
+            }
             .modifier(FileOperationPrompts())
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }

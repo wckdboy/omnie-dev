@@ -41,10 +41,11 @@ Open: an agreed pass rate on a larger task set; API models (P4) for tasks the lo
 - **Offline package cache, Python tier:** `pip install [name…]` or `pip install -r requirements.txt` (or Prepare for offline) fetches Pyodide's own builds (numpy, pandas and the rest of its 357 packages, pinned by its lock file) from its CDN and pure-Python wheels from PyPI, each checked by sha256, with dependencies resolved (PEP 440 versions, PEP 508 markers evaluated for Pyodide). Scripts and tests load them from requirements.txt or pyproject.toml with no connection. On the iPad: `pip install numpy tabulate` 0.4 s, a script using both 1.2–1.4 s.
 - **Stage:** glTF/GLB, OBJ and STL from the project in three.js, with a native performance HUD. On the iPad: 60 fps (WKWebView caps animation frames at 60 Hz). Python starts and runs in under a second. See `spikes/runkit-p3.md`.
 - **Tools tab (ToolsKit):** HTTP client (`.http` files, secrets from the Keychain), API mock server (recorded responses, and routes generated from an OpenAPI or Swagger spec, JSON or YAML, in the project, served to previews), SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
+- **Offline docs:** DevDocs bundles (MDN JavaScript, DOM, CSS, Python, Node, three.js, React, NumPy, pandas, git, and the rest of its 837) downloaded from Help › Search docs (⇧⌘D, which starts with the word at the caret), then searched and read with no connection; links between pages work, scripts don't run. The agent has `docs_lookup` when any are installed. DevDocs publishes no checksums, so the download's sha256 is recorded instead.
 - **Markdown + Mermaid preview** in the Preview tab for the open `.md` file.
 - **Type checking:** TypeScript 5.9 runs offline over the whole project (tsconfig.json honoured, with the declarations of packages in the offline cache) when it opens and after saves: underlines in the editor, an error count in the status strip, a Problems list (⇧⌘M). The agent has `check_types` in TypeScript projects.
 
-Open: WASI tools in RunKit, PyPI packages with compiled code that Pyodide doesn't build, the Stage inspector and shader hot reload, offline docs.
+Open: WASI tools in RunKit, PyPI packages with compiled code that Pyodide doesn't build, the Stage inspector and shader hot reload.
 
 ## How to check things yourself
 

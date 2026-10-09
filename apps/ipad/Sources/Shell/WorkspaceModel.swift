@@ -438,6 +438,22 @@ final class WorkspaceModel {
         editor.theme = EditorTheme(palette: palette, density: density)
     }
 
+    /// The identifier at or just before the caret (for looking it up), or nil.
+    var wordAtCaret: String? {
+        guard openFile != nil else { return nil }
+        let text = editor.text as NSString
+        let caret = min(editor.selectedRange.location, text.length)
+        if editor.selectedRange.length > 0, editor.selectedRange.length < 80 { return text.substring(with: editor.selectedRange) }
+        func isWord(_ i: Int) -> Bool {
+            guard i >= 0, i < text.length, let scalar = UnicodeScalar(text.character(at: i)) else { return false }
+            return CharacterSet.alphanumerics.contains(scalar) || scalar == "_" || scalar == "$"
+        }
+        var start = caret, end = caret
+        while isWord(start - 1) { start -= 1 }
+        while isWord(end) { end += 1 }
+        return end > start ? text.substring(with: NSRange(location: start, length: end - start)) : nil
+    }
+
     func relativePath(of url: URL) -> String {
         guard let rootURL else { return url.lastPathComponent }
         let path = url.path(percentEncoded: false), base = rootURL.path(percentEncoded: false)

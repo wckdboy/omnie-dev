@@ -20,6 +20,7 @@ struct RegistryMenus: Commands {
         CommandMenu("View") { MenuItems(model: model, menu: "View") }
         CommandMenu("Git") { MenuItems(model: model, menu: "Git") }
         CommandMenu("Agent") { MenuItems(model: model, menu: "Agent") }
+        CommandGroup(replacing: .help) { MenuItems(model: model, menu: "Help") }
     }
 }
 

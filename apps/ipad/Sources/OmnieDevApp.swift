@@ -34,6 +34,8 @@ struct OmnieDevApp: App {
                         let files = args[i + 1].split(separator: ",").map(String.init)
                         for (n, file) in files.enumerated() { model.workspace.open(file: root.appending(path: file), preview: n == files.count - 1) }
                     }
+                    // `-OmnieDocs <query>` opens the docs sheet searching for it.
+                    if let i = args.firstIndex(of: "-OmnieDocs"), args.indices.contains(i + 1) { model.docsQuery = args[i + 1] }
                     // `-OmnieDemoMarks` puts sample diagnostics, diff and authorship marks on the open file.
                     if args.contains("-OmnieDemoMarks") {
                         try? await Task.sleep(for: .milliseconds(600))
