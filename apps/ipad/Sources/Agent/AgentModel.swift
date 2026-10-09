@@ -140,6 +140,12 @@ final class AgentModel {
     /// online model when there's a key, after you've agreed to send this project's code to that
     /// provider (Ask + Face ID the first time).
     private func chooseModel(for record: TaskRecord) async -> (model: any TextModel, name: String, remote: Bool)? {
+        await chooseModel(root: URL(filePath: record.repoPath), purpose: "Agent tasks")
+    }
+
+    /// The router for any model use in a project (agent tasks, conflict proposals): plane mode or
+    /// offline means local, consent before a project's code goes to a provider.
+    func chooseModel(root: URL, purpose: String) async -> (model: any TextModel, name: String, remote: Bool)? {
         #if DEBUG
         if let modelOverride { return (modelOverride, "scripted model", false) }
         #endif
@@ -152,10 +158,9 @@ final class AgentModel {
                 return nil
             }
             let config = models.online
-            let root = URL(filePath: record.repoPath)
             if !policy.approvedProviders(for: root).contains(config.provider) {
                 guard await policy.authorize(.sendToProvider(provider: config.provider),
-                                             artifact: "Agent tasks in \(root.lastPathComponent) will send code to \(config.provider) (\(config.model)) at \(config.host).")
+                                             artifact: "\(purpose) in \(root.lastPathComponent) will send code to \(config.provider) (\(config.model)) at \(config.host).")
                 else {
                     error = "Not sent to \(config.provider)."
                     return nil

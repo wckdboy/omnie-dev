@@ -365,3 +365,32 @@ struct ToolCallParserTests {
         #expect(Sandbox.blobSHA(Data("hello\n".utf8)) == "ce013625030ba8dba906f756967f9e9ca394464a")
     }
 }
+
+struct MergeProposerTests {
+    @Test func promptsParsesAndRefusesMarkers() async throws {
+        let conflict = MergeProposer.Conflict(ours: ["const limit = 10;"], theirs: ["const limit = 20; // raised"], before: ["// config"], after: ["export {};"])
+        guard case .chat(let system, let user) = MergeProposer.prompt(path: "src/config.ts", block: conflict) else { Issue.record("not a chat prompt"); return }
+        #expect(system?.contains("never write conflict markers") == true)
+        #expect(user.contains("Yours:\n```\nconst limit = 10;\n```") && user.contains("Theirs:\n```\nconst limit = 20; // raised\n```"))
+        #expect(MergeProposer.parse("Here you go:\n```ts\nconst limit = 20;\n```\nDone.") == "const limit = 20;")
+        #expect(MergeProposer.parse("const a = 1;\n") == "const a = 1;")
+        #expect(MergeProposer.parse("```\n<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> b\n```") == nil)
+        let model = ScriptedModel(["```\nconst limit = 20; // raised\n```", "<<<<<<< nope"])
+        let out = try await MergeProposer.propose(path: "src/config.ts", conflicts: [conflict, conflict], model: model)
+        #expect(out == ["const limit = 20; // raised", nil])
+    }
+
+    @Test func dropsRepeatedContext() {
+        // What the 7B did on the iPad: the merged lines, then the "after" context again.
+        let conflict = MergeProposer.Conflict(ours: ["export const MAX_ITEMS = 25;"], theirs: ["export const MAX_ITEMS: number = 10;", "export const MIN_ITEMS = 1;"],
+                                              before: ["// Limits for the list view."], after: ["export const TIMEOUT_MS = 1000;", "", "export function describe(): string {"])
+        let reply = "export const MAX_ITEMS = 25;\nexport const MIN_ITEMS = 1;\n\nexport const TIMEOUT_MS = 1000;\n\nexport function describe(): string {"
+        #expect(MergeProposer.trimContext(reply, conflict) == "export const MAX_ITEMS = 25;\nexport const MIN_ITEMS = 1;")
+        let leading = "// Limits for the list view.\nexport const MAX_ITEMS = 25;"
+        let twoBefore = MergeProposer.Conflict(ours: [], theirs: [], before: ["import a", "// Limits for the list view."], after: [])
+        #expect(MergeProposer.trimContext("import a\n" + leading, twoBefore) == "export const MAX_ITEMS = 25;")
+        // A lone matching line isn't treated as repeated context.
+        let short = MergeProposer.Conflict(ours: [], theirs: [], before: [], after: ["}", "x()", "y()"])
+        #expect(MergeProposer.trimContext("if a {\n  b()\n}", short) == "if a {\n  b()\n}")
+    }
+}

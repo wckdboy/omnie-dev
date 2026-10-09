@@ -88,6 +88,7 @@ struct OmnieDevApp: App {
                     }
                     if args.contains("-OmnieWasiConformance") { await WasiConformance.run() }
                     if args.contains("-OmniePlaneTest") { await PlaneTest.run(model) }
+                    if let i = args.firstIndex(of: "-OmnieConflictDemo"), args.indices.contains(i + 1) { await ConflictDemo.run(model, folder: args[i + 1]) }
                     // `-OmnieStageSummary` prints what the agent's stage_scene tool would see.
                     if args.contains("-OmnieStageSummary") {
                         Task {

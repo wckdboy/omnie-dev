@@ -217,3 +217,61 @@ extension Repository {
         }
     }
 }
+
+/// One conflict block in a merged file, with a few lines either side for context.
+public struct ConflictBlock: Sendable, Hashable {
+    public let ours: [String]
+    public let theirs: [String]
+    public let before: [String]
+    public let after: [String]
+}
+
+extension ConflictFile {
+    /// The conflict blocks in `text`, in order.
+    public static func blocks(_ text: String, context: Int = 6) -> [ConflictBlock] {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var blocks: [ConflictBlock] = []
+        var i = 0
+        while i < lines.count {
+            guard lines[i].hasPrefix("<<<<<<< ") else { i += 1; continue }
+            let start = i
+            var ours: [String] = [], theirs: [String] = []
+            i += 1
+            while i < lines.count, lines[i] != "=======" { ours.append(lines[i]); i += 1 }
+            i += 1
+            while i < lines.count, !lines[i].hasPrefix(">>>>>>> ") { theirs.append(lines[i]); i += 1 }
+            let end = i
+            blocks.append(ConflictBlock(ours: ours, theirs: theirs,
+                                        before: Array(lines[max(0, start - context)..<start]),
+                                        after: Array(lines[min(lines.count, end + 1)..<min(lines.count, end + 1 + context)])))
+            i += 1
+        }
+        return blocks
+    }
+
+    /// `text` with each conflict block replaced by its resolution; a nil keeps that block as is.
+    public static func replacingBlocks(_ text: String, with resolutions: [String?]) -> String {
+        var out: [String] = []
+        var block: [String] = []
+        var index = 0
+        var inBlock = false
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            if !inBlock, line.hasPrefix("<<<<<<< ") { inBlock = true; block = [line]; continue }
+            if inBlock {
+                block.append(line)
+                if line.hasPrefix(">>>>>>> ") {
+                    inBlock = false
+                    if index < resolutions.count, let resolution = resolutions[index] {
+                        if !resolution.isEmpty { out.append(contentsOf: resolution.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)) }
+                    } else {
+                        out.append(contentsOf: block)
+                    }
+                    index += 1
+                }
+                continue
+            }
+            out.append(line)
+        }
+        return out.joined(separator: "\n")
+    }
+}

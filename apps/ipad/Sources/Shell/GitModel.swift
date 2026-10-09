@@ -259,7 +259,7 @@ final class GitModel {
 
     // MARK: Conflicts
 
-    private func startResolving(against theirs: ObjectID?, title: String) async throws {
+    func startResolving(against theirs: ObjectID?, title: String) async throws {
         guard let repo, let theirs else { return }
         let session = try await repo.prepareMerge(with: theirs)
         guard !session.conflicts.isEmpty else { return }
@@ -268,12 +268,14 @@ final class GitModel {
     }
 
     /// Writes the resolved merge, then syncs again to push it.
-    func completeResolution(_ resolutions: [String: String]) async -> Bool {
+    func completeResolution(_ resolutions: [String: String], assistedBy: String? = nil) async -> Bool {
         guard let repo, let session = mergeSession, let author = await author() else { return false }
         beforeWorktreeChange?()
         defer { afterWorktreeChange?() }
         do {
-            try await repo.completeMerge(session, resolutions: resolutions, message: mergeTitle,
+            // Proposals you accepted are credited, like agent tasks (PLAN.md §9).
+            let message = assistedBy.map { "\(mergeTitle)\n\nAssisted-by: \($0)" } ?? mergeTitle
+            try await repo.completeMerge(session, resolutions: resolutions, message: message,
                                          author: author, asMergeCommit: true)
             mergeSession = nil
             syncMessage = "Merged. Sync to push."
