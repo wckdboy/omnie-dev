@@ -29,16 +29,18 @@ public enum ToolError: Error, Equatable, LocalizedError {
     case findNotUnique(count: Int)
     case alreadyExists(String)
     case unknownTool(String)
+    case duplicatesFollowingLines(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingArgument(let k): "Missing argument \"\(k)\"."
         case .outsideProject(let p): "\(p) is outside the project."
         case .notFound(let p): "\(p) doesn't exist."
-        case .staleFile(let p, let sha): "\(p) changed since you read it (now sha \(sha)). Read it again before patching."
+        case .staleFile(let p, let sha): "That sha isn't \(p)'s (its current sha is \(sha)). Read \(p) and use the sha read returns."
         case .findNotUnique(let n): n == 0 ? "The find text isn't in the file. Copy it exactly from read." : "The find text appears \(n) times; include more surrounding lines so it's unique."
         case .alreadyExists(let p): "\(p) already exists. Use patch to change it."
         case .unknownTool(let n): "There's no tool called \(n)."
+        case .duplicatesFollowingLines(let line): "replace includes \"\(line)\", which already comes right after find in the file, so it would appear twice. Put those lines in find as well, or leave them out of replace."
         }
     }
 }
@@ -138,7 +140,9 @@ public struct ReadTool: AgentTool {
         let url = try sandbox.resolve(path)
         guard let data = try? Data(contentsOf: url) else { throw ToolError.notFound(path) }
         let text = String(decoding: data, as: UTF8.self)
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        var lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        // A final newline ends the last line; it doesn't start an empty one.
+        if text.hasSuffix("\n") { lines.removeLast() }
         let start = max(1, call.arguments["start_line"]?.int ?? 1)
         let end = min(lines.count, start + 199)
         let shown = start <= lines.count ? lines[(start - 1)..<end].joined(separator: "\n") : ""
@@ -151,7 +155,7 @@ public struct GrepTool: AgentTool {
     let sandbox: Sandbox
     public init(sandbox: Sandbox) { self.sandbox = sandbox }
     public let name = "grep"
-    public let description = "Find lines containing some text (case-insensitive) in the project's files. Returns path:line: text."
+    public let description = "Find lines containing some text (case-insensitive; a regular expression works too) in the project's files. Returns path:line: text."
     public var parameters: [String: JSONValue] {
         schema(["text": ("string", "Text to look for."), "path": ("string", "Folder to search. Default the whole project.")], required: ["text"])
     }
@@ -159,6 +163,8 @@ public struct GrepTool: AgentTool {
 
     public func run(_ call: ToolCall) async throws -> String {
         let needle = try call.string("text")
+        // Models write both "total(" and "total\\(": match the text literally, or as a regex.
+        let regex = try? NSRegularExpression(pattern: needle, options: [.caseInsensitive])
         let dir = try sandbox.resolve(call.arguments["path"]?.string ?? ".")
         var hits: [String] = []
         let enumerator = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
@@ -168,7 +174,8 @@ public struct GrepTool: AgentTool {
             guard values?.isRegularFile == true, (values?.fileSize ?? 0) < 1_000_000,
                   let data = try? Data(contentsOf: url), !data.prefix(8192).contains(0) else { continue }
             for (i, line) in String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false).enumerated()
-            where line.range(of: needle, options: .caseInsensitive) != nil {
+            where line.range(of: needle, options: .caseInsensitive) != nil
+                || regex?.firstMatch(in: String(line), range: NSRange(line.startIndex..., in: line)) != nil {
                 hits.append("\(sandbox.relative(url)):\(i + 1): \(line.prefix(200))")
                 if hits.count >= 50 { return hits.joined(separator: "\n") + "\n… (more matches not shown)" }
             }
@@ -199,13 +206,108 @@ public struct PatchTool: AgentTool {
         let current = Sandbox.blobSHA(data)
         guard try call.string("sha") == current else { throw ToolError.staleFile(path: path, current: current) }
         let text = String(decoding: data, as: UTF8.self)
-        let find = try call.string("find")
-        let count = find.isEmpty ? 0 : text.components(separatedBy: find).count - 1
+        var find = try call.string("find")
+        var replace = try call.string("replace")
+        var count = Self.occurrences(of: find, in: text)
+        if count == 0 {
+            // Models often add or drop blank lines at the edges of find. Retry without them; the
+            // replacement loses the same edges, so the file's own line breaks stay as they were.
+            let trimmedFind = find.trimmingCharacters(in: .newlines)
+            if trimmedFind != find, Self.occurrences(of: trimmedFind, in: text) == 1 {
+                find = trimmedFind
+                replace = replace.trimmingCharacters(in: .newlines)
+                count = 1
+            }
+        }
+        var updated: String?
+        if count == 0, let span = Self.looseMatch(find, in: text) {
+            // Last resort: the same lines, ignoring blank lines and indentation. Unique matches only.
+            updated = text.replacingCharacters(in: span, with: replace.trimmingCharacters(in: .newlines))
+            count = 1
+        }
         guard count == 1 else { throw ToolError.findNotUnique(count: count) }
-        let updated = text.replacingOccurrences(of: find, with: try call.string("replace"))
-        let out = Data(updated.utf8)
+        if let updated {
+            let out = Data(updated.utf8)
+            try out.write(to: url, options: .atomic)
+            return "Patched \(path) (matched ignoring blank lines and indentation). New sha: \(Sandbox.blobSHA(out))"
+        }
+        if let repeated = Self.repeatedTail(text: text, find: find, replace: replace) {
+            throw ToolError.duplicatesFollowingLines(repeated)
+        }
+        let out = Data(text.replacingOccurrences(of: find, with: replace).utf8)
         try out.write(to: url, options: .atomic)
         return "Patched \(path). New sha: \(Sandbox.blobSHA(out))"
+    }
+
+    /// Catches a replace that ends with lines the file already has right after find (find was the
+    /// first line of a block, replace the whole block), which would duplicate them.
+    static func repeatedTail(text: String, find: String, replace: String) -> String? {
+        guard let range = text.range(of: find) else { return nil }
+        let following = text[range.upperBound...].split(separator: "\n", omittingEmptySubsequences: true)
+            .prefix(3).map { $0.trimmingCharacters(in: .whitespaces) }
+        let replaceLines = replace.split(separator: "\n", omittingEmptySubsequences: true).map { $0.trimmingCharacters(in: .whitespaces) }
+        let findLines = find.split(separator: "\n", omittingEmptySubsequences: true).count
+        guard let first = following.first, first.count >= 3, replaceLines.count > findLines else { return nil }
+        // The line that follows find appears in replace after the part that stands in for find.
+        return replaceLines.dropFirst(findLines).contains(first) ? first : nil
+    }
+
+    /// Where `find`'s non-blank lines appear as consecutive non-blank lines of `text`, compared
+    /// without surrounding whitespace. nil unless there's exactly one such place.
+    static func looseMatch(_ find: String, in text: String) -> Range<String.Index>? {
+        let wanted = find.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard !wanted.isEmpty else { return nil }
+        // Non-blank lines of the file with their ranges.
+        var lines: [(text: String, range: Range<String.Index>)] = []
+        var start = text.startIndex
+        while start < text.endIndex {
+            let end = text[start...].firstIndex(of: "\n") ?? text.endIndex
+            let trimmed = text[start..<end].trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty { lines.append((trimmed, start..<end)) }
+            start = end < text.endIndex ? text.index(after: end) : end
+        }
+        var matches: [Range<String.Index>] = []
+        if lines.count >= wanted.count {
+            for i in 0...(lines.count - wanted.count) where (0..<wanted.count).allSatisfy({ lines[i + $0].text == wanted[$0] }) {
+                matches.append(lines[i].range.lowerBound..<lines[i + wanted.count - 1].range.upperBound)
+            }
+        }
+        return matches.count == 1 ? matches[0] : nil
+    }
+
+    static func occurrences(of find: String, in text: String) -> Int {
+        find.isEmpty ? 0 : text.components(separatedBy: find).count - 1
+    }
+}
+
+/// `append_to_file`: add text at the end of a file, the common case of adding a function or a
+/// section. Small models do this far more reliably as an append than as a find/replace.
+public struct AppendTool: AgentTool {
+    let sandbox: Sandbox
+    public init(sandbox: Sandbox) { self.sandbox = sandbox }
+    public let name = "append_to_file"
+    public let description = "Add text at the end of an existing file without changing anything already in it. sha is the file's sha from read."
+    public var parameters: [String: JSONValue] {
+        schema(["path": ("string", "File to add to."), "sha": ("string", "The sha read returned for this file."),
+                "text": ("string", "The text to add at the end.")], required: ["path", "sha", "text"])
+    }
+    public func action(for call: ToolCall) throws -> Action { .writeTaskWorktree(path: try call.string("path")) }
+
+    public func run(_ call: ToolCall) async throws -> String {
+        let path = try call.string("path")
+        let url = try sandbox.resolve(path)
+        guard let data = try? Data(contentsOf: url) else { throw ToolError.notFound(path) }
+        let current = Sandbox.blobSHA(data)
+        guard try call.string("sha") == current else { throw ToolError.staleFile(path: path, current: current) }
+        var text = String(decoding: data, as: UTF8.self)
+        if !text.isEmpty && !text.hasSuffix("\n") { text += "\n" }
+        var addition = try call.string("text")
+        if !addition.hasSuffix("\n") { addition += "\n" }
+        // Keep one blank line between the old end and the addition.
+        if !text.isEmpty && !text.hasSuffix("\n\n") && !addition.hasPrefix("\n") { text += "\n" }
+        let out = Data((text + addition).utf8)
+        try out.write(to: url, options: .atomic)
+        return "Appended to \(path). New sha: \(Sandbox.blobSHA(out))"
     }
 }
 
@@ -253,5 +355,5 @@ extension AgentTool {
 public func standardTools(root: URL) -> [any AgentTool] {
     let sandbox = Sandbox(root: root)
     return [ListTool(sandbox: sandbox), ReadTool(sandbox: sandbox), GrepTool(sandbox: sandbox),
-            PatchTool(sandbox: sandbox), CreateFileTool(sandbox: sandbox), FinishTool()]
+            PatchTool(sandbox: sandbox), AppendTool(sandbox: sandbox), CreateFileTool(sandbox: sandbox), FinishTool()]
 }

@@ -70,6 +70,10 @@ struct OmnieDevApp: App {
                     if let i = args.firstIndex(of: "-OmnieAdoptModel"), args.indices.contains(i + 1) {
                         await ModelSmoke.adopt(model, from: URL.documentsDirectory.appending(path: args[i + 1]))
                     }
+                    // `-OmnieAgentEval <label>` runs the golden task set against the local 7B.
+                    if let i = args.firstIndex(of: "-OmnieAgentEval") {
+                        await AgentEval.run(model, label: args.indices.contains(i + 1) ? args[i + 1] : "eval")
+                    }
                     // `-OmnieAgentTask <goal>` starts an agent task in the open project.
                     if let i = args.firstIndex(of: "-OmnieAgentTask"), args.indices.contains(i + 1) {
                         try? await Task.sleep(for: .milliseconds(800))

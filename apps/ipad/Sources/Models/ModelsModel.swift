@@ -120,6 +120,7 @@ final class ModelsModel {
     func tinyModel() async -> TextModel? {
         let pack = ModelPack.tiny
         if let loaded { return loaded.pack == pack ? loaded.model : nil }
+        if states[pack.id] == nil { await refresh() }
         guard isInstalled(pack), !isLoading else { return nil }
         isLoading = true
         defer { isLoading = false }
@@ -141,6 +142,7 @@ final class ModelsModel {
     func standardModel() async -> TextModel? {
         let pack = ModelPack.standard
         if let loaded, loaded.pack == pack { return loaded.model }
+        if states[pack.id] == nil { await refresh() }
         guard isInstalled(pack), !isLoading else { return nil }
         loaded = nil
         isLoading = true
