@@ -41,7 +41,7 @@ struct UtilityPane: View {
                 switch model.utilityTab {
                 case .agent: AgentPanel()
                 case .timeline: TimelineView()
-                case .terminal: RunPanel()
+                case .terminal: TerminalPanel()
                 case .preview: PreviewPanel()
                 case .stage: NotYet(title: "Stage", detail: "The three.js viewer and playground arrive in P3.")
                 case .tools: NotYet(title: "Tools", detail: "HTTP client, SQLite browser, Patterns and the rest arrive in P3.")
