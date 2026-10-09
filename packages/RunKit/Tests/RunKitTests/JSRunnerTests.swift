@@ -8,8 +8,9 @@ import Testing
 extension WebKitSuites {
 @MainActor
 struct JSRunnerTests {
-    /// Long enough for Pyodide's first load on a slow CI runner.
-    static let pythonTimeout: Double = 180
+    /// Long enough for Pyodide's first load on a slow CI runner (198 s seen on a hosted macOS
+    /// runner; 36 s on a Mac, under a second on the iPad).
+    static let pythonTimeout: Double = 420
 
     let root: URL
 
