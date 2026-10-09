@@ -25,7 +25,7 @@ struct PreviewTests {
         #expect(Preview.entry(in: root) == "index.html")
 
         var logs: [String] = []
-        let config = try Preview.configuration(root: root) { level, text in logs.append("\(level): \(text)") }
+        let config = try Preview.configuration(root: root) { level, text in if level != "network" { logs.append("\(level): \(text)") } }
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), configuration: config)
         webView.load(URLRequest(url: Preview.url(for: "index.html")))
         for _ in 0..<200 where logs.isEmpty { try await Task.sleep(for: .milliseconds(25)) }
@@ -47,7 +47,7 @@ struct PreviewTests {
             console.log("three", THREE.REVISION, scene.children.length, typeof OrbitControls);
             """.write(to: root.appendingPathComponent("src/main.ts"), atomically: true, encoding: .utf8)
         var logs: [String] = []
-        let config = try Preview.configuration(root: root) { level, text in logs.append("\(level): \(text)") }
+        let config = try Preview.configuration(root: root) { level, text in if level != "network" { logs.append("\(level): \(text)") } }
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), configuration: config)
         webView.load(URLRequest(url: Preview.url(for: "index.html")))
         for _ in 0..<400 where logs.isEmpty { try await Task.sleep(for: .milliseconds(25)) }
@@ -81,7 +81,7 @@ struct MarkdownPreviewTests {
             ```
             """.write(to: root.appendingPathComponent("docs/guide.md"), atomically: true, encoding: .utf8)
         var logs: [String] = []
-        let config = try Preview.configuration(root: root) { level, text in logs.append("\(level): \(text)") }
+        let config = try Preview.configuration(root: root) { level, text in if level != "network" { logs.append("\(level): \(text)") } }
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 600, height: 800), configuration: config)
         webView.load(URLRequest(url: Preview.markdownURL(for: "docs/guide.md")))
         for _ in 0..<400 where logs.isEmpty { try await Task.sleep(for: .milliseconds(25)) }
@@ -114,11 +114,56 @@ struct MockRouteTests {
             </script>
             """.write(to: root.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
         var logs: [String] = []
-        let config = try Preview.configuration(root: root) { level, text in logs.append("\(level): \(text)") }
+        let config = try Preview.configuration(root: root) { level, text in if level != "network" { logs.append("\(level): \(text)") } }
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 300, height: 200), configuration: config)
         webView.load(URLRequest(url: Preview.url(for: "index.html")))
-        for _ in 0..<200 where logs.isEmpty { try await Task.sleep(for: .milliseconds(25)) }
-        #expect(logs == ["log: Ada 404"])
+        for _ in 0..<200 where !logs.contains(where: { $0.hasPrefix("log:") }) { try await Task.sleep(for: .milliseconds(25)) }
+        #expect(logs.filter { !$0.hasPrefix("network:") } == ["log: Ada 404"])
+    }
+
+    @Test func devtoolsSeeRequestsAndElements() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("devtools-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try MockRoutes.record(MockRoute(method: "GET", path: "/api/users", status: 200, contentType: "application/json", body: "[]"), root: root)
+        try "body { margin: 0 }".write(to: root.appendingPathComponent("style.css"), atomically: true, encoding: .utf8)
+        try """
+            <!doctype html><html><head><link rel="stylesheet" href="style.css"></head>
+            <body><main id="app" class="page wide"><h1>Hello</h1><p>World</p></main>
+            <script type=module>
+            await fetch("/api/users");
+            await fetch("https://example.com/x").catch(() => {});
+            console.log("done");
+            </script></body></html>
+            """.write(to: root.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
+        var network: [RunKit.Preview.NetworkEntry] = []
+        var done = false
+        let config = try Preview.configuration(root: root) { level, text in
+            if level == "network", let entry = try? JSONDecoder().decode(RunKit.Preview.NetworkEntry.self, from: Data(text.utf8)) { network.append(entry) }
+            if text == "done" { done = true }
+        }
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), configuration: config)
+        webView.load(URLRequest(url: Preview.url(for: "index.html")))
+        for _ in 0..<200 where !done { try await Task.sleep(for: .milliseconds(25)) }
+        try await Task.sleep(for: .milliseconds(200))
+        let api = network.first { $0.url == "/api/users" }
+        #expect(api?.status == 200 && api?.mock == true && api?.kind == "fetch", "\(network)")
+        #expect(network.contains { $0.url == "/index.html" && $0.kind == "document" })
+        let blocked = network.first { $0.url.contains("example.com") }
+        #expect(blocked?.status == 0 && blocked?.error?.contains("no network") == true)
+        #expect(network.contains { $0.url == "/style.css" && $0.kind == "style" && $0.bytes == 18 }, "\(network.map { $0.url })")
+
+        let json = try await webView.evaluateJavaScript(Preview.domScript) as? String
+        let tree = try JSONDecoder().decode(RunKit.Preview.DOMNode.self, from: Data((json ?? "").utf8))
+        let rows = tree.flattened()
+        let main = try #require(rows.first { $0.node.id == "app" })
+        #expect(main.node.summary == "<main#app.page.wide>" && main.depth == 2)
+        #expect(rows.contains { $0.node.summary == "<h1> Hello" })
+        let infoJSON = try await webView.evaluateJavaScript(Preview.inspectScript(main.node.path)) as? String
+        let info = try JSONDecoder().decode(RunKit.Preview.ElementInfo.self, from: Data((infoJSON ?? "").utf8))
+        #expect(info.tag == "main" && info.width == 400 && info.display == "block" && info.attributes["class"] == "page wide")
+        // The highlight box isn't part of the outline.
+        let again = try JSONDecoder().decode(RunKit.Preview.DOMNode.self, from: Data(((try await webView.evaluateJavaScript(Preview.domScript) as? String) ?? "").utf8))
+        #expect(again.flattened().count == rows.count)
     }
 }
 }

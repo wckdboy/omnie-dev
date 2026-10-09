@@ -64,6 +64,8 @@ self.onmessage = async () => {
       strict: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler,
       jsx: ts.JsxEmit.ReactJSX, lib: ["lib.es2022.d.ts", "lib.dom.d.ts", "lib.dom.iterable.d.ts"], resolveJsonModule: true,
       esModuleInterop: true, allowImportingTsExtensions: true, types: [],
+      // Every file is a module, as Vite's tsconfig has it (pages load them with type="module").
+      moduleDetection: ts.ModuleDetectionKind.Force,
     };
     let roots = [...files.keys()].filter((k) => k.startsWith("/project/") && /\.(ts|tsx|mts|cts)$/.test(k) && !k.includes("/node_modules/"));
     const configPath = files.has("/project/tsconfig.json") ? "/project/tsconfig.json" : null;

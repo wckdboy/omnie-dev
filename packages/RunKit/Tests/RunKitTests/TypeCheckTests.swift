@@ -38,6 +38,12 @@ struct TypeCheckTests {
         #expect(result.report.contains("src/main.ts:4:7 error TS2322"))
     }
 
+    @Test func filesAreModulesWithoutATsconfig() async throws {
+        let root = try project(["src/app.ts": "const data: unknown = await (await fetch(\"/api\")).json();\nconsole.log(data);\n"])
+        let result = await (try JSRunner(root: root)).typeCheck()
+        #expect(result.diagnostics.isEmpty, "\(result.report)")
+    }
+
     @Test func knowsTheStageAPI() async throws {
         let root = try project([
             "src/spin.stage.ts": "export default ({ scene, onFrame }: OmnieStage) => {\n  onFrame((dt) => { scene.rotation.y += dt; });\n  const n: string = 1;\n};\n",

@@ -220,6 +220,16 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     let transpiler: Transpiler
     /// Project modules that were asked for but don't exist.
     private(set) var missing: [String] = []
+    /// Every request served (for the preview's network log); RunKit's own runtime files aren't reported.
+    var onRequest: (@MainActor (Preview.NetworkEntry) -> Void)?
+
+    private func report(_ url: URL, method: String?, status: Int, bytes: Int, started: Date, mock: Bool = false) {
+        guard let onRequest, !url.path.hasPrefix("/__omnie/runtime/"), url.path != "/__omnie/manifest.json" else { return }
+        let entry = Preview.NetworkEntry(kind: Preview.NetworkEntry.kind(for: url.path), method: method ?? "GET",
+                                         url: url.path + (url.query().map { "?" + $0 } ?? ""), status: status,
+                                         ms: Int(Date().timeIntervalSince(started) * 1000), mock: mock ? true : nil, bytes: bytes)
+        MainActor.assumeIsolated { onRequest(entry) }
+    }
 
     init(resolver: ModuleResolver, transpiler: Transpiler) {
         self.resolver = resolver
@@ -278,8 +288,10 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if full.hasPrefix("__omnie/pypi/") { area = "pypi"; path = String(full.dropFirst("__omnie/pypi/".count)) }
         if full.hasPrefix("__omnie/npm-raw/") { area = "npm-raw"; path = String(full.dropFirst("__omnie/npm-raw/".count)) }
         if full.hasPrefix("__omnie/source/") { area = "source"; path = String(full.dropFirst("__omnie/source/".count)) }
+        let started = Date()
         do {
             let (data, mime) = try body(area: area, path: path, query: url.query() ?? "")
+            report(url, method: task.request.httpMethod, status: 200, bytes: data.count, started: started)
             let headers = ["Content-Type": mime, "Content-Length": String(data.count), "Content-Security-Policy": Self.csp,
                            "Cache-Control": "no-store"]
             task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)
@@ -295,9 +307,11 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
                                                                "X-Omnie-Mock": "1"])!)
                 task.didReceive(body)
                 task.didFinish()
+                report(url, method: task.request.httpMethod, status: route.status, bytes: body.count, started: started, mock: true)
                 return
             }
             missing.append(error.path)
+            report(url, method: task.request.httpMethod, status: 404, bytes: 0, started: started)
             task.didReceive(HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: ["Content-Security-Policy": Self.csp])!)
             task.didFinish()
         } catch {

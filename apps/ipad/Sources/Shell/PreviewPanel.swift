@@ -7,61 +7,78 @@ import SwiftUI
 import WebKit
 
 /// The project's web page, live (PLAN.md §8 Preview): served from the project by RunKit with
-/// TypeScript transpiled on the fly, reloaded when you save. No network; bare npm imports need the
-/// offline package cache (later).
+/// TypeScript transpiled on the fly, reloaded when you save. No network. DevTools-lite (§11.1)
+/// below it: the console, every request the page made, and the DOM with an element inspector.
 struct PreviewPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
     @State private var console: [(level: String, text: String)] = []
-    @State private var showConsole = false
+    @State private var network: [RunKit.Preview.NetworkEntry] = []
+    @State private var drawer: Drawer?
     @State private var reloadToken = 0
+    @State private var webViewRef = WebViewRef()
+    @State private var dom: [(node: RunKit.Preview.DOMNode, depth: Int)] = []
+    @State private var inspected: RunKit.Preview.ElementInfo?
+    @State private var inspectedPath: [Int]?
+
+    enum Drawer: String, CaseIterable { case console = "Console", network = "Network", elements = "Elements" }
 
     var body: some View {
         let workspace = model.workspace
         VStack(spacing: 0) {
             // The open Markdown file, or else the project's page.
-            let markdown = workspace.relativePath.flatMap { Preview.isMarkdown($0) ? $0 : nil }
-            if let root = workspace.rootURL, let entry = markdown ?? Preview.entry(in: root) {
-                let url = markdown.map(Preview.markdownURL(for:)) ?? Preview.url(for: entry)
+            let markdown = workspace.relativePath.flatMap { RunKit.Preview.isMarkdown($0) ? $0 : nil }
+            if let root = workspace.rootURL, let entry = markdown ?? RunKit.Preview.entry(in: root) {
+                let url = markdown.map(RunKit.Preview.markdownURL(for:)) ?? RunKit.Preview.url(for: entry)
+                let errors = console.filter { $0.level == "error" }.count + network.filter { $0.status == 0 || $0.status >= 400 }.count
                 HStack(spacing: 12) {
                     Button { reloadToken += 1 } label: { Image(systemName: "arrow.clockwise") }
                         .accessibilityLabel("Reload")
                     Text(entry).font(.system(.caption, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
                     Spacer()
-                    Button { showConsole.toggle() } label: {
-                        Label("\(console.filter { $0.level == "error" }.count)", systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(console.contains { $0.level == "error" } ? palette.status.error.color : palette.text.secondary.color)
+                    Button { drawer = drawer == nil ? .console : nil } label: {
+                        Label("\(errors)", systemImage: drawer == nil ? "wrench.and.screwdriver" : "chevron.down")
+                            .foregroundStyle(errors > 0 ? palette.status.error.color : palette.text.secondary.color)
                     }
-                    .accessibilityLabel("Console, \(console.count) messages")
+                    .accessibilityLabel(drawer == nil ? "Show DevTools, \(errors) problems" : "Hide DevTools")
                 }
                 .font(.footnote)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
-                PreviewWebView(root: root, url: url, reloadToken: reloadToken + workspace.changeCount) { level, text in
+                PreviewWebView(root: root, url: url, reloadToken: reloadToken + workspace.changeCount, ref: webViewRef) { level, text in
+                    if level == "network" {
+                        if let entry = try? JSONDecoder().decode(RunKit.Preview.NetworkEntry.self, from: Data(text.utf8)) {
+                            network.append(entry)
+                            if network.count > 500 { network.removeFirst(network.count - 500) }
+                        }
+                        return
+                    }
                     #if DEBUG
                     print("[preview] \(level): \(text)")
                     #endif
                     console.append((level, text))
                     if console.count > 500 { console.removeFirst(console.count - 500) }
-                } onReload: { console.removeAll() }
+                } onReload: {
+                    console.removeAll(); network.removeAll(); dom = []; inspected = nil; inspectedPath = nil
+                }
                 .id(url)
-                if showConsole {
+                if let current = drawer {
                     Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 2) {
-                            ForEach(Array(console.enumerated()), id: \.offset) { _, line in
-                                Text(line.text)
-                                    .foregroundStyle(line.level == "error" ? palette.status.error.color
-                                                     : line.level == "warn" ? palette.status.warn.color : palette.text.primary.color)
-                            }
+                    VStack(spacing: 0) {
+                        Picker("DevTools", selection: Binding(get: { current }, set: { drawer = $0 })) {
+                            ForEach(Drawer.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                         }
-                        .font(.system(.caption2, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .pickerStyle(.segmented)
                         .padding(8)
+                        switch current {
+                        case .console: consoleList
+                        case .network: networkList
+                        case .elements: elementsList
+                        }
                     }
-                    .frame(maxHeight: 180)
+                    .frame(height: 240)
+                    .task(id: current) { if current == .elements { await loadDOM() } }
                 }
             } else {
                 NotYet(title: "Preview", detail: workspace.rootURL == nil
@@ -70,13 +87,138 @@ struct PreviewPanel: View {
             }
         }
         .background(palette.surface.pane.color)
+        #if DEBUG
+        .task {
+            // `-OmniePreviewDevTools Network|Elements` opens that drawer.
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-OmniePreviewDevTools"), args.indices.contains(i + 1), let d = Drawer(rawValue: args[i + 1]) {
+                try? await Task.sleep(for: .seconds(2))
+                drawer = d
+                if d == .elements {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    if let row = dom.first(where: { $0.node.tag == "h1" || $0.node.tag == "main" || $0.node.tag == "canvas" }) { await inspect(row.node.path) }
+                }
+            }
+        }
+        #endif
     }
+
+    private var consoleList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                if console.isEmpty { Text("Nothing logged.").foregroundStyle(palette.text.secondary.color) }
+                ForEach(Array(console.enumerated()), id: \.offset) { _, line in
+                    Text(line.text)
+                        .foregroundStyle(line.level == "error" ? palette.status.error.color
+                                         : line.level == "warn" ? palette.status.warn.color : palette.text.primary.color)
+                }
+            }
+            .font(.system(.caption2, design: .monospaced))
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+        }
+    }
+
+    private var networkList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 3) {
+                if network.isEmpty { Text("No requests yet.").foregroundStyle(palette.text.secondary.color) }
+                ForEach(Array(network.enumerated()), id: \.offset) { _, entry in
+                    HStack(spacing: 8) {
+                        Text(entry.status == 0 ? "—" : "\(entry.status)")
+                            .foregroundStyle(entry.status == 0 || entry.status >= 400 ? palette.status.error.color : palette.status.ok.color)
+                            .frame(width: 30, alignment: .leading)
+                        Text(entry.method).frame(width: 40, alignment: .leading).foregroundStyle(palette.text.secondary.color)
+                        Text(entry.url).lineLimit(1).truncationMode(.middle)
+                        Spacer(minLength: 4)
+                        if entry.mock == true { Text("mock").foregroundStyle(palette.accent.ion.color) }
+                        if let error = entry.error { Text(error).foregroundStyle(palette.status.error.color).lineLimit(1) }
+                        Text(entry.kind).foregroundStyle(palette.text.secondary.color)
+                        if let bytes = entry.bytes { Text(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)).foregroundStyle(palette.text.secondary.color) }
+                        Text("\(entry.ms) ms").foregroundStyle(palette.text.secondary.color)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .font(.system(.caption2, design: .monospaced))
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+        }
+    }
+
+    private var elementsList: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    if dom.isEmpty { Text("Loading…").foregroundStyle(palette.text.secondary.color) }
+                    ForEach(Array(dom.enumerated()), id: \.offset) { _, row in
+                        Button { Task { await inspect(row.node.path) } } label: {
+                            Text(row.node.summary)
+                                .lineLimit(1)
+                                .padding(.leading, CGFloat(row.depth) * 10)
+                                .foregroundStyle(row.node.path == inspectedPath ? palette.accent.ion.color : palette.text.primary.color)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .font(.system(.caption2, design: .monospaced))
+                .padding(8)
+            }
+            if let info = inspected {
+                Rectangle().fill(palette.surface.hairline.color).frame(width: Metrics.hairline)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("<\(info.tag)>  \(info.width) × \(info.height)").fontWeight(.semibold)
+                        Text("display \(info.display), position \(info.position)")
+                        Text("font \(info.font)")
+                        Text("color \(info.color)")
+                        Text("background \(info.background)")
+                        Text("margin \(info.margin)")
+                        Text("padding \(info.padding)")
+                        ForEach(info.attributes.keys.sorted(), id: \.self) { key in
+                            Text("\(key)=\"\(info.attributes[key] ?? "")\"").foregroundStyle(palette.text.secondary.color)
+                        }
+                    }
+                    .font(.system(.caption2, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding(8)
+                }
+                .frame(maxWidth: 260)
+            }
+        }
+        .onDisappear { webViewRef.webView?.evaluateJavaScript(RunKit.Preview.clearInspectScript, completionHandler: nil) }
+    }
+
+    private func loadDOM() async {
+        guard let webView = webViewRef.webView,
+              let json = try? await webView.evaluateJavaScript(RunKit.Preview.domScript) as? String,
+              let tree = try? JSONDecoder().decode(RunKit.Preview.DOMNode.self, from: Data(json.utf8)) else { return }
+        dom = tree.flattened()
+    }
+
+    private func inspect(_ path: [Int]) async {
+        guard let webView = webViewRef.webView,
+              let json = try? await webView.evaluateJavaScript(RunKit.Preview.inspectScript(path)) as? String,
+              let info = try? JSONDecoder().decode(RunKit.Preview.ElementInfo.self, from: Data(json.utf8)) else { return }
+        inspectedPath = path
+        inspected = info
+    }
+}
+
+/// The preview's web view, for DevTools to evaluate in.
+@MainActor
+final class WebViewRef {
+    weak var webView: WKWebView?
 }
 
 private struct PreviewWebView: UIViewRepresentable {
     let root: URL
     let url: URL
     let reloadToken: Int
+    let ref: WebViewRef
     let onConsole: @MainActor (String, String) -> Void
     let onReload: () -> Void
 
@@ -113,9 +255,10 @@ private struct PreviewWebView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> Container {
-        let config = (try? Preview.configuration(root: root, onConsole: onConsole)) ?? WKWebViewConfiguration()
+        let config = (try? RunKit.Preview.configuration(root: root, onConsole: onConsole)) ?? WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isInspectable = true
+        ref.webView = webView
         let container = Container(webView: webView)
         container.url = url
         container.token = reloadToken
