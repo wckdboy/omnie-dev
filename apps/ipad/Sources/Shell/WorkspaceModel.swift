@@ -75,7 +75,7 @@ final class WorkspaceModel {
             scheduleAutosave()
             scheduleSuggestion()
         }
-        recentProjects = recents.load()
+        recentProjects = recents.available().map(\.ref)
         editor.onSelectionChange = { [weak self] range in
             guard let self, let location = editor.textView.textLocation(at: range.location) else { return }
             cursor = (location.lineNumber + 1, location.column + 1)
@@ -105,7 +105,7 @@ final class WorkspaceModel {
             return
         }
         _ = try? recents.remember(url)
-        recentProjects = recents.load()
+        recentProjects = recents.available().map(\.ref)
         startWatching(url)
         Task {
             await git.attach(url)
@@ -133,7 +133,7 @@ final class WorkspaceModel {
 
     func forget(_ ref: ProjectRef) {
         try? recents.forget(ref.id)
-        recentProjects = recents.load()
+        recentProjects = recents.available().map(\.ref)
     }
 
     private func startWatching(_ url: URL) {

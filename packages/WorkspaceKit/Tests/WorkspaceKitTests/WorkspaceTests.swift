@@ -28,6 +28,23 @@ struct RecentProjectsTests {
         #expect(recents.load().map(\.name) == ["c"])
     }
 
+    @Test func sameProjectAcrossContainers() {
+        let a = URL(filePath: "/private/var/mobile/Containers/Data/Application/AAAA/Documents/Projects/demo")
+        let b = URL(filePath: "/private/var/mobile/Containers/Data/Application/BBBB/Documents/Projects/demo")
+        let c = URL(filePath: "/private/var/mobile/Containers/Data/Application/BBBB/Documents/Projects/other")
+        #expect(RecentProjects.sameProject(a, b))
+        #expect(!RecentProjects.sameProject(a, c))
+    }
+
+    @Test func availableSkipsMissingFolders() throws {
+        let recents = RecentProjects(fileURL: tmp.appendingPathComponent("recents.json"))
+        let keep = try folder("keep"), gone = try folder("gone")
+        try recents.remember(keep)
+        try recents.remember(gone)
+        try FileManager.default.removeItem(at: gone)
+        #expect(recents.available().map(\.ref.name) == ["keep"])
+    }
+
     @Test func bookmarksFollowAMovedFolder() throws {
         let recents = RecentProjects(fileURL: tmp.appendingPathComponent("recents.json"))
         let original = try folder("before")

@@ -201,6 +201,7 @@ extension View {
             .sheet(isPresented: $model.auditLogOpen) { AuditLogView() }
             .sheet(isPresented: $model.settingsOpen) { SettingsView() }
             .sheet(isPresented: $model.quickOpenOpen) { QuickOpenSheet() }
+            .sheet(isPresented: $model.prepareOfflineOpen) { PrepareOfflineSheet() }
             .sheet(isPresented: $model.findOpen) { FindInProjectSheet() }
             .sheet(isPresented: $model.goToLineOpen) { GoToLineSheet() }
             .modifier(FileOperationPrompts())

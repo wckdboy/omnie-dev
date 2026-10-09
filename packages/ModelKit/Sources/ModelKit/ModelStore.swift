@@ -97,6 +97,21 @@ public actor ModelStore {
         try JSONEncoder().encode(pack).write(to: dir.appendingPathComponent(Self.manifestName), options: .atomic)
     }
 
+    /// Re-hashes every installed file against its pin (before a flight: PLAN.md §13.1). A file that
+    /// doesn't match is removed, so the next install fetches it again.
+    public func verify(_ pack: ModelPack) throws {
+        let dir = folder(for: pack)
+        do {
+            for file in pack.files { try verify(dir.appendingPathComponent(file.name), against: file) }
+        } catch {
+            // No longer installed: drop the manifest so the state says so and an install resumes.
+            try? FileManager.default.removeItem(at: dir.appendingPathComponent(Self.manifestName))
+            verified[pack.id] = nil
+            throw error
+        }
+        verified[pack.id] = Set(pack.files.map(\.name))
+    }
+
     public func remove(_ pack: ModelPack) throws {
         verified[pack.id] = nil
         let dir = folder(for: pack)

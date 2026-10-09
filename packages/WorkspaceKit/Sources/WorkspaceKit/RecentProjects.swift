@@ -40,7 +40,7 @@ public struct RecentProjects: Sendable {
         let bookmark = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
         var list = load()
         // Same folder, opened again: keep its identity.
-        let existing = list.firstIndex { Self.resolve($0.bookmark)?.url.standardizedFileURL == url.standardizedFileURL }
+        let existing = list.firstIndex { ref in Self.resolve(ref.bookmark).map { Self.sameProject($0.url, url) } ?? false }
         let ref = ProjectRef(id: existing.map { list[$0].id } ?? UUID(), name: url.lastPathComponent,
                              bookmark: bookmark, lastOpened: date)
         if let existing { list.remove(at: existing) }
@@ -49,13 +49,47 @@ public struct RecentProjects: Sendable {
         return ref
     }
 
+    static func inCurrentDocuments(_ url: URL) -> URL? {
+        guard let range = url.path.range(of: "/Documents/") else { return nil }
+        let candidate = URL.documentsDirectory.appending(path: String(url.path[range.upperBound...]))
+        return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
+    }
+
+    /// Two locations are the same project when their paths match, or when both are inside an app's
+    /// Documents folder at the same relative path (a reinstall moves the app's container, so the
+    /// absolute path changes while the project doesn't).
+    static func sameProject(_ a: URL, _ b: URL) -> Bool {
+        let pa = a.standardizedFileURL.resolvingSymlinksInPath().path, pb = b.standardizedFileURL.resolvingSymlinksInPath().path
+        if pa == pb { return true }
+        func inDocuments(_ p: String) -> String? { p.range(of: "/Documents/").map { String(p[$0.upperBound...]) } }
+        if let ra = inDocuments(pa), let rb = inDocuments(pb) { return ra == rb }
+        return false
+    }
+
+    /// Recent projects whose folders still exist, one per project, newest first.
+    public func available() -> [(ref: ProjectRef, url: URL)] {
+        var seen: [URL] = []
+        return load().compactMap { ref in
+            guard let url = url(for: ref), FileManager.default.fileExists(atPath: url.path),
+                  !seen.contains(where: { Self.sameProject($0, url) }) else { return nil }
+            seen.append(url)
+            return (ref, url)
+        }
+    }
+
     public func forget(_ id: UUID) throws {
         try save(load().filter { $0.id != id })
     }
 
     /// The folder a bookmark points to now. Refreshes a stale bookmark in place.
     public func url(for ref: ProjectRef) -> URL? {
-        guard let (url, stale) = Self.resolve(ref.bookmark) else { return nil }
+        guard var (url, stale) = Self.resolve(ref.bookmark) else { return nil }
+        // A reinstall moves the app's container: the same project now lives under this
+        // container's Documents folder.
+        if !FileManager.default.fileExists(atPath: url.path), let moved = Self.inCurrentDocuments(url) {
+            url = moved
+            stale = true
+        }
         if stale, let fresh = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
             var list = load()
             if let i = list.firstIndex(where: { $0.id == ref.id }) {

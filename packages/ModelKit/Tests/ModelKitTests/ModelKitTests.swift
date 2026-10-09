@@ -68,6 +68,16 @@ struct ModelStoreTests {
         }
     }
 
+    @Test func verifyCatchesACorruptedInstall() async throws {
+        let store = ModelStore(root: root, fetcher: MemoryFetcher(["config.json": a, "model.safetensors": b]))
+        try await store.install(pack)
+        try await store.verify(pack)
+        try Data(repeating: 9, count: 10_000).write(to: store.folder(for: pack).appendingPathComponent("model.safetensors"))
+        await #expect(throws: ModelStoreError.hashMismatch(file: "model.safetensors")) { try await store.verify(pack) }
+        #expect(!FileManager.default.fileExists(atPath: store.folder(for: pack).appendingPathComponent("model.safetensors").path))
+        #expect(await store.state(of: pack) == .partial(bytes: Int64(a.count)))
+    }
+
     @Test func checksFreeSpaceFirstAndRemoves() async throws {
         let fetcher = MemoryFetcher(["config.json": a, "model.safetensors": b])
         let store = ModelStore(root: root, fetcher: fetcher)

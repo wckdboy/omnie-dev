@@ -61,6 +61,7 @@ final class AppModel {
     var auditLogOpen = false
     var settingsOpen = false
     var quickOpenOpen = false
+    var prepareOfflineOpen = false
     var findOpen = false
     var goToLineOpen = false
     var focusMode = false
@@ -204,6 +205,10 @@ final class AppModel {
                 guard let self, workspace.openFile != nil else { return }
                 paletteSeed = "@"
                 paletteOpen = true
+            },
+            Command(id: "app.prepareOffline", title: "Prepare for offline…", menu: "File",
+                    keywords: ["plane", "flight", "offline", "fetch", "verify"]) { [weak self] in
+                self?.prepareOfflineOpen = true
             },
             Command(id: "file.quickOpen", title: "Open file…", menu: "File",
                     shortcut: Shortcut("p"), keywords: ["go to file", "quick open", "find file"]) { [weak self] in
