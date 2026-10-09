@@ -115,3 +115,59 @@ extension Repository {
         return files
     }
 }
+
+/// One hunk of a unified diff, for reviewing a changeset hunk by hunk.
+public struct DiffHunk: Sendable, Hashable, Identifiable {
+    public var id: Int { index }
+    public let index: Int
+    public let header: String
+    /// 1-based start and line count in the old and new file.
+    public let oldStart: Int, oldCount: Int, newStart: Int, newCount: Int
+    /// Lines with their " ", "-" or "+" prefix.
+    public let lines: [String]
+
+    public var removed: [String] { lines.filter { $0.hasPrefix("-") }.map { String($0.dropFirst()) } }
+    public var added: [String] { lines.filter { $0.hasPrefix("+") }.map { String($0.dropFirst()) } }
+}
+
+extension FileDiff {
+    /// The hunks in this file's patch.
+    public var hunks: [DiffHunk] {
+        var hunks: [DiffHunk] = []
+        var current: (header: String, numbers: [Int], lines: [String])?
+        func flush() {
+            if let c = current, c.numbers.count == 4 {
+                hunks.append(DiffHunk(index: hunks.count, header: c.header, oldStart: c.numbers[0], oldCount: c.numbers[1],
+                                      newStart: c.numbers[2], newCount: c.numbers[3], lines: c.lines))
+            }
+        }
+        for line in patch.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            if line.hasPrefix("@@"), let m = line.firstMatch(of: /@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/) {
+                flush()
+                current = (line, [Int(m.1)!, m.2.flatMap { Int($0) } ?? 1, Int(m.3)!, m.4.flatMap { Int($0) } ?? 1], [])
+            } else if current != nil, let first = line.first, first == " " || first == "-" || first == "+" {
+                current?.lines.append(line)
+            }
+        }
+        flush()
+        return hunks
+    }
+
+    /// The new file's text with the given hunks undone (their old lines put back). Hunks are undone
+    /// from the bottom up, so earlier line numbers stay valid.
+    public static func revert(_ hunks: [DiffHunk], in newText: String) -> String {
+        let trailingNewline = newText.hasSuffix("\n")
+        var lines = newText.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        if trailingNewline { lines.removeLast() }
+        for hunk in hunks.sorted(by: { $0.newStart > $1.newStart }) {
+            // The hunk's new lines (context and additions) start at newStart; in git, a count of 0
+            // means the hunk sits after line newStart.
+            let start = hunk.newCount == 0 ? hunk.newStart : hunk.newStart - 1
+            let newLines = hunk.lines.filter { !$0.hasPrefix("-") }.map { String($0.dropFirst()) }
+            let oldLines = hunk.lines.filter { !$0.hasPrefix("+") }.map { String($0.dropFirst()) }
+            let end = min(start + newLines.count, lines.count)
+            lines.replaceSubrange(max(0, start)..<end, with: oldLines)
+        }
+        return lines.joined(separator: "\n") + (trailingNewline || lines.isEmpty ? "\n" : "")
+    }
+}

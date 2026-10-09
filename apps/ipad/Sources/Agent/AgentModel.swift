@@ -38,6 +38,8 @@ final class AgentModel {
     private(set) var current: TaskRecord?
     private(set) var transcript: [JournalEntry] = []
     private(set) var changes: [FileDiff] = []
+    /// Hunks you've rejected in the review, by file path (PLAN.md §13: accept or reject per hunk).
+    var rejected: [String: Set<Int>] = [:]
     private(set) var isRunning = false
     var error: String?
 
@@ -242,12 +244,19 @@ final class AgentModel {
         guard let record = current, let repo = workspace.git.repo,
               let base = ObjectID(hex: record.base), let tip = record.tip.flatMap(ObjectID.init(hex:)) else { return }
         changes = (try? await repo.diff(from: base, to: tip)) ?? []
+        rejected = [:]
     }
 
     /// Lands the changeset on your branch as one commit, after a secret scan.
     func accept() async {
         guard let record = current, record.phase == .review, let repo = workspace.git.repo else { return }
         guard !changes.isEmpty else { await reject(); return }
+        let partial = rejected.values.contains(where: { !$0.isEmpty })
+        let leftOut = rejected.values.reduce(0) { $0 + $1.count }
+        if partial {
+            guard await applyHunkChoices(record) else { return }
+            if changes.isEmpty { await reject(); return }
+        }
         let added = changes.flatMap { file in
             file.patch.split(separator: "\n").enumerated()
                 .filter { $0.element.hasPrefix("+") && !$0.element.hasPrefix("+++") }
@@ -264,7 +273,9 @@ final class AgentModel {
             error = "Set your name and email in Settings first."
             return
         }
-        let message = record.summary.flatMap(CommitDraft.clean) ?? "Agent: \(record.goal.prefix(60))"
+        var message = record.summary.flatMap(CommitDraft.clean) ?? "Agent: \(record.goal.prefix(60))"
+        // The agent's summary describes everything it did; say what review left out.
+        if partial { message += "\n\n\(leftOut) \(leftOut == 1 ? "change was" : "changes were") left out in review." }
         do {
             try await repo.squashMerge(record.branch, message: message, author: author, assistedBy: record.modelName ?? ModelPack.standard.displayName)
             if let worktree = try await repo.taskWorktrees().first(where: { $0.name == record.worktreeName }) {
@@ -281,6 +292,45 @@ final class AgentModel {
             error = "The changes conflict with yours in \(paths.joined(separator: ", ")). Nothing was changed."
         } catch {
             self.error = "Merge failed: \(error.localizedDescription)"
+        }
+    }
+
+    /// Undoes the rejected hunks in the task's worktree and commits that, so the merge carries only
+    /// what you accepted.
+    private func applyHunkChoices(_ record: TaskRecord) async -> Bool {
+        let root = URL(filePath: record.worktreePath)
+        for file in changes {
+            let undo = file.hunks.filter { rejected[file.path]?.contains($0.index) == true }
+            guard !undo.isEmpty else { continue }
+            let url = root.appending(path: file.path)
+            let current = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            let result = FileDiff.revert(undo, in: current)
+            do {
+                if file.kind == .added && undo.count == file.hunks.count {
+                    try FileManager.default.removeItem(at: url)
+                } else {
+                    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try result.write(to: url, atomically: true, encoding: .utf8)
+                }
+            } catch {
+                self.error = "Couldn't apply your choices to \(file.path): \(error.localizedDescription)"
+                return false
+            }
+        }
+        do {
+            let worktree = try Repository.open(at: root)
+            var updated = record
+            do {
+                let commit = try await worktree.commitAll(message: "Keep only the accepted hunks\n",
+                                                          author: Signature(name: "Omnie Dev agent", email: "agent@omnie.invalid"))
+                updated.tip = commit.id.hex
+            } catch GitKitError.nothingToCommit {}
+            update(updated)
+            await loadChanges()
+            return true
+        } catch {
+            self.error = "Couldn't record your choices: \(error.localizedDescription)"
+            return false
         }
     }
 

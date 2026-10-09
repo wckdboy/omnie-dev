@@ -290,4 +290,29 @@ struct GitKitTests {
         #expect(files[0].patch == (try git("diff", "--no-color", first.id.hex, second.id.hex, "--", "a.txt")) + "\n")
         #expect(try await repo.diff(from: nil, to: first.id).map(\.kind) == [.added, .added])
     }
+
+    @Test func revertingSomeHunksMatchesTheMixedFile() async throws {
+        let repo = try Repository.create(at: dir)
+        let base = (1...30).map { "line \($0)" }.joined(separator: "\n") + "\n"
+        try write("a.txt", base)
+        let first = try await repo.commitAll(message: "Base", author: me)
+        // Three separate hunks: a change near the top, an insertion in the middle, a deletion at the end.
+        var lines = base.split(separator: "\n").map(String.init)
+        lines[1] = "LINE 2"
+        lines.insert(contentsOf: ["new a", "new b"], at: 15)
+        lines.removeLast(2)
+        let changed = lines.joined(separator: "\n") + "\n"
+        try write("a.txt", changed)
+        let second = try await repo.commitAll(message: "Change", author: me)
+        let file = try #require(try await repo.diff(from: first.id, to: second.id).first)
+        let hunks = file.hunks
+        #expect(hunks.count == 3)
+        #expect(hunks[1].added == ["new a", "new b"] && hunks[1].removed.isEmpty)
+        // Undo all: back to the base. Undo none: unchanged. Undo the middle one only:
+        #expect(FileDiff.revert(hunks, in: changed) == base)
+        #expect(FileDiff.revert([], in: changed) == changed)
+        let mixed = FileDiff.revert([hunks[1]], in: changed)
+        #expect(mixed.contains("LINE 2") && !mixed.contains("new a") && !mixed.contains("line 30"))
+        #expect(mixed.split(separator: "\n").count == 28)
+    }
 }

@@ -274,25 +274,58 @@ struct ChangesetReview: View {
 }
 
 private struct FileDiffRow: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
     let file: FileDiff
     @State private var expanded = true
 
     var body: some View {
+        let agent = model.agent
+        let hunks = file.hunks
+        let rejectedHere = agent.rejected[file.path] ?? []
         DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                    Text(line.isEmpty ? " " : line)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(palette.text.primary.color)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(background(for: line))
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(hunks) { hunk in
+                    let isRejected = rejectedHere.contains(hunk.index)
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text(hunk.header.components(separatedBy: "@@").dropFirst().first.map { "@@\($0)@@" } ?? hunk.header)
+                                .font(.system(size: 10, design: .monospaced)).foregroundStyle(palette.text.tertiary.color)
+                            Spacer()
+                            Button {
+                                var set = rejectedHere
+                                if isRejected { set.remove(hunk.index) } else { set.insert(hunk.index) }
+                                agent.rejected[file.path] = set
+                            } label: {
+                                Label(isRejected ? "Rejected" : "Accepted", systemImage: isRejected ? "xmark.circle" : "checkmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(isRejected ? palette.status.error.color : palette.accent.agent.color)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint(isRejected ? "Accept this hunk" : "Reject this hunk")
+                        }
+                        ForEach(Array(hunk.lines.prefix(200).enumerated()), id: \.offset) { _, line in
+                            Text(line.isEmpty ? " " : line)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(palette.text.primary.color)
+                                .strikethrough(isRejected && line.hasPrefix("+"))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(background(for: line))
+                        }
+                    }
+                    .opacity(isRejected ? 0.5 : 1)
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(isRejected ? Color.clear : palette.accent.agent.color).frame(width: 2).offset(x: -6)
+                    }
                 }
             }
         } label: {
             HStack {
                 Text(file.path).font(.system(size: 13, design: .monospaced)).lineLimit(1).truncationMode(.middle)
                 Spacer()
+                if !rejectedHere.isEmpty {
+                    Text("\(hunks.count - rejectedHere.count)/\(hunks.count)").foregroundStyle(palette.text.secondary.color)
+                }
                 Text("+\(file.additions)").foregroundStyle(palette.status.ok.color)
                 Text("−\(file.deletions)").foregroundStyle(palette.status.error.color)
             }
@@ -300,13 +333,6 @@ private struct FileDiffRow: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(file.path), \(file.additions) added, \(file.deletions) removed")
         }
-    }
-
-    /// The hunks, without the `diff --git`/index/---/+++ header.
-    private var lines: [String] {
-        let all = file.patch.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        let start = all.firstIndex { $0.hasPrefix("@@") } ?? all.count
-        return Array(all[start...].prefix(400))
     }
 
     private func background(for line: String) -> Color {

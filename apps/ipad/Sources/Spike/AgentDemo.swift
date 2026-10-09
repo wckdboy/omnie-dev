@@ -32,14 +32,31 @@ enum AgentDemo {
         guard let root = app.workspace.rootURL else { print("[demo] open a project first"); return }
         let readme = (try? Data(contentsOf: root.appending(path: "README.md"))) ?? Data()
         let sha = Sandbox.blobSHA(readme)
-        app.agent.modelOverride = Script([
+        let partial = ProcessInfo.processInfo.arguments.contains("-OmnieAgentDemoPartial")
+        let readmeText = String(decoding: readme, as: UTF8.self)
+        let firstLine = readmeText.split(separator: "\n").first.map(String.init) ?? ""
+        app.agent.modelOverride = Script(partial ? [
+            call("read", ["path": "README.md"]),
+            call("patch", ["path": "README.md", "sha": sha, "find": firstLine, "replace": firstLine + " (renamed by the agent)"]),
+            "Adding a Usage section at the end.\n" + call("read", ["path": "README.md"]),
+            "<<APPEND>>",
+            call("finish", ["summary": "Renamed the title and added a Usage section."]),
+            call("finish", ["summary": "Renamed the title and added a Usage section."]),
+        ] : [
             "I'll look at the README first.\n" + call("read", ["path": "README.md"]),
             "Adding a Usage section at the end.\n" + call("append_to_file", ["path": "README.md", "sha": sha,
                                                                              "text": "## Usage\n\nRun `npm start`, then open http://localhost:3000.\n"]),
             call("finish", ["summary": "Added a Usage section to README.md."]),
             call("finish", ["summary": "Added a Usage section to README.md."]),
         ])
+        if partial, let script = app.agent.modelOverride as? Script, let i = script.replies.firstIndex(of: "<<APPEND>>") {
+            // The append needs the sha after the first patch: compute it from the patched text.
+            let patched = readmeText.replacingOccurrences(of: firstLine, with: firstLine + " (renamed by the agent)")
+            script.replies[i] = call("append_to_file", ["path": "README.md", "sha": Sandbox.blobSHA(Data(patched.utf8)),
+                                                        "text": "## Usage\n\nRun `npm start`.\n"])
+        }
         await app.agent.start("Add a Usage section to the README")
+        if partial { app.agent.rejected["README.md"] = [0] }
         print("[demo] phase \(app.agent.current?.phase.rawValue ?? "none"), \(app.agent.changes.count) changed file(s)")
         if ProcessInfo.processInfo.arguments.contains("-OmnieAgentDemoAccept") {
             try? await Task.sleep(for: .seconds(2))
