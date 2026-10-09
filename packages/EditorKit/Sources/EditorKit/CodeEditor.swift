@@ -178,7 +178,11 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
 
     public var selectedRange: NSRange {
         get { textView.selectedRange }
-        set { textView.selectedRange = newValue }
+        set {
+            textView.selectedRange = newValue
+            // Setting it from code doesn't reach the delegate.
+            highlightBrackets()
+        }
     }
 
     /// Called on the main thread when highlighting for the loaded text is ready.
@@ -264,6 +268,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
 
     public func textViewDidChangeSelection(_ textView: TextView) {
         if ghostText != nil, textView.selectedRange != NSRange(location: ghostLocation, length: 0) { clearGhostText() }
+        highlightBrackets()
         onSelectionChange?(textView.selectedRange)
     }
 
@@ -277,6 +282,33 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             self?.onGhostAccepted?(ghost)
         }
         return false
+    }
+
+    // MARK: Brackets
+
+    /// How far either side of the caret the partner is looked for.
+    static let bracketWindow = 20_000
+
+    /// Marks the bracket at the caret and its partner.
+    func highlightBrackets() {
+        let selection = textView.selectedRange
+        guard selection.length == 0 else {
+            if !textView.highlightedRanges.isEmpty { textView.highlightedRanges = [] }
+            return
+        }
+        let length = textView.offset(from: textView.beginningOfDocument, to: textView.endOfDocument)
+        let start = max(0, selection.location - Self.bracketWindow), end = min(length, selection.location + Self.bracketWindow)
+        guard let from = textView.position(from: textView.beginningOfDocument, offset: start),
+              let to = textView.position(from: textView.beginningOfDocument, offset: end),
+              let range = textView.textRange(from: from, to: to), let window = textView.text(in: range),
+              let (a, b) = Brackets.match(in: window as NSString, caret: selection.location - start) else {
+            if !textView.highlightedRanges.isEmpty { textView.highlightedRanges = [] }
+            return
+        }
+        let color = theme.palette.accent.ion.uiColor.withAlphaComponent(0.28)
+        textView.highlightedRanges = [a, b].map {
+            HighlightedRange(id: "bracket-\($0 + start)", range: NSRange(location: $0 + start, length: 1), color: color, cornerRadius: 2)
+        }
     }
 
     // MARK: Helpers
