@@ -194,6 +194,7 @@ extension View {
             .sheet(item: $git.pendingHostKey) { HostKeySheet(key: $0) }
             .sheet(isPresented: $model.branchSheetOpen) { BranchSheet() }
             .fullScreenCover(isPresented: $model.editorSpikeOpen) { EditorSpikeView() }
+            .fullScreenCover(isPresented: $model.modelSpikeOpen) { ModelSpikeView() }
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }

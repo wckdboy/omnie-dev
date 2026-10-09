@@ -1009,7 +1009,7 @@ Durations are deliberately left off after P0. They depend on team size, which is
 - **13-inch iPad Pro M5:** 12 GB RAM on the 256/512 GB models, 16 GB on 1/2 TB (FORGE section; consistent with v1).
 
 **Not verified, so treat as assumptions:**
-- All speed numbers (tok/s, prefill, TTFT) and the ~6.5 to 7.5 GB working-set ceiling. These are FORGE estimates, unbenchmarked on M5.
+- ~~All speed numbers (tok/s, prefill, TTFT) and the ~6.5 to 7.5 GB working-set ceiling.~~ **Measured 9 Oct 2026** on the iPad Pro 13" M5 (12 GB): Qwen2.5-Coder-7B 4-bit decodes at 26–30 tok/s, prefills at 650–790 tok/s (TTFT 1.3 s at 1k, 5.2 s at 4k, 12.3 s at 8k), peaks at 5.4 GB, and the app may use 12.3 GB with the increased-memory-limit entitlement. See `docs/spikes/model-p0.md`.
 - Exact memory granted by the `increased-memory-limit` entitlement on the 12 GB M5.
 - WebGPU behavior inside a **third-party** `WKWebView`, as opposed to Safari.
 - End-to-end SSH auth with a **Secure Enclave key**. *Partly verified (8 Oct 2026):* the custom sign callback path (libgit2 v1.9.7 + libssh2 1.11.1 + OpenSSL 3.6.5) authenticates `ecdsa-sha2-nistp256` against OpenSSH for clone, fetch and push, from macOS tests and from the iOS app in the simulator. The simulator has no Secure Enclave, so it used a software P-256 key through the same callback. **Still to verify:** a real Secure Enclave key on device, and which hosted forges accept `ecdsa-sha2-nistp256` keys.

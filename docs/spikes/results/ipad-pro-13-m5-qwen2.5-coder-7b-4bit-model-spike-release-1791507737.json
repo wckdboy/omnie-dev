@@ -1,0 +1,61 @@
+{
+  "build" : "release",
+  "date" : "2026-10-09T01:02:17Z",
+  "device" : "iPad iPad17,4",
+  "model" : "Qwen2.5-Coder-7B-Instruct-4bit",
+  "results" : [
+    {
+      "metrics" : {
+        "availableBeforeLoadMB" : 12269.952346801758,
+        "physicalMemoryGB" : 11.175003051757812
+      },
+      "test" : "device"
+    },
+    {
+      "metrics" : {
+        "availableAfterMB" : 8123.074325561523,
+        "footprintMB" : 4146.862396240234,
+        "mlxActiveMB" : 4088.8887786865234,
+        "seconds" : 0.6718270778656006
+      },
+      "test" : "load"
+    },
+    {
+      "metrics" : {
+        "availableMB" : 7888.19930267334,
+        "decodeTokPerS" : 30.53552405500969,
+        "footprintMB" : 4399.80069732666,
+        "generatedTokens" : 128,
+        "mlxPeakMB" : 4532.958194732666,
+        "prefillTokPerS" : 792.1394638545047,
+        "ttftSeconds" : 1.262403964996338
+      },
+      "test" : "prompt 1000 tokens"
+    },
+    {
+      "metrics" : {
+        "availableMB" : 7468.21492767334,
+        "decodeTokPerS" : 28.225427977635775,
+        "footprintMB" : 4819.78507232666,
+        "generatedTokens" : 128,
+        "mlxPeakMB" : 4724.2947425842285,
+        "prefillTokPerS" : 773.0499378669746,
+        "ttftSeconds" : 5.174309968948364
+      },
+      "test" : "prompt 4000 tokens"
+    },
+    {
+      "metrics" : {
+        "availableMB" : 6914.77742767334,
+        "decodeTokPerS" : 26.177255905438866,
+        "footprintMB" : 5373.22257232666,
+        "generatedTokens" : 128,
+        "mlxPeakMB" : 4989.763858795166,
+        "prefillTokPerS" : 652.9885737909185,
+        "ttftSeconds" : 12.251362919807434
+      },
+      "test" : "prompt 8000 tokens"
+    }
+  ],
+  "system" : "Version 27.0 (Build 24A435)"
+}

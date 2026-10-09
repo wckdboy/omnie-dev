@@ -53,6 +53,7 @@ final class AppModel {
     var cloneSheetOpen = false
     var branchSheetOpen = false
     var editorSpikeOpen = false
+    var modelSpikeOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -191,6 +192,10 @@ final class AppModel {
             Command(id: "spike.editor", title: "Run editor spike (P0)", menu: "View",
                     keywords: ["benchmark", "performance", "runestone", "textkit"]) { [weak self] in
                 self?.editorSpikeOpen = true
+            },
+            Command(id: "spike.model", title: "Run model spike (P0)", menu: "View",
+                    keywords: ["mlx", "llm", "benchmark", "7b"]) { [weak self] in
+                self?.modelSpikeOpen = true
             },
             Command(id: "agent.ask", title: "Ask agent", menu: "Agent",
                     shortcut: Shortcut("i"), keywords: ["ai", "prompt"]) { [weak self] in
