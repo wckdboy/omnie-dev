@@ -324,18 +324,6 @@ private struct StageInspector: View {
     }
 }
 
-private extension Color {
-    init(hex: String) {
-        let value = UInt32(hex.dropFirst(), radix: 16) ?? 0
-        self.init(red: Double((value >> 16) & 0xff) / 255, green: Double((value >> 8) & 0xff) / 255, blue: Double(value & 0xff) / 255)
-    }
-
-    var hexString: String {
-        let c = UIColor(self).cgColor.converted(to: CGColorSpace(name: CGColorSpace.sRGB)!, intent: .defaultIntent, options: nil)?.components ?? [0, 0, 0]
-        let rgb = c.prefix(3).map { Int((max(0, min(1, $0)) * 255).rounded()) }
-        return String(format: "#%02x%02x%02x", rgb[0], rgb.count > 1 ? rgb[1] : 0, rgb.count > 2 ? rgb[2] : 0)
-    }
-}
 
 private struct StageWebView: UIViewRepresentable {
     let root: URL

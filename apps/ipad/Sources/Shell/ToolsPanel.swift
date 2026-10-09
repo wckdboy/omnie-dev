@@ -18,17 +18,34 @@ struct ToolsPanel: View {
     @State private var tool = Tool.http
 
     enum Tool: String, CaseIterable, Identifiable {
-        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff", snippets = "Snippets"
+        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff", snippets = "Snippets", colors = "Colors"
         var id: Self { self }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Tool", selection: $tool) {
-                ForEach(Tool.allCases) { Text($0.rawValue).tag($0) }
+            // Six tools don't fit a segmented control in the side pane: a scrolling row instead.
+            ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Tool.allCases) { t in
+                        Button { tool = t } label: {
+                            Text(t.rawValue).font(.footnote.weight(tool == t ? .semibold : .regular))
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .background(tool == t ? palette.surface.raised.color : .clear, in: Capsule())
+                                .foregroundStyle(tool == t ? palette.text.primary.color : palette.text.secondary.color)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(tool == t ? .isSelected : [])
+                        .id(t)
+                    }
+                }
+                .padding(.horizontal, 12)
             }
-            .pickerStyle(.segmented)
-            .padding(12)
+            .onChange(of: tool) { withAnimation { proxy.scrollTo(tool, anchor: .center) } }
+            .onAppear { proxy.scrollTo(tool, anchor: .center) }
+            }
+            .padding(.vertical, 10)
             Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
             switch tool {
             case .http: HTTPTool()
@@ -36,6 +53,7 @@ struct ToolsPanel: View {
             case .patterns: PatternsTool()
             case .diff: DiffTool()
             case .snippets: SnippetsTool()
+            case .colors: ColorsTool()
             }
         }
         // "Compare open file with…" in the palette lands here.
