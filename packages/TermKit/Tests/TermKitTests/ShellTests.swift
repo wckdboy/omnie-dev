@@ -66,8 +66,25 @@ struct ShellTests {
         #expect(await shell.execute("uv pip list") == "packages pip ls")
         #expect(await shell.execute("jq -r '.a b' x.json") == "wasm jq -r .a b x.json in /")
         #expect(await shell.execute("rg x")?.contains("not a built-in") == true)
-        #expect(await shell.execute("npm publish")?.contains("offline cache") == true)
         _ = await shell.execute("open README.md")
         #expect(opened == "README.md")
+    }
+
+    @Test func runsTasks() async {
+        let tasks: [String: String] = ["dev": "vite", "test": "vitest run", "check": "tsc && NODE_ENV=test vitest run src/a.test.ts", "ship": "cargo build"]
+        let shell = Shell(root: root, hooks: .init(test: { "tested \($0 ?? "all")" }, task: { name in
+            guard let line = tasks[name] else { return .unknown }
+            return name == "ship" ? .unavailable("cargo needs a real toolchain") : .run(line)
+        }, taskNames: { tasks.keys.sorted() }, preview: { "preview shown" }, typecheck: { "No type errors." }))
+        #expect(await shell.execute("npm run dev") == "> vite   (on this iPad)\npreview shown")
+        #expect(await shell.execute("yarn test") == "> vitest run   (on this iPad)\ntested all")
+        #expect(await shell.execute("npm test") == "> vitest run   (on this iPad)\ntested all")
+        #expect(await shell.execute("task check") == "> tsc && NODE_ENV=test vitest run src/a.test.ts   (on this iPad)\nNo type errors.\ntested src/a.test.ts")
+        #expect(await shell.execute("task ship")?.contains("remote host") == true)
+        #expect(await shell.execute("npm run nope") == "No task \"nope\". Tasks: check, dev, ship, test.")
+        #expect(await shell.execute("task") == "check  dev  ship  test")
+        #expect(await shell.execute("npx vitest") == "tested all")
+        #expect(await shell.execute("vite build")?.contains("remote host") == true)
+        #expect(await shell.execute("npm publish")?.contains("offline cache") == true)
     }
 }

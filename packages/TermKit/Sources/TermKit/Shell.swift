@@ -8,6 +8,14 @@ import Foundation
 /// git go through hooks the app provides (RunKit, GitKit).
 @MainActor
 public final class Shell {
+    /// A workspace task, as the app resolves it from the project's spec (PLAN.md §8.2).
+    public enum TaskLookup: Sendable {
+        case run(String)
+        /// It can't run on the device; the reason says where it would.
+        case unavailable(String)
+        case unknown
+    }
+
     public struct Hooks {
         public var run: (_ file: String) async -> String
         public var test: (_ file: String?) async -> String
@@ -19,6 +27,13 @@ public final class Shell {
         public var wasm: (_ program: String, _ args: [String], _ cwd: String) async -> String
         /// Tool names `wasm` knows (bundled, plus the project's tools/ and .omnie/tools/).
         public var tools: () -> [String]
+        /// A task by name (`npm run dev`, `task test`), and the names there are.
+        public var task: (_ name: String) -> TaskLookup
+        public var taskNames: () -> [String]
+        /// `vite` and friends: show the preview.
+        public var preview: () -> String
+        /// `tsc`: the type check.
+        public var typecheck: () async -> String
         public var open: (_ file: String) -> Void
 
         public init(run: @escaping (String) async -> String = { _ in "Running isn't available." },
@@ -27,6 +42,10 @@ public final class Shell {
                     packages: @escaping ([String]) async -> String = { _ in "The package cache isn't available." },
                     wasm: @escaping (String, [String], String) async -> String = { _, _, _ in "WASI isn't available." },
                     tools: @escaping () -> [String] = { [] },
+                    task: @escaping (String) -> TaskLookup = { _ in .unknown },
+                    taskNames: @escaping () -> [String] = { [] },
+                    preview: @escaping () -> String = { "The preview isn't available." },
+                    typecheck: @escaping () async -> String = { "Type checking isn't available." },
                     open: @escaping (String) -> Void = { _ in }) {
             self.run = run
             self.test = test
@@ -34,6 +53,10 @@ public final class Shell {
             self.packages = packages
             self.wasm = wasm
             self.tools = tools
+            self.task = task
+            self.taskNames = taskNames
+            self.preview = preview
+            self.typecheck = typecheck
             self.open = open
         }
     }
@@ -91,11 +114,25 @@ public final class Shell {
                 if file.hasSuffix(".wasm") { return await hooks.wasm(relative(url), Array(args.dropFirst()), cwd) }
                 return await hooks.run(relative(url))
             case "test", "pytest", "vitest", "jest":
-                if let file = args.first(where: { !$0.hasPrefix("-") }) { return await hooks.test(relative(try resolve(file))) }
+                // `vitest run`, `vitest watch`: subcommands, not files.
+                if let file = args.first(where: { !$0.hasPrefix("-") && !["run", "watch", "related"].contains($0) }) {
+                    return await hooks.test(relative(try resolve(file)))
+                }
                 return await hooks.test(nil)
             case "npm", "npx", "pnpm", "yarn":
-                if args.first == "test" || args == ["run", "test"] { return await hooks.test(nil) }
                 let sub = args.first ?? ""
+                // A script: npm run dev, npm start, npm test, yarn build, pnpm dev.
+                let script: String? = sub == "run" || sub == "run-script" ? args.dropFirst().first
+                    : ["start", "test"].contains(sub) ? sub
+                    : command != "npm" && command != "npx" && !["install", "i", "add", "ci", "ls", "list"].contains(sub) && !sub.isEmpty ? sub : nil
+                if let script {
+                    if case .unknown = hooks.task(script), script == "test" { return await hooks.test(nil) }
+                    return try await runTask(script)
+                }
+                if command == "npx", !sub.isEmpty {
+                    // npx vitest → vitest
+                    return await execute(args.joined(separator: " ")) ?? ""
+                }
                 if ["install", "i", "add", "ci"].contains(sub) {
                     return await hooks.packages(["npm", "install"] + args.dropFirst().filter { !$0.hasPrefix("-") })
                 }
@@ -113,6 +150,17 @@ public final class Shell {
                 }
                 if ["list", "freeze"].contains(sub) { return await hooks.packages(["pip", "ls"]) }
                 throw Failure("\(command): install and list work here. Packages go into the offline cache.")
+            case "task":
+                guard let name = args.first else {
+                    let names = hooks.taskNames()
+                    return names.isEmpty ? "No tasks: add them to .devcontainer/devcontainer.json (run.tasks) or package.json scripts." : names.joined(separator: "  ")
+                }
+                return try await runTask(name)
+            case "vite", "next", "astro", "parcel", "serve", "http-server":
+                if args.first == "build" { throw Failure("\(command) build bundles with native tools: it runs on a remote host (P4). The preview needs no build.") }
+                return hooks.preview()
+            case "tsc":
+                return await hooks.typecheck()
             case "git":
                 guard let sub = args.first, ["status", "log", "diff", "branch"].contains(sub) else {
                     throw Failure("git: status, log, diff and branch work here. Commit, sync and branches are in the Git menu.")
@@ -135,11 +183,44 @@ public final class Shell {
         }
     }
 
+    /// Runs a task's command line, part by part (`a && b` stops at the first failure).
+    private var taskDepth = 0
+    private func runTask(_ name: String) async throws -> String {
+        switch hooks.task(name) {
+        case .unknown:
+            let names = hooks.taskNames()
+            throw Failure("No task \"\(name)\"" + (names.isEmpty ? "." : ". Tasks: \(names.joined(separator: ", "))."))
+        case .unavailable(let reason):
+            throw Failure("\(name): \(reason). It runs on a remote host (P4); on the device, run its parts that work here.")
+        case .run(let line):
+            guard taskDepth < 4 else { throw Failure("\(name): tasks call each other too deeply.") }
+            taskDepth += 1
+            defer { taskDepth -= 1 }
+            var outputs: [String] = ["> \(line)   (on this iPad)"]
+            for part in line.components(separatedBy: "&&").map({ $0.trimmingCharacters(in: .whitespaces) }) where !part.isEmpty {
+                var words = part.split(separator: " ").map(String.init)
+                while let first = words.first, first.contains("="), !first.hasPrefix("-") { words.removeFirst() }
+                let output = await execute(words.joined(separator: " ")) ?? ""
+                if !output.isEmpty { outputs.append(output) }
+                if Self.failed(output) { break }
+            }
+            return outputs.joined(separator: "\n")
+        }
+    }
+
+    /// Whether a command's output reads as a failure (stops `a && b`).
+    static func failed(_ output: String) -> Bool {
+        output.contains("not a built-in command") || output.contains(" failed, ") || output.hasPrefix("Exited with")
+            || output.contains("\nExited with") || output.contains("error TS") || output.hasPrefix("No task")
+    }
+
     static let help = """
         Built-in commands (this is not a Unix shell; everything stays in the project):
           ls [path]  cd <path>  pwd  cat <file>  head|tail [-n N] <file>  grep <text> [path]  echo  clear
           run <file>      run JavaScript, TypeScript or Python (node, python and tsx work too)
           test [file]     run the project's tests (vitest/jest-style and pytest-style)
+          npm run <script>, task [name]   the project's tasks (devcontainer.json run.tasks or package.json scripts)
+          vite, tsc       the preview; the type check
           npm install [name[@range]…]   fetch packages into the offline cache (asks first)
           npm ls          what the project gets from the cache
           pip install [-r requirements.txt | name…]   the same for Python (PyPI and Pyodide's builds)

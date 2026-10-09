@@ -5,6 +5,7 @@ import DesignKit
 import GitKit
 import RunKit
 import SwiftUI
+import WorkspaceKit
 import TermKit
 
 /// The Terminal tab: TermKit's built-in commands over the open project, with RunKit for running
@@ -81,6 +82,13 @@ struct TerminalPanel: View {
         .background(palette.surface.pane.color)
         .onAppear(perform: attach)
         .onChange(of: model.workspace.rootURL) { attach() }
+        // "Run task: …" in the palette: type the task into this terminal.
+        .task(id: model.terminalRequest) {
+            guard let request = model.terminalRequest else { return }
+            model.terminalRequest = nil
+            attach()
+            await submit(request)
+        }
         #if DEBUG
         .task {
             let args = ProcessInfo.processInfo.arguments
@@ -136,6 +144,19 @@ struct TerminalPanel: View {
                 } catch { return error.localizedDescription }
             },
             tools: { JSRunner.bundledTools() + JSRunner.projectTools(in: root).keys },
+            task: { name in
+                guard let command = WorkspaceSpec.load(root: root)?.command(for: name) else { return .unknown }
+                if case .remote(let reason) = WorkspaceSpec.backend(for: command) { return .unavailable(reason) }
+                return .run(command)
+            },
+            taskNames: { WorkspaceSpec.load(root: root)?.tasks.map(\.name) ?? [] },
+            preview: { [model] in
+                model.show(.preview)
+                return "Opened the preview (on the device: index.html with TypeScript transpiled, no dev server needed)."
+            },
+            typecheck: {
+                do { return await (try JSRunner(root: root)).typeCheck().report } catch { return error.localizedDescription }
+            },
             open: { file in workspace.open(file: root.appending(path: file)) }))
         lines = []
     }

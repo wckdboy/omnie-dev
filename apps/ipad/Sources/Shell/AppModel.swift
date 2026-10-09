@@ -65,6 +65,8 @@ final class AppModel {
     var findOpen = false
     var goToLineOpen = false
     var problemsOpen = false
+    /// A command for the terminal to run (the palette's "Run task: …").
+    var terminalRequest: String?
     /// The docs sheet's starting query, or nil when it's closed.
     var docsQuery: String?
     var focusMode = false
@@ -125,6 +127,13 @@ final class AppModel {
 
     /// Brings up the Agent pane (the status pill and "Show agent").
     func showAgent() { show(.agent) }
+
+    /// Runs a workspace task (PLAN.md §8.2) in the terminal, which says where it ran.
+    func runTask(_ name: String) {
+        guard workspace.rootURL != nil else { return }
+        show(.terminal)
+        terminalRequest = "task \(name)"
+    }
 
     func show(_ tab: UtilityTab) {
         utilityTab = tab
@@ -230,6 +239,15 @@ final class AppModel {
                     shortcut: Shortcut("d", [.command, .shift]), keywords: ["documentation", "mdn", "reference", "look up", "devdocs"]) { [weak self] in
                 guard let self else { return }
                 docsQuery = workspace.wordAtCaret ?? ""
+            },
+            Command(id: "task.dev", title: "Run task: dev", menu: "File", keywords: ["start", "serve", "npm run dev", "workspace"]) { [weak self] in
+                self?.runTask("dev")
+            },
+            Command(id: "task.test", title: "Run task: test", menu: "File", keywords: ["npm test", "vitest", "pytest", "workspace"]) { [weak self] in
+                self?.runTask("test")
+            },
+            Command(id: "task.build", title: "Run task: build", menu: "File", keywords: ["compile", "npm run build", "workspace"]) { [weak self] in
+                self?.runTask("build")
             },
             Command(id: "problems.show", title: "Show problems", menu: "File",
                     shortcut: Shortcut("m", [.command, .shift]), keywords: ["type errors", "diagnostics", "typescript", "tsc", "check types"]) { [weak self] in
