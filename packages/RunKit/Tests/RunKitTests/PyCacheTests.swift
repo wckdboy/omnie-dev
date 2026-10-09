@@ -131,7 +131,7 @@ struct PyCacheRunTests {
         try await FakePyPI.standard().cache(cacheRoot).installProject(project)
         PyCache.sharedRoot = cacheRoot
         defer { PyCache.sharedRoot = nil }
-        let result = await (try JSRunner(root: project)).runFile("main.py")
+        let result = await (try JSRunner(root: project)).runPython("main.py", timeout: JSRunnerTests.pythonTimeout)
         #expect(result.output.map(\.text) == ["HELLO ADA!"], "\(result.report)")
     }
 

@@ -8,6 +8,9 @@ import Testing
 extension WebKitSuites {
 @MainActor
 struct JSRunnerTests {
+    /// Long enough for Pyodide's first load on a slow CI runner.
+    static let pythonTimeout: Double = 180
+
     let root: URL
 
     init() throws {
@@ -126,14 +129,15 @@ struct PythonRunnerTests {
     }
 
     @Test func runsAScript() async throws {
-        let result = await (try JSRunner(root: root)).runPython("main.py")
+        // Pyodide's cold start on a 3-core CI runner, beside other WebKit tests, can pass a minute.
+        let result = await (try JSRunner(root: root)).runPython("main.py", timeout: JSRunnerTests.pythonTimeout)
         #expect(result.output.contains(.init(stream: .out, text: "total 6")))
         #expect(result.output.contains(.init(stream: .err, text: "oops")))
     }
 
     @Test func runsPytestStyleTests() async throws {
         #expect(JSRunner.pythonTestFiles(in: root) == ["tests/test_calc.py"])
-        let result = await (try JSRunner(root: root)).runPythonTests(["tests/test_calc.py"])
+        let result = await (try JSRunner(root: root)).runPythonTests(["tests/test_calc.py"], timeout: JSRunnerTests.pythonTimeout)
         // Say why when nothing came back (a slow CI runner timing out), and never index past the end.
         try #require(result.tests.count == 6, "\(result.report)")
         #expect(result.tests.map(\.name) == ["test_total", "test_wrong", "test_raises", "test_cases[1, 1]", "test_cases[2, 3]", "TestApprox.test_float"])
