@@ -37,6 +37,12 @@ This is the case changeset review is for: nothing lands until you accept. It als
 
 Raw results: `results/ipad-pro-13-m5-agent-eval-v6-2026-10-09.json` (12 tasks), `results/ipad-pro-13-m5-agent-eval-v9-2026-10-09.json` (25 tasks).
 
+## Online model on the same set
+
+The same 25 tasks, same tools and loop, through the router's online path (Anthropic, `claude-sonnet-5-5`, run on the iPad with `-OmnieAgentEval sonnet-5.5-25tasks -OmnieEvalOnline`): **25/25**, 879 s in all (~35 s a task, 3–9 steps each; failing-test took 7 steps and 69 s). It passes the tasks the 7B can't (farewell, the slugify regex, "recieve", the doc comment's placement). Two adaptations were needed for current Claude models, both in `RemoteModel`: no `temperature`, and no prefilled reply (the constrained retry asks for a single tool call in the user turn instead). Transient network drops are retried. Raw result: `results/ipad-pro-13-m5-agent-eval-sonnet-5.5-2026-10-09.json`.
+
+So the tools and loop aren't the ceiling; the local model is. Auto routing (local first, online when the task needs it and the project allows it) is the way to use both.
+
 **Where it stands.** From v7 the score holds at 18/25 while individual tasks swap places: greedy decoding makes each run deterministic, but any change to the prompt or tool descriptions moves the model's path, so a single run's per-task results are noisy by about ±3. The remaining failures are the model's judgment, not the tools: it rewrites `greet` instead of adding `farewell`, misses "recieve", places a doc comment inside the function, and on failing-test it now does the right loop (run the tests, read the code under test, patch the code, rerun) but can't write the slugify regex. Further gains need a stronger model (a newer local coder, or the API router in P4) or sampling several attempts and checking them against the tests, not more tool work.
 
 Every fix was in the tools or the loop, found by reading the failing transcripts; the model is unchanged (Qwen2.5-Coder-7B-Instruct-4bit, greedy). Still failing: **farewell** — the model's first move is always to rewrite `greet`'s return line to "Goodbye" (greedy decoding makes it deterministic), and it doesn't recover in 12 steps. Rename passes on its files but hit the step cap instead of finishing. Twelve tasks are still small for the "agreed pass rate" the plan asks for; the set should grow to 20–30 before anyone agrees on a number.

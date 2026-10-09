@@ -25,7 +25,7 @@ Open from the P1 bar: your hands-on editor checks; cloning from forges other tha
 
 - **Models (ModelKit):** pinned, checksum-verified downloads (Tiny 0.5B, Standard 7B). Tiny drafts commit messages (0.19 s) and ghost text (~0.45 s after you stop typing).
 - **Agent (AgentKit):** typed tools, policy on every call, journal and resume, a task branch and worktree per task, changeset review hunk by hunk, squash merge with an `Assisted-by` trailer. Agent pane on iPad, Agent and Changes tabs on iPhone.
-- **Online models (start of P4):** Anthropic or any OpenAI-compatible API for agent tasks (Settings › Models), keys in the Keychain, consent per project with Face ID, routing Local / Online / Auto with plane mode forcing local. Tested against a local mock; **add a key to measure a frontier model on the golden set** (`-OmnieEvalOnline`).
+- **Online models (start of P4):** Anthropic or any OpenAI-compatible API for agent tasks (Settings › Models), keys in the Keychain, consent per project with Face ID, routing Local / Online / Auto with plane mode forcing local. On the golden set, Claude Sonnet 5.5 passes **25/25** (~35 s a task) where the local 7B passes 18/25.
 - **Quality:** golden task set, 25 tasks, run on the device with `-OmnieAgentEval`: **18/25 (72%)**, about 40 s a task, plateaued for the 4-bit 7B; what's left is the model's judgment. See `spikes/agent-p2.md`.
 - **Security:** red-team corpus v1 (7 attack cases, real PolicyKit, approvals denied); it found and closed a symlink escape.
 

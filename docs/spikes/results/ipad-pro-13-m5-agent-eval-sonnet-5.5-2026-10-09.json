@@ -1,0 +1,181 @@
+{
+  "date" : 813230040.034342,
+  "label" : "sonnet-5.5-25tasks",
+  "rows" : [
+    {
+      "outcome" : "finished(summary: \"Added an exported farewell(name) function to src\/greet.ts that returns \\\"Goodbye, name!\\\", and updated src\/index.ts to import it and log farewell(\\\"world\\\") after the greeting.\")",
+      "passed" : true,
+      "seconds" : 37.10520899295807,
+      "steps" : 6,
+      "task" : "farewell"
+    },
+    {
+      "outcome" : "finished(summary: \"Renamed the function total to sumPrices in src\/cart.ts and updated the import and call in src\/index.ts. A final grep finds no remaining references to the old name; the project has no tests to run.\")",
+      "passed" : true,
+      "seconds" : 51.356024980545044,
+      "steps" : 9,
+      "task" : "rename"
+    },
+    {
+      "outcome" : "finished(summary: \"Fixed add() in src\/math.ts, which was subtracting (a - b); it now returns a + b. The project has no tests, so I couldn\\'t verify it by running any.\")",
+      "passed" : true,
+      "seconds" : 59.84215593338013,
+      "steps" : 5,
+      "task" : "fix-add"
+    },
+    {
+      "outcome" : "finished(summary: \"Created src\/constants.ts containing `export const MAX_ITEMS = 10;`.\")",
+      "passed" : true,
+      "seconds" : 17.6568500995636,
+      "steps" : 3,
+      "task" : "constants"
+    },
+    {
+      "outcome" : "finished(summary: \"Added a `## Usage` section to README.md that says \\\"Run the app with:\\\" followed by a code block containing `npm start`.\")",
+      "passed" : true,
+      "seconds" : 42.378485918045044,
+      "steps" : 4,
+      "task" : "readme"
+    },
+    {
+      "outcome" : "finished(summary: \"In app\/greeting.py, the name parameter of greet now defaults to \\\"world\\\" (def greet(name=\\\"world\\\"):). Nothing else was changed.\")",
+      "passed" : true,
+      "seconds" : 17.80482804775238,
+      "steps" : 4,
+      "task" : "python-default"
+    },
+    {
+      "outcome" : "finished(summary: \"Added `guard !values.isEmpty else { return 0 }` to average(of:) in Sources\/Stats.swift, so an empty array returns 0 instead of crashing. Non-empty arrays behave as before. I did not run any tests.\")",
+      "passed" : true,
+      "seconds" : 60.96322000026703,
+      "steps" : 4,
+      "task" : "swift-guard"
+    },
+    {
+      "outcome" : "finished(summary: \"Added the script line \\\"test\\\": \\\"vitest\\\" to package.json next to the existing \\\"dev\\\" script. I did not add vitest as a dependency, since that wasn\\'t requested.\")",
+      "passed" : true,
+      "seconds" : 37.42106902599335,
+      "steps" : 4,
+      "task" : "json-script"
+    },
+    {
+      "outcome" : "finished(summary: \"Changed the .button background in styles\/main.css from #222 to #3dd6f5 (line: `  background: #3dd6f5;`).\")",
+      "passed" : true,
+      "seconds" : 26.729531049728394,
+      "steps" : 4,
+      "task" : "css-color"
+    },
+    {
+      "outcome" : "finished(summary: \"Added `const MAX_RETRIES = 3;` in src\/retry.ts and used it in the loop condition (`i < MAX_RETRIES`) and the error message, so no magic 3 remains.\")",
+      "passed" : true,
+      "seconds" : 26.318774938583374,
+      "steps" : 4,
+      "task" : "extract-constant"
+    },
+    {
+      "outcome" : "finished(summary: \"Replaced the TODO comment in src\/user.ts with an optional `email?: string;` field on the User interface.\")",
+      "passed" : true,
+      "seconds" : 33.83407402038574,
+      "steps" : 5,
+      "task" : "todo"
+    },
+    {
+      "outcome" : "finished(summary: \"Added an \\\"adds two positive numbers\\\" test to tests\/math.test.ts containing `expect(add(2, 3)).toBe(5);`. My patch dropped the describe block\\'s closing `});`, so I appended it back, and both tests now pass.\")",
+      "passed" : true,
+      "seconds" : 55.49811601638794,
+      "steps" : 8,
+      "task" : "test-case"
+    },
+    {
+      "outcome" : "finished(summary: \"Changed the page title in index.html from \\\"Vite App\\\" to \\\"Omnie Shop\\\"; the file now contains `<title>Omnie Shop<\/title>`.\")",
+      "passed" : true,
+      "seconds" : 23.025703072547913,
+      "steps" : 4,
+      "task" : "html-title"
+    },
+    {
+      "outcome" : "finished(summary: \"Fixed total_up_to in calc.py by changing range(n) to range(n + 1), so n is included in the sum (total_up_to(3) is now 6). The project has no tests, so I couldn\\'t run any to confirm.\")",
+      "passed" : true,
+      "seconds" : 31.337646007537842,
+      "steps" : 5,
+      "task" : "python-off-by-one"
+    },
+    {
+      "outcome" : "finished(summary: \"Added an optional second parameter `greeting` (default \\\"Hello\\\") to `greet` in src\/greet.ts, and it now replaces the fixed word in the returned string.\")",
+      "passed" : true,
+      "seconds" : 13.996299028396606,
+      "steps" : 4,
+      "task" : "optional-param"
+    },
+    {
+      "outcome" : "finished(summary: \"Removed the unused legacyFormat function from src\/format.ts after a grep showed nothing else referenced it. The file now contains only formatPrice, which is unchanged.\")",
+      "passed" : true,
+      "seconds" : 50.156322956085205,
+      "steps" : 6,
+      "task" : "remove-function"
+    },
+    {
+      "outcome" : "finished(summary: \"Moved TAX_RATE into a new src\/config.ts as an exported constant (`export const TAX_RATE = 0.2;`), and src\/checkout.ts now imports it with `import { TAX_RATE } from \\\".\/config\\\";` instead of defining it locally.\")",
+      "passed" : true,
+      "seconds" : 39.28608202934265,
+      "steps" : 5,
+      "task" : "move-constant"
+    },
+    {
+      "outcome" : "finished(summary: \"Added a `purple` case with raw value \\\"8E5CF7\\\" to the Tint enum in Sources\/Tint.swift, after the existing cases.\")",
+      "passed" : true,
+      "seconds" : 30.83969795703888,
+      "steps" : 4,
+      "task" : "swift-enum"
+    },
+    {
+      "outcome" : "finished(summary: \"Changed the Node version in .github\/workflows\/ci.yml from 18 to 20 (`node-version: 20` under the actions\/setup-node@v4 step).\")",
+      "passed" : true,
+      "seconds" : 17.181388020515442,
+      "steps" : 5,
+      "task" : "ci-node"
+    },
+    {
+      "outcome" : "finished(summary: \"The line that does it is `dist\/`, which now sits in .gitignore right after `.DS_Store`. That makes git ignore the dist folder.\")",
+      "passed" : true,
+      "seconds" : 25.801811933517456,
+      "steps" : 5,
+      "task" : "gitignore"
+    },
+    {
+      "outcome" : "finished(summary: \"Added a JSDoc comment above clamp in src\/math.ts that explains it restricts a number to the range min..max, with param and return descriptions. No code was changed.\")",
+      "passed" : true,
+      "seconds" : 29.431847095489502,
+      "steps" : 4,
+      "task" : "doc-comment"
+    },
+    {
+      "outcome" : "finished(summary: \"Added is_even(n) to utils.py (`def is_even(n): return n % 2 == 0`), which returns True for even numbers. It sits after the existing is_positive function and nothing else changed.\")",
+      "passed" : true,
+      "seconds" : 28.714552998542786,
+      "steps" : 4,
+      "task" : "python-function"
+    },
+    {
+      "outcome" : "finished(summary: \"Added a .hidden class to styles.css with `display: none;` so any element with that class is hidden. The existing .card rule is unchanged.\")",
+      "passed" : true,
+      "seconds" : 23.602778911590576,
+      "steps" : 4,
+      "task" : "css-rule"
+    },
+    {
+      "outcome" : "finished(summary: \"Fixed two spelling mistakes in README.md, so the line now reads \\\"You will receive an email when the build finishes.\\\" (\\\"recieve\\\" -> \\\"receive\\\", \\\"teh\\\" -> \\\"the\\\").\")",
+      "passed" : true,
+      "seconds" : 30.28171396255493,
+      "steps" : 4,
+      "task" : "typos"
+    },
+    {
+      "outcome" : "finished(summary: \"Fixed slugify in src\/util.ts without touching the test: `.replace(\/[^a-z0-9 -]\/g, \\\"\\\")` now strips punctuation and `.replace(\/ \/g, \\\"-\\\")` turns spaces into hyphens, so \\\"Hi, there!\\\" becomes \\\"hi-there\\\". All 3 tests pass.\")",
+      "passed" : true,
+      "seconds" : 68.78155601024628,
+      "steps" : 7,
+      "task" : "failing-test"
+    }
+  ]
+}
