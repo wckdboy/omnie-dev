@@ -23,18 +23,21 @@ Open from the P1 bar: your hands-on editor checks; cloning from forges other tha
 
 - **Models (ModelKit):** pinned, checksum-verified downloads (Tiny 0.5B, Standard 7B). Tiny drafts commit messages (0.19 s) and ghost text (~0.45 s after you stop typing).
 - **Agent (AgentKit):** typed tools, policy on every call, journal and resume, a task branch and worktree per task, changeset review, squash merge with an `Assisted-by` trailer. Agent pane on iPad, Agent and Changes tabs on iPhone.
-- **Quality:** golden task set, 25 tasks, run on the device with `-OmnieAgentEval`. Best full run so far: 11/12 on the 12-task set; 16/24 on the larger set before the latest fixes. See `spikes/agent-p2.md`.
+- **Quality:** golden task set, 25 tasks, run on the device with `-OmnieAgentEval`: **18/25 (72%)**, about 40 s a task, plateaued for the 4-bit 7B; what's left is the model's judgment. See `spikes/agent-p2.md`.
 - **Security:** red-team corpus v1 (7 attack cases, real PolicyKit, approvals denied); it found and closed a symlink escape.
 
 Open: an agreed pass rate on a larger task set; API models (P4) for tasks the local 7B can't do.
 
-## P3 sandbox and tools: started
+## P3 sandbox and tools: well underway
 
 - **RunKit:** JavaScript/TypeScript (Sucrase in JavaScriptCore, ES modules in WKWebView) and Python (Pyodide) run on the device with no network and a timeout; vitest- and pytest-compatible subsets run a project's own tests. The agent has `run_tests` and `run_script`.
-- **Run panel** (Terminal tab): Run tests, Run file.
+- **Terminal tab (TermKit):** built-in commands over the project (ls, cd, cat, grep, run, test, git status/log/diff, open), Run tests and Run file.
 - **Preview:** a project's index.html live, TypeScript transpiled on the fly, reload on save, console with an error count.
+- **Offline package cache, first tier:** three.js bundled and import-mapped, so `import * as THREE from "three"` works offline in previews, runs and tests.
+- **Stage:** glTF/GLB, OBJ and STL from the project in three.js, with a native performance HUD.
+- **Tools tab (ToolsKit):** SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
 
-Open: TermKit (a real terminal), WASI tools in RunKit, the offline package cache (bare npm imports), Stage (three.js), the niche tools.
+Open: WASI tools in RunKit, npm/PyPI packages beyond the bundled tier, the HTTP client and mock server, Markdown/Mermaid preview, the Stage inspector and shader hot reload, "Prepare for offline".
 
 ## How to check things yourself
 

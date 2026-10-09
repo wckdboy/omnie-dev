@@ -31,6 +31,12 @@ This is the case changeset review is for: nothing lands until you accept. It als
 | v5 | 10/12 | writes that would leave a JSON file invalid are refused (the model appended a fragment after `package.json`'s closing brace); safer, but the model couldn't tell why |
 | v6 | **11/12**, 471 s for all twelve (~39 s a task) | the refusal shows the would-be file and the parser's error, and the model fixes its own patch |
 
-Raw result of v6: `results/ipad-pro-13-m5-agent-eval-v6-2026-10-09.json`.
+| v6, 24 tasks | 16/24 | twelve more tasks (HTML, Python, Swift, YAML, .gitignore, moving code across files, doc comments, deletions, typos) |
+| v7, 25 tasks | 18/25 | `run_tests`/`run_script` (RunKit) and a new failing-test task; loose matching no longer ignores indentation (it let a bad patch corrupt an enum); "change exactly what's asked" replaced a rule that made the model keep code it was told to remove; the self-review asks for a quoted line per requirement |
+| v9, 25 tasks | **18/25 (72%)**, 1006 s (~40 s a task) | patch extends over lines replace repeats (the refusal made the model drop code); code written as prose gets "nothing changed" instead of a forced call; run_tests names the code under test |
+
+Raw results: `results/ipad-pro-13-m5-agent-eval-v6-2026-10-09.json` (12 tasks), `results/ipad-pro-13-m5-agent-eval-v9-2026-10-09.json` (25 tasks).
+
+**Where it stands.** From v7 the score holds at 18/25 while individual tasks swap places: greedy decoding makes each run deterministic, but any change to the prompt or tool descriptions moves the model's path, so a single run's per-task results are noisy by about ±3. The remaining failures are the model's judgment, not the tools: it rewrites `greet` instead of adding `farewell`, misses "recieve", places a doc comment inside the function, and on failing-test it now does the right loop (run the tests, read the code under test, patch the code, rerun) but can't write the slugify regex. Further gains need a stronger model (a newer local coder, or the API router in P4) or sampling several attempts and checking them against the tests, not more tool work.
 
 Every fix was in the tools or the loop, found by reading the failing transcripts; the model is unchanged (Qwen2.5-Coder-7B-Instruct-4bit, greedy). Still failing: **farewell** — the model's first move is always to rewrite `greet`'s return line to "Goodbye" (greedy decoding makes it deterministic), and it doesn't recover in 12 steps. Rename passes on its files but hit the step cap instead of finishing. Twelve tasks are still small for the "agreed pass rate" the plan asks for; the set should grow to 20–30 before anyone agrees on a number.
