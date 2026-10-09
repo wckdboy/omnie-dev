@@ -43,6 +43,10 @@ final class AgentModel {
     @ObservationIgnored private let models: ModelsModel
     @ObservationIgnored private let policy: PolicyModel
     @ObservationIgnored private var runner: AgentRunner?
+    #if DEBUG
+    /// Stands in for the 7B (simulator UI checks, where MLX can't run).
+    @ObservationIgnored var modelOverride: (any TextModel)?
+    #endif
     @ObservationIgnored private var tasks: [TaskRecord] = []
     @ObservationIgnored private let folder = AppPaths.support.appendingPathComponent("Agent", isDirectory: true)
     private var recordsURL: URL { folder.appendingPathComponent("tasks.json") }
@@ -86,7 +90,12 @@ final class AgentModel {
             error = "Open a git project first."
             return
         }
-        guard models.isInstalled(.standard) else {
+        #if DEBUG
+        let hasModel = modelOverride != nil || models.isInstalled(.standard)
+        #else
+        let hasModel = models.isInstalled(.standard)
+        #endif
+        guard hasModel else {
             error = "The agent runs on \(ModelPack.standard.displayName). Download it in Settings › Models."
             return
         }
@@ -117,7 +126,12 @@ final class AgentModel {
     }
 
     private func run(_ record: TaskRecord) async {
-        guard let model = await models.standardModel() else {
+        #if DEBUG
+        let loaded: (any TextModel)? = if let modelOverride { modelOverride } else { await models.standardModel() }
+        #else
+        let loaded = await models.standardModel()
+        #endif
+        guard let model = loaded else {
             error = models.error ?? "The model isn't available."
             return
         }

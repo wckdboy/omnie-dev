@@ -160,8 +160,14 @@ private struct TranscriptRow: View {
                         .foregroundStyle(palette.text.secondary.color)
                 }
             }
+        case .toolResult where entry.tool == "finish":
+            // The self-review before finishing (AgentKit asks once).
+            Label("Checking its changes against your request", systemImage: "checklist")
+                .font(.system(size: 12))
+                .foregroundStyle(palette.text.secondary.color)
+                .padding(.leading, 20)
         case .toolResult:
-            if entry.tool != "finish" {
+            do {
                 DisclosureGroup(isExpanded: $expanded) {
                     Text(entry.text.prefix(4_000))
                         .font(.system(size: 11, design: .monospaced))
@@ -193,6 +199,7 @@ private struct TranscriptRow: View {
         case "grep": return "grep \"\(call.arguments["text"]?.string ?? "")\"" + (path.map { " in \($0)" } ?? "")
         case "patch": return "patch \(path ?? "")"
         case "create_file": return "create \(path ?? "")"
+        case "append_to_file": return "append to \(path ?? "")"
         case "finish": return "finish"
         default: return call.name
         }
@@ -205,6 +212,7 @@ private struct TranscriptRow: View {
         case "grep": "magnifyingglass"
         case "patch": "pencil"
         case "create_file": "doc.badge.plus"
+        case "append_to_file": "text.append"
         case "finish": "checkmark"
         default: "wrench"
         }

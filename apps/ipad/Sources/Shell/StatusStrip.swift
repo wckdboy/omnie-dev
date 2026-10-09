@@ -20,8 +20,12 @@ struct StatusStrip: View {
             }
             SyncLabel()
             Spacer()
-            AgentPill(state: model.agent.pillState)
-                .id(model.agent.pillState)
+            Button { model.showAgent() } label: {
+                AgentPill(state: model.agent.pillState)
+                    .id(model.agent.pillState)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows the agent")
             if model.policy.planeMode {
                 Label("Plane mode", systemImage: "airplane")
                     .accessibilityLabel("Plane mode: network actions are blocked")

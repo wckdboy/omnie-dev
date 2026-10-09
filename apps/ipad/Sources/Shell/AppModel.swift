@@ -110,6 +110,12 @@ final class AppModel {
         if show && layout == .split { navigatorVisible = false }
     }
 
+    /// Brings up the Agent pane (the status pill and "Show agent").
+    func showAgent() {
+        utilityTab = .agent
+        withAnimation(Motion.pane) { showUtility(true) }
+    }
+
     private func startMonitors() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             let offline = path.status != .satisfied
@@ -222,6 +228,10 @@ final class AppModel {
                 guard let self else { return }
                 policy.planeMode.toggle()
                 if !policy.planeMode && !isOffline { Task { await self.workspace.git.flushQueue() } }
+            },
+            Command(id: "agent.show", title: "Show agent", menu: "Agent",
+                    shortcut: Shortcut("a", [.command, .shift]), surfaces: .ide, keywords: ["task", "changes", "review"]) { [weak self] in
+                self?.showAgent()
             },
             Command(id: "policy.auditLog", title: "Show audit log", menu: "View",
                     keywords: ["policy", "approvals", "security", "history"]) { [weak self] in
