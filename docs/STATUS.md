@@ -29,7 +29,7 @@ Open from the P1 bar: your hands-on editor checks; cloning from forges other tha
 - **Quality:** golden task set, 25 tasks, run on the device with `-OmnieAgentEval`: **18/25 (72%)**, about 40 s a task, plateaued for the 4-bit 7B; what's left is the model's judgment. See `spikes/agent-p2.md`.
 - **Security:** red-team corpus v1 (7 attack cases, real PolicyKit, approvals denied); it found and closed a symlink escape.
 
-Open: an agreed pass rate on a larger task set; API models (P4) for tasks the local 7B can't do.
+Open: an agreed pass rate on a larger task set (the router can already send what the local 7B can't do to an online model).
 
 ## P3 sandbox and tools: well underway
 
