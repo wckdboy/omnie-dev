@@ -30,8 +30,21 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     private var loadGeneration = 0
 
     public var theme: EditorTheme {
-        didSet { textView.theme = theme; textView.backgroundColor = theme.palette.surface.editor.uiColor }
+        didSet {
+            textView.theme = theme
+            textView.backgroundColor = theme.palette.surface.editor.uiColor
+            // Recolor marks for the new palette; ranges come from the engine, which moved them with edits.
+            // The engine keeps decorations sorted by location, so match by id, not position.
+            let liveRanges = Dictionary(textView.decorations.map { ($0.id, $0.range) }, uniquingKeysWith: { first, _ in first })
+            textView.decorations = marks.map { mark in
+                var recolored = mark
+                recolored.range = liveRanges[mark.id] ?? mark.range
+                return recolored.decoration(in: theme.palette)
+            }
+        }
     }
+    /// Marks as last set; their live ranges are in `textView.decorations`.
+    var marks: [EditorMark] = []
 
     public init(theme: EditorTheme) {
         self.theme = theme

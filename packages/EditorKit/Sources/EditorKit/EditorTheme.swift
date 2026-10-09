@@ -58,28 +58,45 @@ public final class EditorTheme: Runestone.Theme {
     public let palette: Palette
     public let density: Density
 
+    // Built once: the engine reads these for every visible line on every layout pass, and building a
+    // UIFont or UIColor per read showed up in device profiles of typing.
+    public let font: UIFont
+    public let textColor: UIColor
+    public let gutterBackgroundColor: UIColor
+    public let gutterHairlineColor: UIColor
+    public let lineNumberColor: UIColor
+    public let lineNumberFont: UIFont
+    public let selectedLineBackgroundColor: UIColor
+    public let selectedLinesLineNumberColor: UIColor
+    public let selectedLinesGutterBackgroundColor: UIColor
+    public let invisibleCharactersColor: UIColor
+    public let pageGuideHairlineColor: UIColor
+    public let pageGuideBackgroundColor: UIColor
+    public let markedTextBackgroundColor: UIColor
+    private let roleColors: [SyntaxRole: UIColor]
+
     public init(palette: Palette, density: Density) {
         self.palette = palette
         self.density = density
+        // Monaspace Neon isn't bundled yet; SF Mono stands in (PLAN §3.4 fallback).
+        font = .monospacedSystemFont(ofSize: density.codeSize, weight: .regular)
+        textColor = palette.syntax.plain.uiColor
+        gutterBackgroundColor = palette.surface.editor.uiColor
+        gutterHairlineColor = palette.surface.hairline.uiColor
+        lineNumberColor = palette.text.tertiary.uiColor
+        lineNumberFont = .monospacedDigitSystemFont(ofSize: max(density.codeSize - 2, 11), weight: .regular)
+        selectedLineBackgroundColor = palette.surface.pane.uiColor
+        selectedLinesLineNumberColor = palette.text.secondary.uiColor
+        selectedLinesGutterBackgroundColor = palette.surface.pane.uiColor
+        invisibleCharactersColor = palette.text.tertiary.uiColor.withAlphaComponent(0.5)
+        pageGuideHairlineColor = palette.surface.hairline.uiColor
+        pageGuideBackgroundColor = palette.surface.pane.uiColor
+        markedTextBackgroundColor = palette.surface.selection.uiColor
+        roleColors = Dictionary(uniqueKeysWithValues: SyntaxRole.allCases.map { ($0, $0.color(in: palette).uiColor) })
     }
-
-    /// Monaspace Neon isn't bundled yet; SF Mono stands in (PLAN §3.4 fallback).
-    public var font: UIFont { .monospacedSystemFont(ofSize: density.codeSize, weight: .regular) }
-    public var textColor: UIColor { palette.syntax.plain.uiColor }
-    public var gutterBackgroundColor: UIColor { palette.surface.editor.uiColor }
-    public var gutterHairlineColor: UIColor { palette.surface.hairline.uiColor }
-    public var lineNumberColor: UIColor { palette.text.tertiary.uiColor }
-    public var lineNumberFont: UIFont { .monospacedDigitSystemFont(ofSize: max(density.codeSize - 2, 11), weight: .regular) }
-    public var selectedLineBackgroundColor: UIColor { palette.surface.pane.uiColor }
-    public var selectedLinesLineNumberColor: UIColor { palette.text.secondary.uiColor }
-    public var selectedLinesGutterBackgroundColor: UIColor { palette.surface.pane.uiColor }
-    public var invisibleCharactersColor: UIColor { palette.text.tertiary.uiColor.withAlphaComponent(0.5) }
-    public var pageGuideHairlineColor: UIColor { palette.surface.hairline.uiColor }
-    public var pageGuideBackgroundColor: UIColor { palette.surface.pane.uiColor }
-    public var markedTextBackgroundColor: UIColor { palette.surface.selection.uiColor }
 
     public func textColor(for highlightName: String) -> UIColor? {
         let role = SyntaxRole(capture: highlightName)
-        return role == .plain ? nil : role.color(in: palette).uiColor
+        return role == .plain ? nil : roleColors[role]
     }
 }

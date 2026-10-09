@@ -99,7 +99,8 @@ def main() -> None:
         text = "\n".join(raw_queries[p] for p in parts)
         (QUERY_DIR / f"{lang}.highlights.scm").write_text(text)
 
-    # Licensing for these generated files is declared in the root REUSE.toml (MIT, per-grammar LICENSE kept).
+    # These generated files are gitignored, so they're outside the REUSE scope of this repo; each grammar's
+    # upstream LICENSE is copied next to its sources and NOTICE lists them.
 
 
 if __name__ == "__main__":

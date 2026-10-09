@@ -109,6 +109,7 @@ final class EditorSpike {
             if wants("2") { await test2(engine, text: big) }
             if wants("3") { await test3(engine, text: big) }
             if wants("4") { await test4(engine, text: minified) }
+            if wants("9"), engine == .omnie { await test9(text: big) }
         }
         let report = Report(device: UIDevice.current.model + " " + Self.machine(),
                             system: UIDevice.current.systemName + " " + UIDevice.current.systemVersion,
@@ -229,6 +230,72 @@ final class EditorSpike {
         }
         record(engine, "4 one 20k-char line", ["openMs": open, "worstStallMs": worst], pass: worst <= 100)
         view.removeFromSuperview()
+    }
+
+    // Test 9: decoration load. 500 diagnostics, 50 agent hunks (and ghost text, not built yet) on the
+    // 100k-line file; tests 2 and 3 must still pass.
+    private func test9(text: String) async {
+        let view = await makeView(.omnie, text: text)
+        guard let controller = objc_getAssociatedObject(view, &Self.controllerKey) as? CodeEditorController,
+              let scroll = view as? UIScrollView else { return }
+        if !Self.highlighted(controller) {
+            await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in controller.onHighlighted = { done.resume() } }
+        }
+        let starts = Self.lineStarts(text)
+        var marks: [EditorMark] = []
+        for k in 0..<500 {
+            let row = min(k * 200 + 7, starts.count - 2)
+            let range = NSRange(location: starts[row] + 2, length: 8)
+            let kind: EditorMark.Kind = [.error, .warning, .info][k % 3]
+            marks.append(EditorMark(range: range, kind: kind))
+        }
+        for h in 0..<50 {
+            let row = min(h * 2000 + 40, starts.count - 12)
+            let range = NSRange(location: starts[row], length: starts[row + 10] - starts[row])
+            marks.append(EditorMark(range: range, kind: .agentLines))
+            marks.append(EditorMark(range: range, kind: .addedText))
+        }
+        let t0 = CACurrentMediaTime()
+        controller.setMarks(marks)
+        view.layoutIfNeeded()
+        let setMs = (CACurrentMediaTime() - t0) * 1000
+        // Start in a decorated region.
+        scroll.contentOffset.y = 0
+        await nextFrame()
+        let stats = await drive(scroll, .fling(pointsPerSecond: 8_000, seconds: 6))
+        // Type next to an agent hunk in the middle of the file.
+        let input = view.subviews.first { $0 is UITextInput } as? (UIView & UITextInput)
+        (view as? Runestone.TextView)?.inputView = UIView()
+        _ = view.becomeFirstResponder()
+        setCaret(view, at: starts[50_040 + 5])
+        await nextFrame()
+        var durations: [Double] = []
+        for k in 0..<200 {
+            let t = CACurrentMediaTime()
+            input?.insertText(k % 40 == 39 ? "\n" : "x")
+            view.layoutIfNeeded()
+            durations.append((CACurrentMediaTime() - t) * 1000)
+            await Task.yield()
+        }
+        durations.sort()
+        let p95 = durations[Int(Double(durations.count) * 0.95)]
+        record(.omnie, "9 decoration load (500 diagnostics, 50 agent hunks)",
+               ["setMarksMs": setMs, "flingHitchMsPerS": stats.hitchRatio, "flingWorstFrameMs": stats.worstFrame,
+                "typeP95Ms": p95, "typeMaxMs": durations.last ?? 0],
+               pass: stats.hitchRatio < 5 && stats.jumps == 0 && p95 <= 4,
+               note: "ghost text not built yet; not part of this run")
+        view.resignFirstResponder()
+        view.removeFromSuperview()
+    }
+
+    static func lineStarts(_ text: String) -> [Int] {
+        var starts = [0]
+        var offset = 0
+        for unit in text.utf16 {
+            offset += 1
+            if unit == 10 { starts.append(offset) }
+        }
+        return starts
     }
 
     // MARK: Helpers

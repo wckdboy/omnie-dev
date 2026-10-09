@@ -4,6 +4,7 @@
 import SwiftUI
 import CommandKit
 import DesignKit
+import EditorKit
 
 @main
 struct OmnieDevApp: App {
@@ -25,6 +26,26 @@ struct OmnieDevApp: App {
                     if let i = args.firstIndex(of: "-OmnieOpenFile"), args.indices.contains(i + 1),
                        let root = model.workspace.rootURL {
                         model.workspace.open(file: root.appending(path: args[i + 1]))
+                    }
+                    // `-OmnieDemoMarks` puts sample diagnostics, diff and authorship marks on the open file.
+                    if args.contains("-OmnieDemoMarks") {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        let text = model.workspace.editor.text as NSString
+                        func line(_ n: Int) -> NSRange {
+                            var start = 0
+                            for _ in 0..<n { start = NSMaxRange(text.lineRange(for: NSRange(location: start, length: 0))) }
+                            return text.lineRange(for: NSRange(location: start, length: 0))
+                        }
+                        let l12 = line(11), l16 = line(15), l20 = line(19)
+                        model.workspace.editor.setMarks([
+                            EditorMark(range: NSRange(location: l12.location + 4, length: 12), kind: .error),
+                            EditorMark(range: NSRange(location: l16.location + 4, length: 10), kind: .warning),
+                            EditorMark(range: l20, kind: .info),
+                            EditorMark(range: NSRange(location: line(21).location, length: NSMaxRange(line(29)) - line(21).location), kind: .agentLines),
+                            EditorMark(range: NSRange(location: line(21).location, length: NSMaxRange(line(29)) - line(21).location), kind: .addedText),
+                            EditorMark(range: NSRange(location: line(32).location, length: NSMaxRange(line(34)) - line(32).location), kind: .modified),
+                            EditorMark(range: line(36), kind: .removed),
+                        ])
                     }
                     // `-OmnieEnsureSSHKey` creates the SSH key and writes its public line to Application Support.
                     if args.contains("-OmnieEnsureSSHKey") {
