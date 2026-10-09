@@ -23,6 +23,16 @@ extension JSRunner {
         return names.filter { $0.hasSuffix(".wasm") }.map { String($0.dropLast(5)) }.sorted()
     }
 
+    /// The project's own tools: `.wasm` files in tools/ or .omnie/tools/, by name → path.
+    public nonisolated static func projectTools(in root: URL) -> [String: String] {
+        var tools: [String: String] = [:]
+        for folder in [".omnie/tools", "tools"] {
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: root.appending(path: folder).path)) ?? []
+            for name in names where name.hasSuffix(".wasm") { tools[String(name.dropLast(5))] = "\(folder)/\(name)" }
+        }
+        return tools
+    }
+
     /// Runs `program`: a `.wasm` path in the project, or the name of a bundled tool.
     public func runWasm(_ program: String, args: [String] = [], stdin: String = "", env: [String: String] = [:],
                         cwd: String = "", timeout: Double = 60, memoryLimitMB: Int = 1024, preopens: Preopens = .standard) async -> RunResult {

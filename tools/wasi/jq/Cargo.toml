@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
+# SPDX-License-Identifier: Apache-2.0
+# A jq-compatible command for RunKit's WASI sandbox, on jaq's libraries (MIT).
+# Built by scripts/vendor-runkit.sh for wasm32-wasip1.
+[package]
+name = "omnie-jq"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "jq"
+path = "src/main.rs"
+
+[dependencies]
+jaq-core = "=2.2.1"
+jaq-std = "=2.1.2"
+jaq-json = "=1.1.3"
+hifijson = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1

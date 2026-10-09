@@ -1,5 +1,7 @@
 # P0 spike 3: WASI in WKWebView (PLAN §8, §25)
 
+**Follow-up (P3, 9 Oct 2026):** RunKit now has its own preview1 layer (`packages/RunKit/Sources/RunKit/JS/runtime/wasi-worker.js`) over the real project, as decided below. The same suite passes **73 of 73** on the iPad (6.1 s) and on the Mac; `-OmnieWasiConformance` runs it on the device, `WasiConformanceTests` on the Mac. Fuel is still to build; the memory cap is checked at every system call.
+
 **Status (9 Oct 2026): go.** wasm32-wasip1 programs run in Omnie-dev's own `WKWebView` on the iPad Pro 13" M5 (iPadOS 27.0, release build), each in its own Worker. A timeout kills a runaway module. Every failure in the suite comes from the JS shim (browser_wasi_shim 0.4.2), not from WebKit: Node/V8 fails the same 18 tests with the same messages. RunKit needs its own preview1 layer where the shim falls short, and fuel and memory caps are still to build.
 
 Harness: `apps/ipad/Sources/Spike/WASISpike.swift` and `apps/ipad/Resources/WASISpikeApp/` ("Run WASI spike (P0)" or `-OmnieRunCommand spike.wasi`). Inputs come from `scripts/vendor-wasi-spike.py` (gitignored output). Raw result: `results/ipad-pro-13-m5-wasi-2026-10-09.json`.

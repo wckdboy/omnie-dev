@@ -80,6 +80,11 @@ def main() -> None:
     items.append(entry("Mermaid", "12.1.0", [packages / "mermaid/LICENSE"], "https://mermaid.js.org"))
     items.append(entry("TypeScript", "5.9.3", [packages / "typescript/LICENSE.txt", packages / "typescript/ThirdPartyNoticeText.txt"],
                        "https://www.typescriptlang.org"))
+    # WASI tools (tools/wasi, built by scripts/vendor-runkit.sh): every linked crate's licence.
+    wasi = packages / "wasi"
+    if (wasi / "jq-LICENSES.txt").exists():
+        items.append(entry("jq for WASI: jaq libraries, Rust standard library, wasi-libc", "jaq-core 2.2.1",
+                           [wasi / "jq-LICENSES.txt"], "https://github.com/01mf02/jaq"))
     pyodide = ROOT / "packages/RunKit/Sources/RunKit/JS/pyodide"
     items.append(entry("Pyodide", "314.0.7", [pyodide / "MPL-2.0.txt"], "https://github.com/pyodide/pyodide"))
     items.append(entry("CPython (in Pyodide)", "3.14", [pyodide / "PSF-2.0.txt"], "https://www.python.org"))

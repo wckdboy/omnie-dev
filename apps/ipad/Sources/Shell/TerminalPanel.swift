@@ -125,6 +125,17 @@ struct TerminalPanel: View {
             },
             git: { args in await Self.git(args, workspace: workspace) },
             packages: { args in await Packages.command(args, root: root, workspace: workspace) },
+            wasm: { program, args, cwd in
+                workspace.saveCurrent()
+                // A project tool by name, else a bundled tool; paths ending .wasm are files.
+                let target = program.hasSuffix(".wasm") ? program : JSRunner.projectTools(in: root)[program] ?? program
+                do {
+                    let result = await (try JSRunner(root: root)).runWasm(target, args: args, cwd: cwd)
+                    if !result.changedFiles.isEmpty { workspace.reloadFromDisk() }
+                    return result.report == "(no output)" ? "" : result.report
+                } catch { return error.localizedDescription }
+            },
+            tools: { JSRunner.bundledTools() + JSRunner.projectTools(in: root).keys },
             open: { file in workspace.open(file: root.appending(path: file)) }))
         lines = []
     }

@@ -132,3 +132,26 @@ private extension URL {
         return self
     }
 }
+
+extension WebKitSuites {
+/// The bundled tools (built by scripts/vendor-runkit.sh; skipped when they aren't there).
+@MainActor
+struct WasiToolTests {
+    @Test(.enabled(if: JSRunner.bundledTools().contains("jq")))
+    func jq() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("wasi-jq-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try #"{"users": [{"name": "Ada", "age": 36}, {"name": "Alan", "age": 41}]}"#
+            .write(to: root.appending(path: "data.json"), atomically: true, encoding: .utf8)
+        let runner = try JSRunner(root: root)
+        let names = await runner.runWasm("jq", args: ["-r", ".users[] | select(.age > 40) | .name", "data.json"])
+        #expect(names.output.map(\.text) == ["Alan"] && names.exitCode == 0, "\(names.report)")
+        let pretty = await runner.runWasm("jq", args: ["{n: (.users | length)}"], stdin: try String(contentsOf: root.appending(path: "data.json"), encoding: .utf8))
+        #expect(pretty.output.map(\.text) == ["{", "  \"n\": 2", "}"])
+        let compact = await runner.runWasm("jq", args: ["-c", "--arg", "who", "Ada", "[.users[] | .name == $who]", "data.json"])
+        #expect(compact.output.map(\.text) == ["[true,false]"])
+        let bad = await runner.runWasm("jq", args: [".users[", "data.json"])
+        #expect(bad.exitCode == 3 && bad.output.first?.text.hasPrefix("jq: error") == true, "\(bad.report)")
+    }
+}
+}

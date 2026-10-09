@@ -14,17 +14,26 @@ public final class Shell {
         public var git: (_ args: [String]) async -> String
         /// Package commands, manager first: ["npm" | "pip", "install", specs…] or [manager, "ls"].
         public var packages: (_ args: [String]) async -> String
+        /// A WASI program: a `.wasm` file in the project or a tool's name, its arguments and the
+        /// working directory (relative to the project).
+        public var wasm: (_ program: String, _ args: [String], _ cwd: String) async -> String
+        /// Tool names `wasm` knows (bundled, plus the project's tools/ and .omnie/tools/).
+        public var tools: () -> [String]
         public var open: (_ file: String) -> Void
 
         public init(run: @escaping (String) async -> String = { _ in "Running isn't available." },
                     test: @escaping (String?) async -> String = { _ in "Tests aren't available." },
                     git: @escaping ([String]) async -> String = { _ in "Git isn't available." },
                     packages: @escaping ([String]) async -> String = { _ in "The package cache isn't available." },
+                    wasm: @escaping (String, [String], String) async -> String = { _, _, _ in "WASI isn't available." },
+                    tools: @escaping () -> [String] = { [] },
                     open: @escaping (String) -> Void = { _ in }) {
             self.run = run
             self.test = test
             self.git = git
             self.packages = packages
+            self.wasm = wasm
+            self.tools = tools
             self.open = open
         }
     }
@@ -75,10 +84,11 @@ public final class Shell {
                 guard FileManager.default.fileExists(atPath: url.path), !isDirectory(url) else { throw Failure("open: \(file): no such file") }
                 hooks.open(relative(url))
                 return ""
-            case "run", "node", "python", "python3", "tsx", "ts-node", "deno", "bun":
+            case "run", "node", "python", "python3", "tsx", "ts-node", "deno", "bun", "wasm", "wasmtime":
                 guard let file = args.first else { throw Failure("\(command): name a file to run") }
                 let url = try resolve(file)
                 guard FileManager.default.fileExists(atPath: url.path) else { throw Failure("\(command): \(file): no such file") }
+                if file.hasSuffix(".wasm") { return await hooks.wasm(relative(url), Array(args.dropFirst()), cwd) }
                 return await hooks.run(relative(url))
             case "test", "pytest", "vitest", "jest":
                 if let file = args.first(where: { !$0.hasPrefix("-") }) { return await hooks.test(relative(try resolve(file))) }
@@ -109,6 +119,13 @@ public final class Shell {
                 }
                 return await hooks.git(args)
             default:
+                // ./tool.wasm, or a WASI tool by name.
+                if command.hasSuffix(".wasm") {
+                    let url = try resolve(command)
+                    guard FileManager.default.fileExists(atPath: url.path) else { throw Failure("\(command): no such file") }
+                    return await hooks.wasm(relative(url), args, cwd)
+                }
+                if hooks.tools().contains(command) { return await hooks.wasm(command, args, cwd) }
                 throw Failure("\(command): not a built-in command. Type help to see them.")
             }
         } catch let failure as Failure {
@@ -127,6 +144,7 @@ public final class Shell {
           npm ls          what the project gets from the cache
           pip install [-r requirements.txt | name…]   the same for Python (PyPI and Pyodide's builds)
           pip list
+          jq …, ./tool.wasm …   WASI programs: bundled tools, and .wasm files (tools/ and .omnie/tools/ by name)
           git status|log|diff|branch
           open <file>     open in the editor
         """

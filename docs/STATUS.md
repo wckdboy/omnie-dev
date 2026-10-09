@@ -34,6 +34,7 @@ Open: an agreed pass rate on a larger task set; API models (P4) for tasks the lo
 ## P3 sandbox and tools: well underway
 
 - **RunKit:** JavaScript/TypeScript (Sucrase in JavaScriptCore, ES modules in WKWebView) and Python (Pyodide) run on the device with no network and a timeout; vitest- and pytest-compatible subsets run a project's own tests. The agent has `run_tests` and `run_script`.
+- **WASI (wasm32-wasip1) programs:** RunKit's own preview1 layer passes **73 of 73** of wasi-testsuite on the iPad (6.1 s for the suite; the P0 spike's shim passed 55). Programs run in a worker in the sandboxed web view against the project: files load on first read, and what a program writes, moves or deletes is applied inside the project when it exits. Paths can't leave the directory they're resolved from, rights only shrink, no sockets, a memory cap and a timeout. In the terminal: bundled `jq` (jq's language through jaq), `./tool.wasm`, and project tools in `tools/` or `.omnie/tools/` by name; the agent's `run_script` runs `.wasm` too. On the iPad, a jq query takes 166 ms.
 - **Terminal tab (TermKit):** built-in commands over the project (ls, cd, cat, grep, run, test, git status/log/diff, open), Run tests and Run file.
 - **Preview:** a project's index.html live, TypeScript transpiled on the fly, reload on save, console with an error count.
 - **Offline package cache, first tier:** three.js bundled and import-mapped, so `import * as THREE from "three"` works offline in previews, runs and tests.
@@ -45,7 +46,7 @@ Open: an agreed pass rate on a larger task set; API models (P4) for tasks the lo
 - **Markdown + Mermaid preview** in the Preview tab for the open `.md` file.
 - **Type checking:** TypeScript 5.9 runs offline over the whole project (tsconfig.json honoured, with the declarations of packages in the offline cache) when it opens and after saves: underlines in the editor, an error count in the status strip, a Problems list (⇧⌘M). The agent has `check_types` in TypeScript projects.
 
-Open: WASI tools in RunKit, PyPI packages with compiled code that Pyodide doesn't build, the Stage's "Write to code" for inspector edits and its scene-graph tool for the agent.
+Open: more bundled WASI tools, fuel (instruction budgets) for WASI, PyPI packages with compiled code that Pyodide doesn't build, the Stage's "Write to code" for inspector edits and its scene-graph tool for the agent.
 
 ## How to check things yourself
 

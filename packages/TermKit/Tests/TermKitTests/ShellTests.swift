@@ -49,7 +49,9 @@ struct ShellTests {
         var opened: String?
         let shell = Shell(root: root, hooks: .init(run: { "ran \($0)" }, test: { "tested \($0 ?? "all")" },
                                                   git: { "git \($0.joined(separator: " "))" },
-                                                  packages: { "packages \($0.joined(separator: " "))" }, open: { opened = $0 }))
+                                                  packages: { "packages \($0.joined(separator: " "))" },
+                                                  wasm: { "wasm \($0) \($1.joined(separator: " ")) in /\($2)" }, tools: { ["jq"] },
+                                                  open: { opened = $0 }))
         #expect(await shell.execute("node src/a.ts") == "ran src/a.ts")
         #expect(await shell.execute("npm test") == "tested all")
         #expect(await shell.execute("pytest") == "tested all")
@@ -62,6 +64,8 @@ struct ShellTests {
         #expect(await shell.execute("pip install numpy 'attrs>=23'") == "packages pip install numpy attrs>=23")
         #expect(await shell.execute("pip install -r requirements.txt") == "packages pip install")
         #expect(await shell.execute("uv pip list") == "packages pip ls")
+        #expect(await shell.execute("jq -r '.a b' x.json") == "wasm jq -r .a b x.json in /")
+        #expect(await shell.execute("rg x")?.contains("not a built-in") == true)
         #expect(await shell.execute("npm publish")?.contains("offline cache") == true)
         _ = await shell.execute("open README.md")
         #expect(opened == "README.md")

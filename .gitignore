@@ -29,3 +29,4 @@ scripts/runkit/node_modules/
 packages/RunKit/Sources/RunKit/JS/pyodide/
 packages/RunKit/Sources/RunKit/JS/packages/
 packages/RunKit/Tests/wasi-probe/target/
+tools/wasi/*/target/

@@ -7,6 +7,8 @@
 #   - three.js (MIT): the first entry of the offline package cache, copied into JS/packages/three/
 #   - marked and Mermaid (MIT): the Markdown preview, copied into JS/packages/
 #   - TypeScript 5.9 (Apache-2.0): type checking, copied into JS/packages/typescript/
+#   - WASI tools (tools/wasi/*, pinned by their Cargo.lock): built for wasm32-wasip1 into
+#     JS/packages/wasi/, with every linked crate's licence. Needs `rustup target add wasm32-wasip1`.
 # Output is gitignored.
 set -eu
 cd "$(dirname "$0")/runkit"
@@ -49,4 +51,14 @@ cp node_modules/marked/LICENSE "$JS/packages/marked/LICENSE"
 cp node_modules/mermaid/dist/mermaid.min.js "$JS/packages/mermaid/mermaid.min.js"
 cp node_modules/mermaid/LICENSE "$JS/packages/mermaid/LICENSE"
 
-echo "built sucrase $(node -p 'require("./node_modules/sucrase/package.json").version'), three $(node -p 'require("./node_modules/three/package.json").version') ($(du -sh "$JS/packages/three" | cut -f1)), pyodide $(node -p 'require("./node_modules/pyodide/package.json").version') ($(du -sh "$JS/pyodide" | cut -f1)), bun $(bun --version)"
+# WASI tools RunKit carries: built from source with the committed lockfiles.
+rm -rf "$JS/packages/wasi" && mkdir -p "$JS/packages/wasi"
+for tool in ../../tools/wasi/*/; do
+  name=$(basename "$tool")
+  (cd "$tool" && cargo build --release --locked --target wasm32-wasip1 --quiet)
+  bin=$(cd "$tool" && cargo metadata --format-version 1 --no-deps | python3 -c 'import json,sys; print([t["name"] for p in json.load(sys.stdin)["packages"] for t in p["targets"] if "bin" in t["kind"]][0])')
+  cp "$tool/target/wasm32-wasip1/release/$bin.wasm" "$JS/packages/wasi/$bin.wasm"
+  python3 ../collect-cargo-licenses.py "$tool" "$JS/packages/wasi/$bin-LICENSES.txt" >/dev/null
+done
+
+echo "built sucrase $(node -p 'require("./node_modules/sucrase/package.json").version'), three $(node -p 'require("./node_modules/three/package.json").version') ($(du -sh "$JS/packages/three" | cut -f1)), pyodide $(node -p 'require("./node_modules/pyodide/package.json").version') ($(du -sh "$JS/pyodide" | cut -f1)), WASI tools: $(ls "$JS/packages/wasi" | grep -c '\.wasm$'), bun $(bun --version)"

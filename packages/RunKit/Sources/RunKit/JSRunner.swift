@@ -128,9 +128,11 @@ public final class JSRunner {
         return result
     }
 
-    /// Runs a file by its kind: Python, or JavaScript/TypeScript.
+    /// Runs a file by its kind: Python, a WASI program, or JavaScript/TypeScript.
     public func runFile(_ path: String) async -> RunResult {
-        path.hasSuffix(".py") ? await runPython(path) : await runScript(path)
+        if path.hasSuffix(".py") { return await runPython(path) }
+        if path.hasSuffix(".wasm") { return await runWasm(path) }
+        return await runScript(path)
     }
 
     public func runScript(_ entry: String, timeout: Double = 30) async -> RunResult {
