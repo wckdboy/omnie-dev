@@ -33,6 +33,13 @@ struct ToolsPanel: View {
             case .patterns: PatternsTool()
             }
         }
+        #if DEBUG
+        // `-OmnieTools Patterns` opens that tool.
+        .task {
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-OmnieTools"), args.indices.contains(i + 1), let t = Tool(rawValue: args[i + 1]) { tool = t }
+        }
+        #endif
         .background(palette.surface.pane.color)
     }
 }
@@ -175,6 +182,9 @@ private struct PatternsTool: View {
     @State private var flags = "i"
     @State private var flavor = Patterns.Flavor.javascript
     @State private var sample = "ada@example.com, grace@navy.com"
+    @State private var filter = ".tags[]"
+    @State private var jqOutput: String?
+    @State private var jqFailed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -194,6 +204,29 @@ private struct PatternsTool: View {
                         Text(error).foregroundStyle(palette.status.error.color).font(.system(size: 12))
                     } else {
                         Label("Valid JSON", systemImage: "checkmark.circle").foregroundStyle(palette.status.ok.color).font(.system(size: 12))
+                    }
+                }
+                // jq queries, with the bundled jq running in RunKit's WASI sandbox (PLAN.md §11.1).
+                if JSRunner.bundledTools().contains("jq") {
+                    HStack {
+                        TextField("jq filter", text: $filter)
+                            .font(.system(size: 13, design: .monospaced))
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                            .onSubmit { Task { await runJQ() } }
+                        Button("Run jq") { Task { await runJQ() } }.buttonStyle(.bordered).font(.system(size: 12))
+                    }
+                    #if DEBUG
+                    Color.clear.frame(height: 0).task { if ProcessInfo.processInfo.arguments.contains("-OmnieRunJQ") { await runJQ() } }
+                    #endif
+                    if let jqOutput {
+                        ScrollView {
+                            Text(jqOutput)
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(jqFailed ? palette.status.error.color : palette.text.primary.color)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 220)
                     }
                 }
             } else {
@@ -227,6 +260,15 @@ private struct PatternsTool: View {
             Spacer(minLength: 0)
         }
         .padding(12)
+    }
+
+    private func runJQ() async {
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("jq-scratch", isDirectory: true)
+        try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        guard let runner = try? JSRunner(root: scratch) else { return }
+        let result = await runner.runWasm("jq", args: [filter], stdin: json, timeout: 10)
+        jqFailed = !result.passed
+        jqOutput = result.output.map(\.text).joined(separator: "\n") + (result.ending == .finished ? "" : "\nStopped: took too long.")
     }
 
     private func editor(_ text: Binding<String>, height: CGFloat) -> some View {
