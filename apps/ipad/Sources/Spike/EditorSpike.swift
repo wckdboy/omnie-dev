@@ -110,6 +110,7 @@ final class EditorSpike {
             if wants("3") { await test3(engine, text: big) }
             if wants("4") { await test4(engine, text: minified) }
             if wants("9"), engine == .omnie { await test9(text: big) }
+            if wants("10"), engine == .omnie { await test10(text: big) }
         }
         let report = Report(device: UIDevice.current.model + " " + Self.machine(),
                             system: UIDevice.current.systemName + " " + UIDevice.current.systemVersion,
@@ -285,6 +286,61 @@ final class EditorSpike {
                pass: stats.hitchRatio < 5 && stats.jumps == 0 && p95 <= 4,
                note: "ghost text not built yet; not part of this run")
         view.resignFirstResponder()
+        view.removeFromSuperview()
+    }
+
+    // Test 10: multi-cursor prototype with 50 carets. Typing within the frame budget (8.3 ms at 120 Hz);
+    // IME marked text goes to the primary caret only.
+    private func test10(text: String) async {
+        let view = await makeView(.omnie, text: text)
+        guard let textView = view as? Runestone.TextView,
+              let input = view.subviews.first(where: { $0 is UITextInput }) as? (UIView & UITextInput) else { return }
+        textView.inputView = UIView()
+        _ = textView.becomeFirstResponder()
+        let starts = Self.lineStarts(text)
+        let firstRow = 50_000
+        // Column 2, or the end of shorter lines (the fixture has blank lines).
+        func column(_ row: Int) -> Int { min(2, starts[row + 1] - starts[row] - 1) }
+        textView.selectedRange = NSRange(location: starts[firstRow] + column(firstRow), length: 0)
+        textView.additionalCaretLocations = (1..<50).map { starts[firstRow + $0] + column(firstRow + $0) }
+        textView.scrollRangeToVisible(textView.selectedRange)
+        await nextFrame()
+        var durations: [Double] = []
+        for k in 0..<100 {
+            let t = CACurrentMediaTime()
+            input.insertText(k % 25 == 24 ? " " : "x")
+            textView.layoutIfNeeded()
+            durations.append((CACurrentMediaTime() - t) * 1000)
+            await Task.yield()
+        }
+        durations.sort()
+        let p95 = durations[Int(Double(durations.count) * 0.95)]
+        let caretsAfter = textView.additionalCaretLocations.count + 1
+        // Every caret line got exactly the typed text at column 2.
+        let typedText = String((0..<100).map { $0 % 25 == 24 ? Character(" ") : Character("x") })
+        let afterStarts = Self.lineStarts(textView.text)
+        let nsText = textView.text as NSString
+        let badRows = (0..<50).filter { i in
+            nsText.substring(with: NSRange(location: afterStarts[firstRow + i] + column(firstRow + i), length: 100)) != typedText
+        }
+        let lineOK = badRows.isEmpty
+        if let first = badRows.first { log("first mismatching caret line: \(firstRow + first)") }
+        let after = Self.lineStarts(textView.text)
+        for i in [0, 1, 49] {
+            let r = NSRange(location: after[firstRow + i], length: after[firstRow + i + 1] - after[firstRow + i])
+            log("line \(firstRow + i): \((textView.text as NSString).substring(with: r).prefix(120))")
+        }
+        // IME: marked text lands at the primary caret only.
+        let before = textView.text
+        input.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0))
+        let primaryOnly = (textView.text as NSString).length == (before as NSString).length + 1
+        input.unmarkText()
+        record(.omnie, "10 multi-cursor, 50 carets",
+               ["typeP95Ms": p95, "typeMaxMs": durations.last ?? 0, "carets": Double(caretsAfter),
+                "allLinesEdited": lineOK ? 1 : 0, "imeOnPrimaryOnly": primaryOnly ? 1 : 0],
+               pass: p95 <= 8.3 && caretsAfter == 50 && lineOK && primaryOnly,
+               note: "prototype: committed IME text isn't mirrored to secondary carets yet")
+        textView.resignFirstResponder()
         view.removeFromSuperview()
     }
 

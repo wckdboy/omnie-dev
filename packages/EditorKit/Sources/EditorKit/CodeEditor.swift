@@ -60,6 +60,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         textView.smartQuotesType = .no
         textView.smartDashesType = .no
         textView.spellCheckingType = .no
+        textView.inlinePredictionType = .no
+        textView.writingToolsBehavior = .none
         textView.isFindInteractionEnabled = true
         textView.characterPairs = Self.pairs
         textView.alwaysBounceVertical = true

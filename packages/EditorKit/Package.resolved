@@ -1,13 +1,13 @@
 {
-  "originHash" : "3f296a5ab4b903d3eb757f38dde947fede3b20e032d103be64607a50bcb09248",
+  "originHash" : "6dc3b69394c0557fed694e0b82da863e14ba26d48d60ff9efe5510728c0d191e",
   "pins" : [
     {
       "identity" : "omnie-dev-editor-engine",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/wckdboy/omnie-dev-editor-engine",
       "state" : {
-        "revision" : "dcfd8bd6311b84b32c6b511497394d4a3fc21421",
-        "version" : "0.6.3"
+        "revision" : "04f9854e1d81af005b8ebc4da953dfc87a372821",
+        "version" : "0.6.4"
       }
     },
     {
