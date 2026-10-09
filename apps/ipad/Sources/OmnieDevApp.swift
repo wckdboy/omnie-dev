@@ -242,6 +242,13 @@ struct OmnieDevApp: App {
                         }
                         try? FileManager.default.removeItem(at: url)
                     }
+                    // `-OmnieRoute local|online` picks where agent tasks run, for this launch's demos.
+                    if let i = args.firstIndex(of: "-OmnieRoute"), args.indices.contains(i + 1) {
+                        // For this launch only: your saved setting stays as it was.
+                        let saved = UserDefaults.standard.string(forKey: "models.route")
+                        model.models.route = args[i + 1] == "online" ? .online : .local
+                        UserDefaults.standard.set(saved, forKey: "models.route")
+                    }
                     // `-OmnieAgentTask <goal>` starts an agent task in the open project.
                     if let i = args.firstIndex(of: "-OmnieAgentTask"), args.indices.contains(i + 1) {
                         try? await Task.sleep(for: .milliseconds(800))

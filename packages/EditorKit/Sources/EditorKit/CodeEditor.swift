@@ -230,6 +230,12 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             await MainActor.run {
                 guard generation == self.loadGeneration, let state = box.state else { return }
                 self.textView.setState(state)
+                // The state carries the theme from when the load began; if the appearance changed
+                // since (a file opened at launch, before the pane applied light mode), use today's.
+                if box.theme !== self.theme {
+                    self.textView.theme = self.theme
+                    self.textView.backgroundColor = self.theme.palette.surface.editor.uiColor
+                }
                 // Newer marks (set while this loaded) win over the ones passed in.
                 self.setMarks(self.marksVersion == marksAtStart ? marks : self.marks)
                 self.refreshMinimap()

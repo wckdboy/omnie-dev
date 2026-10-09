@@ -377,6 +377,16 @@ final class AgentModel {
         }
         update(record)
         await loadChanges()
+        #if DEBUG
+        // `-OmnieAutoAccept`: land the changeset after a pause (unattended demos on the device).
+        // Only finished work: a task that stopped for your input is never landed unattended.
+        if ProcessInfo.processInfo.arguments.contains("-OmnieAutoAccept"), current?.phase == .review, current?.attention == nil, !changes.isEmpty {
+            try? await Task.sleep(for: .seconds(8))
+            print("[agent] auto-accepting \(changes.count) file(s)")
+            await accept()
+            print("[agent] accepted: phase \(current?.phase.rawValue ?? "none"), error \(error ?? "none")")
+        }
+        #endif
     }
 
     private func loadChanges() async {

@@ -413,7 +413,11 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             return (Data("export default \(String(decoding: data, as: UTF8.self));".utf8), "text/javascript")
         }
         if Transpiler.handles(name) {
-            let js = try transpiler.transpile(String(decoding: data, as: UTF8.self), path: path)
+            // By the file it resolved to: "./App" is App.tsx (TSX), "./components" its index.tsx.
+            let root = resolver.root.standardizedFileURL.path
+            let resolved = file.standardizedFileURL.path
+            let source = resolved.hasPrefix(root + "/") ? String(resolved.dropFirst(root.count + 1)) : name
+            let js = try transpiler.transpile(String(decoding: data, as: UTF8.self), path: source)
             return (Data(js.utf8), "text/javascript")
         }
         return (data, Self.mimeTypes[(name as NSString).pathExtension.lowercased()] ?? "application/octet-stream")

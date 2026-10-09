@@ -498,3 +498,25 @@ struct SketchToCodeTests {
         #expect(SketchToCode.normalize("src/components/../theme") == "src/theme")
     }
 }
+
+struct TestGuardTests {
+    @Test func recognisesTestFiles() {
+        for path in ["tests/orbit.test.ts", "src/__tests__/a.ts", "src/a.spec.tsx", "test_calc.py", "pkg/calc_test.py", "Tests/AppTests/MathTests.swift", "spec/a.rb"] {
+            #expect(TestGuard.isTestPath(path), "\(path)")
+        }
+        for path in ["src/orbit.ts", "src/testing.ts", "contest.py", "README.md", "src/latest.ts"] {
+            #expect(!TestGuard.isTestPath(path), "\(path)")
+        }
+    }
+
+    @Test func refusesTestEditsOnlyWhenTheGoalIsPassingTests() {
+        let goal = "fix orbitPosition so the tests pass"
+        #expect(TestGuard.refusal(goal: goal, path: "tests/orbit.test.ts")?.contains("most likely orbit.ts") == true)
+        #expect(TestGuard.refusal(goal: goal, path: "src/orbit.ts") == nil)
+        #expect(TestGuard.refusal(goal: "the build is failing, make the tests green", path: "test_calc.py") != nil)
+        // Asking for test changes, or not about tests at all: allowed.
+        #expect(TestGuard.refusal(goal: "add a test for orbitPosition", path: "tests/orbit.test.ts") == nil)
+        #expect(TestGuard.refusal(goal: "the test is wrong: it expects radians, fix it so it passes", path: "tests/orbit.test.ts") == nil)
+        #expect(TestGuard.refusal(goal: "rename total to sumPrices", path: "tests/cart.test.ts") == nil)
+    }
+}

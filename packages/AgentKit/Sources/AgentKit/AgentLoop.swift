@@ -254,6 +254,10 @@ public actor AgentRunner {
                 record(JournalEntry(.toolResult, error.localizedDescription, tool: call.name, isError: true), into: &entries)
                 continue
             }
+            if case .writeTaskWorktree(let path) = action, let refusal = TestGuard.refusal(goal: goal, path: path) {
+                record(JournalEntry(.toolResult, refusal, tool: call.name, isError: true), into: &entries)
+                continue
+            }
             guard await authorize(action, Self.artifact(for: call)) else {
                 record(JournalEntry(.note, "Not allowed: \(action.summary)"), into: &entries)
                 record(JournalEntry(.toolResult, "The user or the policy didn't allow this. Try something else, or finish.",
