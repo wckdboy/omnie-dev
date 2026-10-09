@@ -60,7 +60,7 @@ struct CommandPalette: View {
                     .foregroundStyle(palette.text.tertiary.color)
                 TextField("Command, @symbol, ?task for the agent, :line", text: $query)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 15))
+                    .font(.subheadline)
                     .foregroundStyle(palette.text.primary.color)
                     .focused($fieldFocused)
                     .autocorrectionDisabled()
@@ -77,7 +77,7 @@ struct CommandPalette: View {
 
             if results.isEmpty {
                 Text(emptyText)
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundStyle(palette.text.tertiary.color)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
@@ -123,23 +123,23 @@ struct CommandPalette: View {
         case .command(let command): commandRow(command, selected: selected)
         case .symbol(let symbol):
             simpleRow(selected: selected) {
-                Image(systemName: Self.symbolIcon(symbol.kind)).font(.system(size: 11)).foregroundStyle(palette.text.tertiary.color).frame(width: 16)
+                Image(systemName: Self.symbolIcon(symbol.kind)).font(.caption2).foregroundStyle(palette.text.tertiary.color).frame(width: 16)
                 Text(String(repeating: "  ", count: min(symbol.indent / 2, 4)) + symbol.name)
-                    .font(.system(size: 13, design: .monospaced)).foregroundStyle(palette.text.primary.color)
+                    .font(.system(.footnote, design: .monospaced)).foregroundStyle(palette.text.primary.color)
                 Spacer()
-                Text("line \(symbol.line)").font(.system(size: 12)).foregroundStyle(palette.text.tertiary.color)
+                Text("line \(symbol.line)").font(.caption).foregroundStyle(palette.text.tertiary.color)
             }
         case .agent(let task):
             simpleRow(selected: selected) {
                 Image(systemName: "text.bubble").foregroundStyle(palette.accent.agent.color)
-                Text("Ask the agent: \(task)").font(.system(size: 13)).foregroundStyle(palette.accent.agent.color).lineLimit(1)
+                Text("Ask the agent: \(task)").font(.footnote).foregroundStyle(palette.accent.agent.color).lineLimit(1)
                 Spacer()
-                Text("↩").font(.system(size: 12, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
+                Text("↩").font(.system(.caption, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
             }
         case .line(let n):
             simpleRow(selected: selected) {
-                Image(systemName: "arrow.right.to.line").font(.system(size: 11)).foregroundStyle(palette.text.tertiary.color)
-                Text("Go to line \(n)").font(.system(size: 13)).foregroundStyle(palette.text.primary.color)
+                Image(systemName: "arrow.right.to.line").font(.caption2).foregroundStyle(palette.text.tertiary.color)
+                Text("Go to line \(n)").font(.footnote).foregroundStyle(palette.text.primary.color)
                 Spacer()
             }
         }
@@ -169,21 +169,21 @@ struct CommandPalette: View {
     private func commandRow(_ command: Command, selected: Bool) -> some View {
         HStack {
             Text(command.title)
-                .font(.system(size: 13))
+                .font(.footnote)
                 .foregroundStyle(palette.text.primary.color)
             if command.tier != .auto {
                 Image(systemName: command.tier == .askBiometric ? "faceid" : "hand.raised")
-                    .font(.system(size: 11))
+                    .font(.caption2)
                     .foregroundStyle(palette.text.tertiary.color)
                     .accessibilityLabel(command.tier == .askBiometric ? "Needs Face ID" : "Asks first")
             }
             Spacer()
             Text(command.menu)
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundStyle(palette.text.tertiary.color)
             if let shortcut = command.shortcut {
                 Text(shortcut.description)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(palette.text.secondary.color)
                     .frame(minWidth: 44, alignment: .trailing)
             }

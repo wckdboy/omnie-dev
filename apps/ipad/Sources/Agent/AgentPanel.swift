@@ -31,7 +31,7 @@ struct AgentPanel: View {
                                 ProgressView().controlSize(.small)
                                 Text("Working in its own branch. You can keep editing.")
                             }
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundStyle(palette.text.secondary.color)
                         }
                         if let current = agent.current, current.phase == .review {
@@ -39,7 +39,7 @@ struct AgentPanel: View {
                         }
                         if let error = agent.error {
                             Text(error)
-                                .font(.system(size: 13))
+                                .font(.footnote)
                                 .foregroundStyle(palette.status.error.color)
                         }
                         Color.clear.frame(height: 1).id("end")
@@ -62,13 +62,13 @@ struct AgentPanel: View {
                 .foregroundStyle(palette.accent.agent.color)
             if !model.models.isInstalled(.standard) {
                 Text("The agent runs on this device with Qwen2.5-Coder 7B. Download it in Settings › Models (4.3 GB).")
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundStyle(palette.text.secondary.color)
                 Button("Open Settings") { model.settingsOpen = true }
-                    .font(.system(size: 13))
+                    .font(.footnote)
             } else if model.workspace.git.repo == nil {
                 Text("Open a git project to start a task.")
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundStyle(palette.text.secondary.color)
             }
         }
@@ -85,7 +85,7 @@ struct AgentPanel: View {
             TextField(model.agent.current?.phase == .review ? "Review the changes first" : "Ask the agent",
                       text: $prompt, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
+                .font(.subheadline)
                 .lineLimit(1...6)
                 .padding(10)
                 .background(palette.surface.raised.color)
@@ -94,7 +94,7 @@ struct AgentPanel: View {
             if model.agent.isRunning {
                 Button(action: model.agent.stop) {
                     Image(systemName: "stop.fill")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.footnote.weight(.semibold))
                         .foregroundStyle(palette.status.error.color)
                         .frame(width: 36, height: 36)
                         .background(Circle().fill(palette.surface.raised.color))
@@ -107,7 +107,7 @@ struct AgentPanel: View {
             } else {
                 Button(action: send) {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(canSend ? palette.surface.editor.color : palette.text.tertiary.color)
                         .frame(width: 36, height: 36)
                         .background(Circle().fill(canSend ? palette.accent.agent.color : palette.surface.raised.color))
@@ -141,7 +141,7 @@ private struct TranscriptRow: View {
         switch entry.kind {
         case .goal:
             Text(entry.text)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(palette.text.primary.color)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,27 +156,27 @@ private struct TranscriptRow: View {
                 }
                 if let call = parsed.call {
                     Label(Self.describe(call), systemImage: Self.symbol(call.name))
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(palette.text.secondary.color)
                 }
             }
         case .toolResult where entry.tool == "finish":
             // The self-review before finishing (AgentKit asks once).
             Label("Checking its changes against your request", systemImage: "checklist")
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundStyle(palette.text.secondary.color)
                 .padding(.leading, 20)
         case .toolResult:
             do {
                 DisclosureGroup(isExpanded: $expanded) {
                     Text(entry.text.prefix(4_000))
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(palette.text.secondary.color)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 } label: {
                     Text(entry.isError ? "Error: \(entry.text.prefix(100))" : (entry.text.split(separator: "\n").first.map(String.init) ?? "Done"))
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(entry.isError ? palette.status.warn.color : palette.text.tertiary.color)
                         .lineLimit(1)
                 }
@@ -184,7 +184,7 @@ private struct TranscriptRow: View {
             }
         case .note:
             Text(entry.text)
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundStyle(palette.text.secondary.color)
         case .outcome:
             EmptyView()
@@ -231,17 +231,17 @@ struct ChangesetReview: View {
         VStack(alignment: .leading, spacing: 10) {
             if let attention = record.attention {
                 Label(attention, systemImage: "exclamationmark.circle")
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundStyle(palette.status.warn.color)
             }
             if let summary = record.summary {
                 Text(summary)
-                    .font(.system(size: 14))
+                    .font(.subheadline)
                     .foregroundStyle(palette.text.primary.color)
             }
             if changes.isEmpty {
                 Text("No file changes.")
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundStyle(palette.text.secondary.color)
             }
             ForEach(changes) { file in
@@ -265,7 +265,7 @@ struct ChangesetReview: View {
             }
             .disabled(working)
             Text("Accepting squash-merges \(record.branch) into your branch as one commit with an Assisted-by trailer. Rejecting keeps the branch.")
-                .font(.system(size: 11))
+                .font(.caption2)
                 .foregroundStyle(palette.text.tertiary.color)
         }
         .padding(12)
@@ -290,7 +290,7 @@ private struct FileDiffRow: View {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
                             Text(hunk.header.components(separatedBy: "@@").dropFirst().first.map { "@@\($0)@@" } ?? hunk.header)
-                                .font(.system(size: 10, design: .monospaced)).foregroundStyle(palette.text.tertiary.color)
+                                .font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.tertiary.color)
                             Spacer()
                             Button {
                                 var set = rejectedHere
@@ -298,7 +298,7 @@ private struct FileDiffRow: View {
                                 agent.rejected[file.path] = set
                             } label: {
                                 Label(isRejected ? "Rejected" : "Accepted", systemImage: isRejected ? "xmark.circle" : "checkmark.circle.fill")
-                                    .font(.system(size: 11))
+                                    .font(.caption2)
                                     .foregroundStyle(isRejected ? palette.status.error.color : palette.accent.agent.color)
                             }
                             .buttonStyle(.plain)
@@ -306,7 +306,7 @@ private struct FileDiffRow: View {
                         }
                         ForEach(Array(hunk.lines.prefix(200).enumerated()), id: \.offset) { _, line in
                             Text(line.isEmpty ? " " : line)
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(.caption2, design: .monospaced))
                                 .foregroundStyle(palette.text.primary.color)
                                 .strikethrough(isRejected && line.hasPrefix("+"))
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -321,7 +321,7 @@ private struct FileDiffRow: View {
             }
         } label: {
             HStack {
-                Text(file.path).font(.system(size: 13, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                Text(file.path).font(.system(.footnote, design: .monospaced)).lineLimit(1).truncationMode(.middle)
                 Spacer()
                 if !rejectedHere.isEmpty {
                     Text("\(hunks.count - rejectedHere.count)/\(hunks.count)").foregroundStyle(palette.text.secondary.color)
@@ -329,7 +329,7 @@ private struct FileDiffRow: View {
                 Text("+\(file.additions)").foregroundStyle(palette.status.ok.color)
                 Text("−\(file.deletions)").foregroundStyle(palette.status.error.color)
             }
-            .font(.system(size: 12))
+            .font(.caption)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(file.path), \(file.additions) added, \(file.deletions) removed")
         }

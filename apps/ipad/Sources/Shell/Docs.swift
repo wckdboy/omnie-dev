@@ -86,8 +86,8 @@ struct DocsSheet: View {
                     ForEach(results, id: \.self) { entry in
                         NavigationLink(value: entry) {
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(entry.name).font(.system(size: 14, design: .monospaced))
-                                Text("\(entry.type) · \(title(entry.slug))").font(.system(size: 11)).foregroundStyle(palette.text.secondary.color)
+                                Text(entry.name).font(.system(.subheadline, design: .monospaced))
+                                Text("\(entry.type) · \(title(entry.slug))").font(.caption2).foregroundStyle(palette.text.secondary.color)
                             }
                         }
                     }
@@ -125,7 +125,7 @@ struct DocsSheet: View {
                     }
                     Section {
                         Text("From DevDocs (devdocs.io). Each bundle keeps its own licence, shown with its pages.")
-                            .font(.system(size: 11)).foregroundStyle(palette.text.secondary.color)
+                            .font(.caption2).foregroundStyle(palette.text.secondary.color)
                     }
                 }
             }

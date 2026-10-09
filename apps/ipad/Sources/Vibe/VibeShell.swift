@@ -69,7 +69,7 @@ struct VibeShell: View {
             if model.networkUnavailable {
                 Label(model.policy.planeMode ? "Plane mode" : "Offline",
                       systemImage: model.policy.planeMode ? "airplane" : "wifi.slash")
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundStyle(palette.text.secondary.color)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)

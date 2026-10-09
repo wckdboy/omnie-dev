@@ -35,7 +35,7 @@ struct StagePanel: View {
                             Button { open(path) } label: { Label(path, systemImage: Stage.isScene(path) ? "sparkles" : "cube") }
                         }
                     } label: {
-                        Label(current, systemImage: Stage.isScene(current) ? "sparkles" : "cube").font(.system(size: 12, design: .monospaced)).lineLimit(1)
+                        Label(current, systemImage: Stage.isScene(current) ? "sparkles" : "cube").font(.system(.caption, design: .monospaced)).lineLimit(1)
                     }
                     Spacer()
                     Button { showInspector.toggle() } label: { Image(systemName: "list.bullet.indent") }
@@ -43,7 +43,7 @@ struct StagePanel: View {
                         .foregroundStyle(showInspector ? palette.accent.ion.color : palette.text.secondary.color)
                     Button { reload() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("Reload")
                 }
-                .font(.system(size: 13))
+                .font(.footnote)
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
                 StageWebView(root: root, url: Stage.url(for: current, camera: camera, reload: reloads), controller: controller) { handle($0, file: current) }
@@ -153,7 +153,7 @@ struct StagePanel: View {
                 Text("\(stats.textures) tex · \(stats.programs) prog")
             }
         }
-        .font(.system(size: 11, design: .monospaced))
+        .font(.system(.caption2, design: .monospaced))
         .foregroundStyle(palette.text.secondary.color)
         .padding(.horizontal, 12).padding(.vertical, 6)
         .accessibilityElement(children: .combine)
@@ -219,12 +219,12 @@ private struct StageInspector: View {
             List(nodes) { node in
                 HStack(spacing: 6) {
                     Button { update(node.id) { $0.visible.toggle() }; controller.apply(.visible(!node.visible), to: node.id) } label: {
-                        Image(systemName: node.visible ? "eye" : "eye.slash").font(.system(size: 11))
+                        Image(systemName: node.visible ? "eye" : "eye.slash").font(.caption2)
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel(node.visible ? "Hide \(node.title)" : "Show \(node.title)")
-                    Text(node.title).font(.system(size: 12, design: .monospaced)).lineLimit(1)
-                    Text(node.type).font(.system(size: 10)).foregroundStyle(palette.text.secondary.color)
+                    Text(node.title).font(.system(.caption, design: .monospaced)).lineLimit(1)
+                    Text(node.type).font(.caption2).foregroundStyle(palette.text.secondary.color)
                     Spacer()
                 }
                 .padding(.leading, CGFloat(node.depth) * 12)
@@ -252,16 +252,16 @@ private struct StageInspector: View {
         let node = nodes[i]
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(node.title).font(.system(size: 13, weight: .semibold))
-                Text("\(node.type)\(node.triangles > 0 ? " · \(node.triangles.formatted()) tris" : "")").font(.system(size: 11)).foregroundStyle(palette.text.secondary.color)
+                Text(node.title).font(.footnote.weight(.semibold))
+                Text("\(node.type)\(node.triangles > 0 ? " · \(node.triangles.formatted()) tris" : "")").font(.caption2).foregroundStyle(palette.text.secondary.color)
                 Spacer()
-                Button("Frame") { controller.run(Stage.frameScript(node.id)) }.font(.system(size: 12))
+                Button("Frame") { controller.run(Stage.frameScript(node.id)) }.font(.caption)
             }
             vector("Position", node.position) { v in nodes[i].position = v; controller.apply(.position(v), to: node.id) }
             vector("Rotation °", node.rotation) { v in nodes[i].rotation = v; controller.apply(.rotation(v), to: node.id) }
             vector("Scale", node.scale) { v in nodes[i].scale = v; controller.apply(.scale(v), to: node.id) }
             if let material = node.material {
-                Text(material.type).font(.system(size: 11)).foregroundStyle(palette.text.secondary.color)
+                Text(material.type).font(.caption2).foregroundStyle(palette.text.secondary.color)
                 if let color = material.color {
                     ColorPicker("Color", selection: colorBinding(color) { hex in nodes[i].material?.color = hex; controller.apply(.color(hex), to: node.id) }, supportsOpacity: false)
                 }
@@ -290,9 +290,9 @@ private struct StageInspector: View {
                     }
                 }
             }
-            Text("Edits last until the stage reloads.").font(.system(size: 10)).foregroundStyle(palette.text.secondary.color)
+            Text("Edits last until the stage reloads.").font(.caption2).foregroundStyle(palette.text.secondary.color)
         }
-        .font(.system(size: 12))
+        .font(.caption)
     }
 
     private func vector(_ label: String, _ value: [Double], set: @escaping ([Double]) -> Void) -> some View {
@@ -306,7 +306,7 @@ private struct StageInspector: View {
                 }), format: .number.precision(.fractionLength(0...3)))
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.numbersAndPunctuation)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(.caption, design: .monospaced))
             }
         }
     }
@@ -315,7 +315,7 @@ private struct StageInspector: View {
         HStack {
             Text(label).frame(width: 70, alignment: .leading).lineLimit(1)
             Slider(value: Binding(get: { value }, set: set), in: range)
-            Text(String(format: "%.2f", value)).font(.system(size: 11, design: .monospaced)).frame(width: 40)
+            Text(String(format: "%.2f", value)).font(.system(.caption2, design: .monospaced)).frame(width: 40)
         }
     }
 

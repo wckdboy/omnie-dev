@@ -101,7 +101,7 @@ private struct SSHKeySection: View {
             if let identity = git.identity {
                 LabeledContent("Fingerprint") {
                     Text(identity.signer.fingerprint)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced))
                         .textSelection(.enabled)
                 }
                 Button(copied ? "Copied" : "Copy public key") {
@@ -208,12 +208,12 @@ private struct OnlineModelSection: View {
                 ForEach(Self.presets.map(\.name) + ["Custom"], id: \.self) { Text($0).tag($0) }
             }
             TextField("Model", text: $models.online.model)
-                .font(.system(size: 13, design: .monospaced))
+                .font(.system(.footnote, design: .monospaced))
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
             if models.online.provider == "custom" {
                 TextField("Base URL", text: Binding(get: { models.online.baseURL.absoluteString },
                                                     set: { if let url = URL(string: $0) { models.online.baseURL = url } }))
-                    .font(.system(size: 13, design: .monospaced))
+                    .font(.system(.footnote, design: .monospaced))
                     .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
             }
             if models.hasOnlineKey {
@@ -267,7 +267,7 @@ struct AcknowledgementsList: View {
                             Link(item.url, destination: link).font(.footnote)
                         }
                         Text(item.text)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.system(.caption2, design: .monospaced))
                             .textSelection(.enabled)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

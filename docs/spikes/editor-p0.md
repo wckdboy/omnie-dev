@@ -22,6 +22,14 @@ Not yet built: ghost text (part of test 9's load) and mirroring committed IME te
 
 ## Hands-on checklist (tests 5–8, on the iPad, Omnie-dev with a code file open)
 
+**Automated parts (9 Oct 2026).** `apps/ipad/UITests` (scheme OmnieDev, `xcodebuild test`) covers what a machine can drive, passing twice in a row on the iPad simulator:
+
+- **7 Hardware keyboard:** real key events: arrows, ⌘←/⌘→/⌘↑/⌘↓, ⌥←/⌥→, ⌥⇧ word selection then ⇧→ to shrink it and typing over it, ⌘Z/⇧⌘Z, ⇧⌘→ + ⌘C, ⌘V, ⌘A then typing. All behave like `UITextView` (⌥← skips punctuation such as `= ` the way UIKit does). Under XCUITest the first ⌘ shortcut after a tap is dropped in a stock `UITextView` too, so the tests send a harmless one first; it isn't an editor bug.
+- **8 VoiceOver:** the editor is one element named "Code editor, main.ts" whose value is "Line 1, column 1. let alpha = 1;". Apple's accessibility audit of the main screen passes after fixing what it found: chrome text now follows Dynamic Type (PLAN §883; the fixed 9–17 pt sizes became the matching text styles), the agent status dot is a 44 pt target, and file names are announced as "main.ts, file" / "main.ts, tab". Accepted and printed: the gutter's line numbers follow the editor's code size, which is separate from Dynamic Type by design, and the one-line status strip truncates at the largest accessibility sizes.
+- **On the iPad itself** the same tests need Settings › Developer › Enable UI Automation (they stop at "Timed out while enabling automation mode" without it).
+
+Still by hand: 5 (real keyboards' candidate windows, dictation), 6 (Scribble), and in 8 the Diagnostics rotor and listening to the speech.
+
 - **5 IME:** Japanese kana→kanji, Chinese pinyin, Korean (including ㅇ+ㅓ→어), an emoji ZWJ sequence (👩‍💻), dictation. Text lands where the caret was; candidates and marked text look right.
 - **6 Scribble (Pencil Pro):** write into an empty line, between two tokens, scratch-out to delete, circle to select.
 - **7 Hardware keyboard:** arrows, ⌥/⌘ + arrows, shift-selection, ⌥⇧ word selection followed by ⇧ arrows, ⌘Z/⇧⌘Z, ⌘A/⌘C/⌘V.

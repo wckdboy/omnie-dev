@@ -52,6 +52,9 @@ targets:
   OmnieDev:
     type: application
     platform: iOS
+    scheme:
+      testTargets:
+        - OmnieDevUITests
     sources:
       - apps/ipad/Sources
       - apps/ipad/Resources/Assets.xcassets
@@ -103,3 +106,22 @@ targets:
         ENABLE_PREVIEWS: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+
+  # The editor's hands-on checks that can be automated (docs/spikes/editor-p0.md tests 7 and 8):
+  # real key events through XCUITest, and Apple's accessibility audit. Runs on the simulator or
+  # the iPad: xcodebuild test -scheme OmnieDev -destination ...
+  OmnieDevUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - apps/ipad/UITests
+    dependencies:
+      - target: OmnieDev
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.wckd.omniedev.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: XKA8CGC2AB
+        TEST_TARGET_NAME: OmnieDev
+        TARGETED_DEVICE_FAMILY: "1,2"

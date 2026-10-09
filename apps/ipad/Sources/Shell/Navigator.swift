@@ -37,7 +37,8 @@ struct Navigator: View {
     private func row(_ node: FileNode) -> some View {
         let isOpen = model.workspace.openFile == node.url
         return Label(node.name, systemImage: node.isDirectory ? "folder" : "doc.text")
-            .font(.system(size: 13))
+            .accessibilityLabel("\(node.name), \(node.isDirectory ? "folder" : "file")")
+            .font(.footnote)
             .foregroundStyle(isOpen ? palette.accent.ion.color : palette.text.primary.color)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -116,10 +117,10 @@ struct EmptyProject: View {
     var body: some View {
         VStack(spacing: 12) {
             Text("No project open")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(palette.text.primary.color)
             Text("Open a folder from Files, iCloud Drive or another app.")
-                .font(.system(size: 13))
+                .font(.footnote)
                 .foregroundStyle(palette.text.secondary.color)
                 .multilineTextAlignment(.center)
             HStack {
@@ -131,13 +132,13 @@ struct EmptyProject: View {
             if !model.workspace.recentProjects.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Recent")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(palette.text.secondary.color)
                         .padding(.bottom, 4)
                     ForEach(model.workspace.recentProjects) { ref in
                         Button { model.workspace.open(recent: ref) } label: {
                             Label(ref.name, systemImage: "folder")
-                                .font(.system(size: 13))
+                                .font(.footnote)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                         }

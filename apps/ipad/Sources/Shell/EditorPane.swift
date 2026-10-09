@@ -20,7 +20,9 @@ struct EditorPane: View {
             } else if let path = workspace.relativePath {
                 HStack(spacing: 6) {
                     Text(path)
-                        .font(.system(size: 12))
+                        .font(.caption)
+                        // The editor itself announces "Code editor, <file>".
+                        .accessibilityHidden(true)
                         .foregroundStyle(palette.text.secondary.color)
                         .lineLimit(1)
                         .truncationMode(.head)
@@ -31,7 +33,7 @@ struct EditorPane: View {
                     Spacer()
                 }
                 .padding(.horizontal, 12)
-                .frame(height: density.tab)
+                .frame(minHeight: density.tab)
                 .background(palette.surface.pane.color)
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
@@ -49,7 +51,7 @@ struct EditorPane: View {
                 CodeEditor(controller: workspace.editor)
             } else {
                 Text(workspace.root == nil ? "Open a folder to start" : "Pick a file in the navigator")
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundStyle(palette.text.tertiary.color)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -72,11 +74,11 @@ struct Banner: View {
             Image(systemName: "exclamationmark.triangle")
                 .foregroundStyle(palette.status.warn.color)
             Text(text)
-                .font(.system(size: 13))
+                .font(.footnote)
                 .foregroundStyle(palette.text.primary.color)
             Spacer()
             Button("Dismiss", action: dismiss)
-                .font(.system(size: 13))
+                .font(.footnote)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -105,7 +107,7 @@ struct TabBar: View {
                         Button(tab.url.lastPathComponent) { workspace.open(file: tab.url, preview: false) }
                     }
                 } label: {
-                    Image(systemName: "chevron.left.2").font(.system(size: 11)).frame(width: 28, height: density.tab)
+                    Image(systemName: "chevron.left.2").font(.caption2).frame(width: 28, height: density.tab)
                 }
                 .accessibilityLabel("\(overflow.count) more tabs")
             }
@@ -116,7 +118,7 @@ struct TabBar: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(height: density.tab)
+        .frame(minHeight: density.tab)
         .background(palette.surface.pane.color)
         .overlay(alignment: .bottom) { Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline) }
     }
@@ -134,8 +136,9 @@ private struct TabButton: View {
         let dirty = isCurrent && workspace.isDirty
         HStack(spacing: 6) {
             Text(tab.url.lastPathComponent)
-                .font(.system(size: 12))
+                .font(.caption)
                 .italic(tab.isPreview)
+                .accessibilityLabel("\(tab.url.lastPathComponent), \(tab.isPreview ? "preview tab" : "tab")")
                 .foregroundStyle(isCurrent ? palette.text.primary.color : palette.text.secondary.color)
                 .lineLimit(1)
             ZStack {
@@ -143,7 +146,7 @@ private struct TabButton: View {
                     Circle().fill(palette.text.secondary.color).frame(width: 6, height: 6)
                 } else if hovering || isCurrent {
                     Button { workspace.closeTab(tab.url) } label: {
-                        Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+                        Image(systemName: "xmark").font(.caption2.weight(.semibold))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(palette.text.secondary.color)

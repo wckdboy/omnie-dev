@@ -67,7 +67,7 @@ private struct ResultGrid: View {
                     }
                 }
             }
-            .font(.system(size: 11, design: .monospaced))
+            .font(.system(.caption2, design: .monospaced))
             .textSelection(.enabled)
             .padding(12)
         }
@@ -93,10 +93,10 @@ private struct SQLiteTool: View {
                 HStack {
                     Menu {
                         ForEach(files, id: \.self) { f in Button(f) { open(f, root: root) } }
-                    } label: { Label(file ?? "Choose a database", systemImage: "cylinder").font(.system(size: 12, design: .monospaced)) }
+                    } label: { Label(file ?? "Choose a database", systemImage: "cylinder").font(.system(.caption, design: .monospaced)) }
                     Spacer()
                     Toggle("Writes", isOn: Binding(get: { writable }, set: { allow in Task { await setWritable(allow, root: root) } }))
-                        .toggleStyle(.switch).font(.system(size: 12)).fixedSize()
+                        .toggleStyle(.switch).font(.caption).fixedSize()
                         .disabled(file == nil)
                 }
                 if !tables.isEmpty {
@@ -107,13 +107,13 @@ private struct SQLiteTool: View {
                                     sql = "SELECT * FROM \"\(t.name)\" LIMIT 200"
                                     run()
                                 }
-                                .buttonStyle(.bordered).font(.system(size: 12))
+                                .buttonStyle(.bordered).font(.caption)
                             }
                         }
                     }
                 }
                 TextEditor(text: $sql)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced))
                     .frame(height: 80)
                     .scrollContentBackground(.hidden)
                     .background(palette.surface.raised.color, in: RoundedRectangle(cornerRadius: Metrics.Radius.sm))
@@ -124,13 +124,13 @@ private struct SQLiteTool: View {
                     Spacer()
                     if let result {
                         Text("\(result.rows.count)\(result.truncated ? "+" : "") rows · \(result.ms) ms" + (result.changes > 0 ? " · \(result.changes) changed" : ""))
-                            .font(.system(size: 11)).foregroundStyle(palette.text.secondary.color)
+                            .font(.caption2).foregroundStyle(palette.text.secondary.color)
                         Button("Copy CSV") { UIPasteboard.general.string = SQLiteDatabase.csv(result) }
                     }
                 }
-                .buttonStyle(.bordered).font(.system(size: 12))
+                .buttonStyle(.bordered).font(.caption)
                 .disabled(database == nil)
-                if let error { Text(error).font(.system(size: 12)).foregroundStyle(palette.status.error.color) }
+                if let error { Text(error).font(.caption).foregroundStyle(palette.status.error.color) }
             }
             .padding(12)
             .onAppear { if file == nil, let first = files.first { open(first, root: root) } }
@@ -198,22 +198,22 @@ private struct PatternsTool: View {
                         Button("Use formatted") { json = formatted; jsonReport = nil }.buttonStyle(.bordered)
                     }
                 }
-                .font(.system(size: 12))
+                .font(.caption)
                 if let report = jsonReport {
                     if let error = report.error {
-                        Text(error).foregroundStyle(palette.status.error.color).font(.system(size: 12))
+                        Text(error).foregroundStyle(palette.status.error.color).font(.caption)
                     } else {
-                        Label("Valid JSON", systemImage: "checkmark.circle").foregroundStyle(palette.status.ok.color).font(.system(size: 12))
+                        Label("Valid JSON", systemImage: "checkmark.circle").foregroundStyle(palette.status.ok.color).font(.caption)
                     }
                 }
                 // jq queries, with the bundled jq running in RunKit's WASI sandbox (PLAN.md §11.1).
                 if JSRunner.bundledTools().contains("jq") {
                     HStack {
                         TextField("jq filter", text: $filter)
-                            .font(.system(size: 13, design: .monospaced))
+                            .font(.system(.footnote, design: .monospaced))
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                             .onSubmit { Task { await runJQ() } }
-                        Button("Run jq") { Task { await runJQ() } }.buttonStyle(.bordered).font(.system(size: 12))
+                        Button("Run jq") { Task { await runJQ() } }.buttonStyle(.bordered).font(.caption)
                     }
                     #if DEBUG
                     Color.clear.frame(height: 0).task { if ProcessInfo.processInfo.arguments.contains("-OmnieRunJQ") { await runJQ() } }
@@ -221,7 +221,7 @@ private struct PatternsTool: View {
                     if let jqOutput {
                         ScrollView {
                             Text(jqOutput)
-                                .font(.system(size: 12, design: .monospaced))
+                                .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(jqFailed ? palette.status.error.color : palette.text.primary.color)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -231,8 +231,8 @@ private struct PatternsTool: View {
                 }
             } else {
                 HStack {
-                    TextField("Pattern", text: $pattern).font(.system(size: 13, design: .monospaced))
-                    TextField("Flags", text: $flags).font(.system(size: 13, design: .monospaced)).frame(width: 50)
+                    TextField("Pattern", text: $pattern).font(.system(.footnote, design: .monospaced))
+                    TextField("Flags", text: $flags).font(.system(.footnote, design: .monospaced)).frame(width: 50)
                     Picker("Flavor", selection: $flavor) { ForEach(Patterns.Flavor.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
                         .fixedSize()
                 }
@@ -240,10 +240,10 @@ private struct PatternsTool: View {
                 editor($sample, height: 100)
                 let report = Patterns.regex(pattern, flags: flags, in: sample, flavor: flavor)
                 if let error = report.error {
-                    Text(error).foregroundStyle(palette.status.error.color).font(.system(size: 12))
+                    Text(error).foregroundStyle(palette.status.error.color).font(.caption)
                 } else {
                     Text("\(report.matches.count) \(report.matches.count == 1 ? "match" : "matches")")
-                        .font(.system(size: 12)).foregroundStyle(palette.text.secondary.color)
+                        .font(.caption).foregroundStyle(palette.text.secondary.color)
                     ScrollView {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(Array(report.matches.enumerated()), id: \.offset) { _, m in
@@ -251,7 +251,7 @@ private struct PatternsTool: View {
                                      + (m.groups.isEmpty ? "" : "   " + m.groups.enumerated().map { "$\($0.offset + 1)=\($0.element ?? "∅")" }.joined(separator: " ")))
                             }
                         }
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -273,7 +273,7 @@ private struct PatternsTool: View {
 
     private func editor(_ text: Binding<String>, height: CGFloat) -> some View {
         TextEditor(text: text)
-            .font(.system(size: 12, design: .monospaced))
+            .font(.system(.caption, design: .monospaced))
             .frame(height: height)
             .scrollContentBackground(.hidden)
             .background(palette.surface.raised.color, in: RoundedRectangle(cornerRadius: Metrics.Radius.sm))
@@ -307,12 +307,12 @@ private struct HTTPTool: View {
                     } else {
                         Menu {
                             ForEach(files, id: \.self) { f in Button(f) { load(f, root: root) } }
-                        } label: { Label(file ?? "Choose a .http file", systemImage: "network").font(.system(size: 12, design: .monospaced)) }
+                        } label: { Label(file ?? "Choose a .http file", systemImage: "network").font(.system(.caption, design: .monospaced)) }
                     }
                     Spacer()
                     Button("Secrets") { showSecrets = true }.disabled(requests.isEmpty)
                 }
-                .font(.system(size: 13))
+                .font(.footnote)
                 .onAppear {
                     if file == nil, let first = files.first { load(first, root: root) }
                     #if DEBUG
@@ -321,18 +321,18 @@ private struct HTTPTool: View {
                 }
                 ForEach(requests) { spec in
                     HStack {
-                        Text(spec.method).font(.system(size: 11, weight: .semibold, design: .monospaced)).frame(width: 52, alignment: .leading)
+                        Text(spec.method).font(.system(.caption2, design: .monospaced).weight(.semibold)).frame(width: 52, alignment: .leading)
                             .foregroundStyle(palette.accent.ion.color)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(spec.name).font(.system(size: 13)).lineLimit(1)
-                            Text(spec.url).font(.system(size: 11, design: .monospaced)).foregroundStyle(palette.text.secondary.color).lineLimit(1)
+                            Text(spec.name).font(.footnote).lineLimit(1)
+                            Text(spec.url).font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.secondary.color).lineLimit(1)
                         }
                         Spacer()
                         Button(sending && selected == spec.line ? "…" : "Send") { Task { await send(spec) } }
-                            .buttonStyle(.bordered).font(.system(size: 12)).disabled(sending)
+                            .buttonStyle(.bordered).font(.caption).disabled(sending)
                     }
                 }
-                if let error { Text(error).font(.system(size: 12)).foregroundStyle(palette.status.error.color) }
+                if let error { Text(error).font(.caption).foregroundStyle(palette.status.error.color) }
                 if let result {
                     HStack {
                         Text("\(result.status)").fontWeight(.semibold)
@@ -344,10 +344,10 @@ private struct HTTPTool: View {
                             .help("Serves this response to previews at the same path, offline (.omnie/mocks.json)")
                         Button("Copy") { UIPasteboard.general.string = result.displayBody }
                     }
-                    .font(.system(size: 12))
+                    .font(.caption)
                     ScrollView {
                         Text(result.displayBody.prefix(200_000))
-                            .font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                            .font(.system(.caption2, design: .monospaced)).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {

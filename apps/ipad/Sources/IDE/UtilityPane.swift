@@ -61,10 +61,10 @@ struct NotYet: View {
     var body: some View {
         VStack(spacing: 8) {
             Text(title)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(palette.text.primary.color)
             Text(detail)
-                .font(.system(size: 13))
+                .font(.footnote)
                 .foregroundStyle(palette.text.secondary.color)
                 .multilineTextAlignment(.center)
         }

@@ -88,7 +88,7 @@ struct PrepareOfflineSheet: View {
             case .failed(let note): Text(note).foregroundStyle(palette.status.error.color).lineLimit(2)
             }
         }
-        .font(.system(size: 13))
+        .font(.footnote)
     }
 
     private func list() {

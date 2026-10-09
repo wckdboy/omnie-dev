@@ -19,19 +19,19 @@ struct EditorSpikeView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Editor spike (PLAN §5.1.5), tests 1–4 · \(EditorSpike.buildKind) build")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.footnote.weight(.semibold))
                     Spacer()
                     if running { ProgressView() }
                     Button("Close") { dismiss() }.disabled(running)
                 }
                 if EditorSpike.buildKind == "debug" {
                     Text("Debug build: numbers check the harness only. Decide on a release build on the iPad.")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundStyle(palette.status.warn.color)
                 }
                 ScrollView {
                     Text(lines.joined(separator: "\n"))
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.system(.caption, design: .monospaced))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 }

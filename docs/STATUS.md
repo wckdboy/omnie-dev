@@ -6,7 +6,7 @@ What's built, measured and open, by roadmap phase (PLAN.md §22). Updated 9 Oct 
 
 | Spike | Result | Write-up |
 |---|---|---|
-| 1. Editor engine (Runestone fork) | Every automated test passes on the device. **Waiting on your hands-on tests 5–8** (IME, Scribble, hardware keyboard, VoiceOver) | `spikes/editor-p0.md` |
+| 1. Editor engine (Runestone fork) | Every automated test passes on the device. Hardware keyboard (7) and the machine-checkable half of VoiceOver (8) now run as UI tests and pass; **still by hand: IME candidates and dictation (5), Scribble (6), the VoiceOver rotor (8)** | `spikes/editor-p0.md` |
 | 2. 7B on the device (MLX) | 26–30 tok/s decode, 650–790 tok/s prefill, 5.4 GB peak | `spikes/model-p0.md` |
 | 3. WASI in WKWebView | 55/73 of the WASI test suite (every failure is the JS shim's); timeouts work | `spikes/wasi-p0.md` |
 | 4. WebGPU and WebGL2 in our web view | Both work (WebGPU needs a secure context; a custom scheme counts) | `spikes/webgpu-p0.md` |

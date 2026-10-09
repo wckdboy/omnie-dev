@@ -116,10 +116,10 @@ struct ProblemsSheet: View {
                                     Image(systemName: d.category == .error ? "xmark.octagon" : "exclamationmark.triangle")
                                         .foregroundStyle(d.category == .error ? palette.status.error.color : palette.status.warn.color)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(d.message).font(.system(size: 13))
+                                        Text(d.message).font(.footnote)
                                         if let line = d.line {
                                             Text(verbatim: "Line \(line), column \(d.column ?? 1)" + (d.code > 0 ? " · TS\(d.code)" : " · shader"))
-                                                .font(.system(size: 11, design: .monospaced))
+                                                .font(.system(.caption2, design: .monospaced))
                                                 .foregroundStyle(palette.text.secondary.color)
                                         }
                                     }

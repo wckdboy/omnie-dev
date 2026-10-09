@@ -20,7 +20,7 @@ struct SSHKeySheet: View {
                 if let identity = git.identity {
                     Section {
                         Text(identity.signer.authorizedKeysLine(comment: "omnie-dev"))
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .textSelection(.enabled)
                         Button(copied ? "Copied" : "Copy public key") {
                             UIPasteboard.general.string = identity.signer.authorizedKeysLine(comment: "omnie-dev")
@@ -33,7 +33,7 @@ struct SSHKeySheet: View {
                     }
                     Section("Fingerprint") {
                         Text(identity.signer.fingerprint)
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .textSelection(.enabled)
                     }
                     Section {
@@ -41,13 +41,13 @@ struct SSHKeySheet: View {
                               ? "Stored in the Secure Enclave. The private key can't be read or exported, only used to sign on this device."
                               : "Software key in the Keychain (no Secure Enclave on this device). Use a real device for a hardware-backed key.",
                               systemImage: identity.isHardwareBacked ? "lock.shield" : "exclamationmark.triangle")
-                            .font(.system(size: 13))
+                            .font(.footnote)
                             .foregroundStyle(identity.isHardwareBacked ? palette.text.secondary.color : palette.status.warn.color)
                     }
                 } else {
                     Section {
                         Text("Omnie-dev signs git connections with a key kept in the Secure Enclave. Create it once, then add the public key to your forge.")
-                            .font(.system(size: 13))
+                            .font(.footnote)
                         Button("Create SSH key") { git.createIdentity() }
                     }
                 }
@@ -73,7 +73,7 @@ struct CloneSheet: View {
             Form {
                 Section {
                     TextField("git@forgejo.example.net:you/project.git", text: $url)
-                        .font(.system(size: 14, design: .monospaced))
+                        .font(.system(.subheadline, design: .monospaced))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
@@ -162,11 +162,11 @@ struct HostKeySheet: View {
             Form {
                 Section {
                     Text("First connection to \(key.host). Compare this fingerprint with the one your forge publishes before trusting it.")
-                        .font(.system(size: 13))
+                        .font(.footnote)
                 }
                 Section(key.keyType ?? "Host key") {
                     Text(key.fingerprint)
-                        .font(.system(size: 13, design: .monospaced))
+                        .font(.system(.footnote, design: .monospaced))
                         .textSelection(.enabled)
                 }
             }

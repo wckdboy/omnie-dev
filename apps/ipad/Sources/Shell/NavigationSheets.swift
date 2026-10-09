@@ -22,8 +22,8 @@ struct QuickOpenSheet: View {
             List(results, id: \.self) { path in
                 Button { open(path) } label: {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text((path as NSString).lastPathComponent).font(.system(size: 14))
-                        Text(path).font(.system(size: 11, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
+                        Text((path as NSString).lastPathComponent).font(.subheadline)
+                        Text(path).font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
                     }
                 }
                 .buttonStyle(.plain)
@@ -71,16 +71,16 @@ struct FindInProjectSheet: View {
             List {
                 if !query.isEmpty && !searching {
                     Text(hits.isEmpty ? "No matches." : "\(hits.count)\(hits.count >= 1_000 ? "+" : "") \(hits.count == 1 ? "match" : "matches") in \(paths.count) \(paths.count == 1 ? "file" : "files")")
-                        .font(.system(size: 12)).foregroundStyle(palette.text.secondary.color)
+                        .font(.caption).foregroundStyle(palette.text.secondary.color)
                 }
                 ForEach(paths, id: \.self) { path in
                     Section(path) {
                         ForEach(groups[path] ?? []) { hit in
                             Button { open(hit) } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    Text("\(hit.line)").font(.system(size: 11, design: .monospaced)).foregroundStyle(palette.text.tertiary.color)
+                                    Text("\(hit.line)").font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.tertiary.color)
                                         .frame(minWidth: 32, alignment: .trailing)
-                                    Text(hit.text.trimmingCharacters(in: .whitespaces)).font(.system(size: 12, design: .monospaced)).lineLimit(2)
+                                    Text(hit.text.trimmingCharacters(in: .whitespaces)).font(.system(.caption, design: .monospaced)).lineLimit(2)
                                 }
                             }
                             .buttonStyle(.plain)

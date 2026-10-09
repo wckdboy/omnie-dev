@@ -38,7 +38,7 @@ struct TerminalPanel: View {
                 if busy { ProgressView().controlSize(.small) }
             }
             .buttonStyle(.bordered)
-            .font(.system(size: 13))
+            .font(.footnote)
             .padding(12)
             Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
             ScrollViewReader { proxy in
@@ -55,7 +55,7 @@ struct TerminalPanel: View {
                         }
                         Color.clear.frame(height: 1).id("end")
                     }
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
                     .padding(12)
                 }
@@ -75,7 +75,7 @@ struct TerminalPanel: View {
                     .disabled(shell == nil || busy)
                     .accessibilityLabel("Command")
             }
-            .font(.system(size: 13, design: .monospaced))
+            .font(.system(.footnote, design: .monospaced))
             .padding(12)
         }
         .background(palette.surface.pane.color)

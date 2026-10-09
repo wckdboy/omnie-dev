@@ -22,6 +22,16 @@ struct OmnieDevApp: App {
                     // Debug-only launch arguments, for screenshots and UI tests:
                     // `-OmnieOpenFolder <path>` opens a folder (relative to Documents unless absolute); `-OmnieRunCommand <id>` (repeatable) runs a command.
                     let args = ProcessInfo.processInfo.arguments
+                    // `-OmnieUIFixture`: a fresh project with one known file, open in the editor (UI tests).
+                    if args.contains("-OmnieUIFixture") {
+                        let folder = URL.documentsDirectory.appending(path: "uitest-fixture")
+                        try? FileManager.default.removeItem(at: folder)
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        try? "let alpha = 1;\nconst beta = alpha + 2;\nfunction gamma() { return beta; }\n"
+                            .write(to: folder.appending(path: "main.ts"), atomically: true, encoding: .utf8)
+                        model.workspace.open(folder: folder)
+                        model.workspace.open(file: folder.appending(path: "main.ts"), preview: false)
+                    }
                     if let i = args.firstIndex(of: "-OmnieOpenFolder"), args.indices.contains(i + 1) {
                         // Relative paths are inside Documents (handy on a device, where the container path is unknown).
                         let path = args[i + 1]

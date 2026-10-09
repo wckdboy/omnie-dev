@@ -26,7 +26,7 @@ struct WebGPUSpikeView: View {
                 .frame(height: 240)
                 ScrollView {
                     Text(lines.joined(separator: "\n"))
-                        .font(.system(size: 13, design: .monospaced))
+                        .font(.system(.footnote, design: .monospaced))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                         .padding()

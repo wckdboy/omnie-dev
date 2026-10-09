@@ -39,7 +39,7 @@ struct TimelineView: View {
                     model.registry.run("git.commit")
                 } label: {
                     Label(commitLabel(git), systemImage: "checkmark.circle")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.footnote.weight(.semibold))
                 }
                 .disabled(git.status?.isClean ?? true)
                 .listRowBackground(Color.clear)
@@ -47,7 +47,7 @@ struct TimelineView: View {
                     model.registry.run("git.sync")
                 } label: {
                     Label(syncLabel(git), systemImage: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 13))
+                        .font(.footnote)
                 }
                 .disabled(git.isSyncing)
                 .listRowBackground(Color.clear)
@@ -56,7 +56,7 @@ struct TimelineView: View {
                         model.registry.run("git.undo")
                     } label: {
                         Label("Undo \(undo)", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 13))
+                            .font(.footnote)
                             .lineLimit(1)
                     }
                     .listRowBackground(Color.clear)
@@ -71,17 +71,17 @@ struct TimelineView: View {
                                 .frame(width: 10)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Checkpoint · \(cp.reason.label)")
-                                    .font(.system(size: 13))
+                                    .font(.footnote)
                                     .foregroundStyle(palette.text.secondary.color)
                                 Text(cp.date, format: .relative(presentation: .named))
-                                    .font(.system(size: 11))
+                                    .font(.caption2)
                                     .foregroundStyle(palette.text.tertiary.color)
                             }
                             Spacer()
                             Button("Restore") {
                                 Task { await model.workspace.restore(cp) }
                             }
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .buttonStyle(.bordered)
                             .disabled(git.isBusy)
                         }
@@ -93,7 +93,7 @@ struct TimelineView: View {
             Section(git.status?.head.branch ?? "History") {
                 if git.log.isEmpty {
                     Text("No commits yet")
-                        .font(.system(size: 13))
+                        .font(.footnote)
                         .foregroundStyle(palette.text.tertiary.color)
                         .listRowBackground(Color.clear)
                 }
@@ -149,7 +149,7 @@ struct CommitRow: View {
                 .frame(width: 10)
             VStack(alignment: .leading, spacing: 2) {
                 Text(commit.summary)
-                    .font(isAgent ? Typography.agent(density) : .system(size: 13))
+                    .font(isAgent ? Typography.agent(density) : .footnote)
                     .foregroundStyle(isAgent ? palette.accent.agent.color : palette.text.primary.color)
                     .lineLimit(2)
                 HStack(spacing: 6) {
@@ -158,7 +158,7 @@ struct CommitRow: View {
                     if let model = commit.assistedBy { Text("· \(model)") }
                     Text(commit.date, format: .relative(presentation: .named))
                 }
-                .font(.system(size: 11))
+                .font(.caption2)
                 .foregroundStyle(palette.text.tertiary.color)
                 .lineLimit(1)
             }
@@ -203,7 +203,7 @@ struct CommitSheet: View {
                 Section {
                     TextField("Message", text: $message, axis: .vertical)
                         .lineLimit(3...10)
-                        .font(.system(size: 15))
+                        .font(.subheadline)
                 } header: {
                     Text("\(git.status?.changedCount ?? 0) changed on \(git.status?.head.branch ?? "HEAD")")
                 } footer: {
@@ -237,9 +237,9 @@ struct CommitSheet: View {
                     Section("Files") {
                         ForEach(changed, id: \.path) { entry in
                             HStack {
-                                Text(entry.path).font(.system(size: 13, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                                Text(entry.path).font(.system(.footnote, design: .monospaced)).lineLimit(1).truncationMode(.middle)
                                 Spacer()
-                                Text(entry.kind.label).font(.system(size: 12)).foregroundStyle(palette.text.secondary.color)
+                                Text(entry.kind.label).font(.caption).foregroundStyle(palette.text.secondary.color)
                             }
                         }
                     }

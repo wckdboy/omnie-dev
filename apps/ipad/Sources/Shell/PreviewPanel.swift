@@ -26,7 +26,7 @@ struct PreviewPanel: View {
                 HStack(spacing: 12) {
                     Button { reloadToken += 1 } label: { Image(systemName: "arrow.clockwise") }
                         .accessibilityLabel("Reload")
-                    Text(entry).font(.system(size: 12, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
+                    Text(entry).font(.system(.caption, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
                     Spacer()
                     Button { showConsole.toggle() } label: {
                         Label("\(console.filter { $0.level == "error" }.count)", systemImage: "exclamationmark.triangle")
@@ -34,7 +34,7 @@ struct PreviewPanel: View {
                     }
                     .accessibilityLabel("Console, \(console.count) messages")
                 }
-                .font(.system(size: 13))
+                .font(.footnote)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
@@ -56,7 +56,7 @@ struct PreviewPanel: View {
                                                      : line.level == "warn" ? palette.status.warn.color : palette.text.primary.color)
                             }
                         }
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)

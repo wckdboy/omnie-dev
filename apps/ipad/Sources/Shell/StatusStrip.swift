@@ -43,10 +43,11 @@ struct StatusStrip: View {
             }
         }
         .labelStyle(.titleAndIcon)
-        .font(.system(size: 11))
+        .font(.caption2)
         .foregroundStyle(palette.text.secondary.color)
         .padding(.horizontal, 12)
-        .frame(height: density.statusStrip)
+        // At least the density's height; taller when Dynamic Type makes the text bigger.
+        .frame(minHeight: density.statusStrip)
         .background(palette.surface.chrome.color)
         .overlay(alignment: .top) {
             Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
@@ -124,6 +125,9 @@ struct AgentPill: View {
                 Text(label).foregroundStyle(color)
             }
         }
+        // A comfortable target even when the pill is only a dot.
+        .frame(minWidth: 44, minHeight: 24)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Agent: \(label ?? "idle")")
         .onAppear {

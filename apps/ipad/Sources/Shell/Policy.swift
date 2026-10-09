@@ -153,7 +153,7 @@ struct ApprovalSheet: View {
                 if let artifact = request.artifact {
                     ScrollView {
                         Text(artifact)
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                             .padding(10)

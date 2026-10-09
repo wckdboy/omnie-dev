@@ -92,11 +92,11 @@ struct ConflictResolverView: View {
                 }
                 Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
                 HStack(spacing: 8) {
-                    Text("Result").font(.system(size: 12, weight: .semibold)).foregroundStyle(palette.text.secondary.color)
+                    Text("Result").font(.caption.weight(.semibold)).foregroundStyle(palette.text.secondary.color)
                     if ConflictFile.hasMarkers(results[file.path] ?? file.merged) {
-                        Text("Has conflict markers").font(.system(size: 12)).foregroundStyle(palette.status.error.color)
+                        Text("Has conflict markers").font(.caption).foregroundStyle(palette.status.error.color)
                     } else {
-                        Text("Resolved").font(.system(size: 12)).foregroundStyle(palette.status.ok.color)
+                        Text("Resolved").font(.caption).foregroundStyle(palette.status.ok.color)
                     }
                     Spacer()
                     // These act on the conflict blocks only; lines git merged cleanly are kept.
@@ -105,13 +105,13 @@ struct ConflictResolverView: View {
                     Button("Take both") { results[file.path] = ConflictFile.resolving(file.merged, to: .both) }
                     Button("Reset") { results[file.path] = file.merged }
                 }
-                .font(.system(size: 13))
+                .font(.footnote)
                 .buttonStyle(.bordered)
                 .padding(.horizontal, 12)
                 .frame(height: max(density.hitTarget, 40))
                 if file.isBinary {
                     Text("Binary file. Resolve it in the terminal for now.")
-                        .font(.system(size: 13))
+                        .font(.footnote)
                         .foregroundStyle(palette.text.secondary.color)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -129,7 +129,7 @@ struct ConflictResolverView: View {
     private func side(_ title: String, _ text: String?, accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(accent)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -183,14 +183,14 @@ struct BranchSheet: View {
                                     .frame(width: 20)
                                     .foregroundStyle(branch.isCurrent ? palette.accent.ion.color : palette.text.tertiary.color)
                                 Text(branch.name)
-                                    .font(branch.isAgentTask ? Typography.agent(.regular) : .system(size: 15))
+                                    .font(branch.isAgentTask ? Typography.agent(.regular) : .subheadline)
                                     .foregroundStyle(branch.isAgentTask ? palette.accent.agent.color : palette.text.primary.color)
                                 Spacer()
                                 if branch.hasWorkInProgress {
-                                    Text("Unsaved work kept").font(.system(size: 12)).foregroundStyle(palette.text.secondary.color)
+                                    Text("Unsaved work kept").font(.caption).foregroundStyle(palette.text.secondary.color)
                                 }
                                 if let upstream = branch.upstream {
-                                    Text(upstream).font(.system(size: 12)).foregroundStyle(palette.text.tertiary.color)
+                                    Text(upstream).font(.caption).foregroundStyle(palette.text.tertiary.color)
                                 }
                             }
                         }

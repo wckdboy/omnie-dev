@@ -32,7 +32,7 @@ struct WASISpikeView: View {
                 .frame(height: 1)
                 ScrollView {
                     Text(lines.joined(separator: "\n"))
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.system(.caption, design: .monospaced))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                         .padding()
