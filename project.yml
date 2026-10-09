@@ -59,6 +59,7 @@ targets:
       - apps/ipad/Sources
       - apps/ipad/Resources/Assets.xcassets
       - apps/ipad/Resources/Acknowledgements.json
+      - apps/ipad/Resources/PrivacyInfo.xcprivacy
       - path: apps/ipad/Resources/WASISpikeApp
         type: folder
       # The sample project on the welcome screen (also the plane test's fixture).
