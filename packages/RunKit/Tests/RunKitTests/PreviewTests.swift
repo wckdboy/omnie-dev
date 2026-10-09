@@ -6,6 +6,7 @@ import Testing
 import WebKit
 @testable import RunKit
 
+extension WebKitSuites {
 @MainActor
 struct PreviewTests {
     @Test func servesAPageWithTypeScriptAndCSS() async throws {
@@ -58,4 +59,38 @@ struct PreviewTests {
         let own = "<html><head><script type=\"importmap\">{\"imports\":{}}</script></head></html>"
         #expect(PackageCache.inject(into: own) == own)
     }
+}
+}
+
+extension WebKitSuites {
+@MainActor
+struct MarkdownPreviewTests {
+    @Test func rendersMarkdownWithMermaidAndEscapesHTML() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("md-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("docs"), withIntermediateDirectories: true)
+        try """
+            # Title
+
+            Some *text* and a [link](other.md).
+
+            <script>window.pwned = true</script>
+
+            ```mermaid
+            graph LR
+              A --> B
+            ```
+            """.write(to: root.appendingPathComponent("docs/guide.md"), atomically: true, encoding: .utf8)
+        var logs: [String] = []
+        let config = try Preview.configuration(root: root) { level, text in logs.append("\(level): \(text)") }
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 600, height: 800), configuration: config)
+        webView.load(URLRequest(url: Preview.markdownURL(for: "docs/guide.md")))
+        for _ in 0..<400 where logs.isEmpty { try await Task.sleep(for: .milliseconds(25)) }
+        #expect(logs == ["log: rendered docs/guide.md: 1 diagrams"])
+        let h1 = try await webView.evaluateJavaScript("document.querySelector('h1').textContent") as? String
+        #expect(h1 == "Title")
+        let pwned = try await webView.evaluateJavaScript("String(window.pwned)") as? String
+        #expect(pwned == "undefined")
+        #expect(Preview.isMarkdown("README.md") && !Preview.isMarkdown("a.ts"))
+    }
+}
 }

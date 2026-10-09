@@ -6,6 +6,7 @@ import Testing
 import WebKit
 @testable import RunKit
 
+extension WebKitSuites {
 @MainActor
 struct StageTests {
     /// A unit cube as OBJ and an ASCII STL triangle: small models written out here.
@@ -50,4 +51,5 @@ struct StageTests {
         let events = try await open("models/notes.txt")
         #expect(events.first == .error("Stage can't open .txt files (glTF, GLB, OBJ and STL work)."))
     }
+}
 }

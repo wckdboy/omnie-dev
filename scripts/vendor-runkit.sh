@@ -5,6 +5,7 @@
 #   - Sucrase (MIT): TypeScript → JavaScript, bundled into JS/sucrase.js
 #   - Pyodide (MPL-2.0; CPython is PSF-2.0): Python in WebAssembly, copied into JS/pyodide/
 #   - three.js (MIT): the first entry of the offline package cache, copied into JS/packages/three/
+#   - marked and Mermaid (MIT): the Markdown preview, copied into JS/packages/
 # Output is gitignored.
 set -eu
 cd "$(dirname "$0")/runkit"
@@ -33,5 +34,11 @@ for f in three.module.js three.core.js three.webgpu.js three.webgpu.nodes.js thr
 done
 cp -R node_modules/three/examples/jsm "$JS/packages/three/examples/jsm"
 cp node_modules/three/LICENSE "$JS/packages/three/LICENSE"
+# Markdown preview: marked (MIT) and Mermaid (MIT).
+rm -rf "$JS/packages/marked" "$JS/packages/mermaid" && mkdir -p "$JS/packages/marked" "$JS/packages/mermaid"
+cp node_modules/marked/lib/marked.esm.js "$JS/packages/marked/marked.esm.js"
+cp node_modules/marked/LICENSE "$JS/packages/marked/LICENSE"
+cp node_modules/mermaid/dist/mermaid.min.js "$JS/packages/mermaid/mermaid.min.js"
+cp node_modules/mermaid/LICENSE "$JS/packages/mermaid/LICENSE"
 
 echo "built sucrase $(node -p 'require("./node_modules/sucrase/package.json").version'), three $(node -p 'require("./node_modules/three/package.json").version') ($(du -sh "$JS/packages/three" | cut -f1)), pyodide $(node -p 'require("./node_modules/pyodide/package.json").version') ($(du -sh "$JS/pyodide" | cut -f1)), bun $(bun --version)"

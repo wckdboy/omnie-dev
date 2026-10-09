@@ -19,7 +19,10 @@ struct PreviewPanel: View {
     var body: some View {
         let workspace = model.workspace
         VStack(spacing: 0) {
-            if let root = workspace.rootURL, let entry = Preview.entry(in: root) {
+            // The open Markdown file, or else the project's page.
+            let markdown = workspace.relativePath.flatMap { Preview.isMarkdown($0) ? $0 : nil }
+            if let root = workspace.rootURL, let entry = markdown ?? Preview.entry(in: root) {
+                let url = markdown.map(Preview.markdownURL(for:)) ?? Preview.url(for: entry)
                 HStack(spacing: 12) {
                     Button { reloadToken += 1 } label: { Image(systemName: "arrow.clockwise") }
                         .accessibilityLabel("Reload")
@@ -35,13 +38,14 @@ struct PreviewPanel: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
-                PreviewWebView(root: root, entry: entry, reloadToken: reloadToken + workspace.changeCount) { level, text in
+                PreviewWebView(root: root, url: url, reloadToken: reloadToken + workspace.changeCount) { level, text in
                     #if DEBUG
                     print("[preview] \(level): \(text)")
                     #endif
                     console.append((level, text))
                     if console.count > 500 { console.removeFirst(console.count - 500) }
                 } onReload: { console.removeAll() }
+                .id(url)
                 if showConsole {
                     Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
                     ScrollView {
@@ -61,8 +65,8 @@ struct PreviewPanel: View {
                 }
             } else {
                 NotYet(title: "Preview", detail: workspace.rootURL == nil
-                       ? "Open a project with an index.html to preview it here."
-                       : "No index.html in this project (looked in the root, public/ and src/).")
+                       ? "Open a project with an index.html, or a Markdown file, to preview it here."
+                       : "No index.html in this project (looked in the root, public/ and src/). Open a Markdown file to preview it.")
             }
         }
         .background(palette.surface.pane.color)
@@ -71,7 +75,7 @@ struct PreviewPanel: View {
 
 private struct PreviewWebView: UIViewRepresentable {
     let root: URL
-    let entry: String
+    let url: URL
     let reloadToken: Int
     let onConsole: @MainActor (String, String) -> Void
     let onReload: () -> Void
@@ -113,7 +117,7 @@ private struct PreviewWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isInspectable = true
         let container = Container(webView: webView)
-        container.url = Preview.url(for: entry)
+        container.url = url
         container.token = reloadToken
         return container
     }

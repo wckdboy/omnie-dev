@@ -5,6 +5,7 @@ import Foundation
 import Testing
 @testable import RunKit
 
+extension WebKitSuites {
 @MainActor
 struct JSRunnerTests {
     let root: URL
@@ -74,7 +75,9 @@ struct JSRunnerTests {
         #expect(result.output.contains { $0.stream == .err && $0.text.contains("missing") })
     }
 }
+}
 
+extension WebKitSuites {
 @MainActor
 struct PythonRunnerTests {
     let root: URL
@@ -136,4 +139,5 @@ struct PythonRunnerTests {
         let loop = await (try JSRunner(root: root)).runPython("loop.py", timeout: 8)
         #expect(loop.ending == .timedOut(seconds: 8))
     }
+}
 }

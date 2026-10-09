@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; --text: #16181b; --muted: #5b6168; --bg: #fbfbfa; --code: #f0f1f2; --rule: #dfe1e3; --link: #007a94; }
+  @media (prefers-color-scheme: dark) { :root { --text: #e6e8eb; --muted: #9aa1a9; --bg: #111316; --code: #1b1e22; --rule: #2a2e33; --link: #3dd6f5; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 20px 64px; }
+  h1, h2 { border-bottom: 1px solid var(--rule); padding-bottom: .3em; }
+  a { color: var(--link); }
+  code, pre { font: 13px/1.5 ui-monospace, "SF Mono", monospace; background: var(--code); border-radius: 6px; }
+  code { padding: .1em .35em; }
+  pre { padding: 12px 14px; overflow-x: auto; }
+  pre code { padding: 0; background: none; }
+  blockquote { margin: 0; padding-left: 14px; border-left: 3px solid var(--rule); color: var(--muted); }
+  table { border-collapse: collapse; } th, td { border: 1px solid var(--rule); padding: 4px 10px; }
+  img { max-width: 100%; }
+  .mermaid { background: transparent; text-align: center; margin: 16px 0; }
+  .error { color: #e5484d; }
+</style>
+<main id="doc"></main>
+<script src="omnie-run://local/__omnie/packages/mermaid/mermaid.min.js"></script>
+<script type="module" src="omnie-run://local/__omnie/runtime/markdown.js"></script>

@@ -75,6 +75,9 @@ def main() -> None:
         sys.exit(f"missing {sucrase}; run scripts/vendor-runkit.sh")
     items.append(entry("Sucrase", "3.35.1", [sucrase], "https://github.com/alangpierce/sucrase"))
     items.append(entry("three.js", "0.186.1", [ROOT / "packages/RunKit/Sources/RunKit/JS/packages/three/LICENSE"], "https://threejs.org"))
+    packages = ROOT / "packages/RunKit/Sources/RunKit/JS/packages"
+    items.append(entry("marked", "18.1.0", [packages / "marked/LICENSE"], "https://marked.js.org"))
+    items.append(entry("Mermaid", "12.1.0", [packages / "mermaid/LICENSE"], "https://mermaid.js.org"))
     pyodide = ROOT / "packages/RunKit/Sources/RunKit/JS/pyodide"
     items.append(entry("Pyodide", "314.0.7", [pyodide / "MPL-2.0.txt"], "https://github.com/pyodide/pyodide"))
     items.append(entry("CPython (in Pyodide)", "3.14", [pyodide / "PSF-2.0.txt"], "https://www.python.org"))

@@ -16,6 +16,17 @@ public enum Preview {
         }
     }
 
+    /// The Markdown preview of a file in the project.
+    public static func markdownURL(for file: String) -> URL {
+        var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/markdown.html")!
+        components.queryItems = [URLQueryItem(name: "file", value: file)]
+        return components.url!
+    }
+
+    public nonisolated static func isMarkdown(_ path: String) -> Bool {
+        ["md", "markdown", "mdx"].contains((path as NSString).pathExtension.lowercased())
+    }
+
     public static func url(for page: String) -> URL {
         URL(string: "\(JSRunner.scheme)://local/\(page)")!
     }
