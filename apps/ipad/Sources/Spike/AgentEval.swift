@@ -5,6 +5,7 @@
 import AgentKit
 import Foundation
 import RunKit
+import SecretsKit
 import ModelKit
 
 /// Runs the golden task set (AgentKit.GoldenTask) against the local 7B, each task in a fresh
@@ -21,9 +22,21 @@ enum AgentEval {
     }
 
     static func run(_ app: AppModel, label: String) async {
-        guard let model = await app.models.standardModel() else {
-            print("[eval] no model: \(app.models.error ?? "?")")
-            return
+        // `-OmnieEvalOnline` runs the set against the configured online model instead of the 7B.
+        let online = ProcessInfo.processInfo.arguments.contains("-OmnieEvalOnline")
+        let model: any TextModel
+        var config = AgentConfig()
+        if online {
+            guard let key = APIKeys.load(provider: app.models.online.provider) else { print("[eval] no model: no API key"); return }
+            model = RemoteModel(config: app.models.online, apiKey: key)
+            config.stepCap = 30
+            print("[eval] online: \(app.models.online.provider) \(app.models.online.model)")
+        } else {
+            guard let local = await app.models.standardModel() else {
+                print("[eval] no model: \(app.models.error ?? "?")")
+                return
+            }
+            model = local
         }
         var rows: [Row] = []
         // `-OmnieEvalTasks a,b` runs only those.
@@ -34,7 +47,7 @@ enum AgentEval {
             do { try task.materialize(at: root) } catch { print("[eval] fixture failed: \(error)"); continue }
             // Outside the project, as in the app: the agent's grep must not find its own journal.
             let journal = Journal(url: root.deletingLastPathComponent().appending(path: "\(root.lastPathComponent).jsonl"))
-            let runner = AgentRunner(goal: task.goal, model: model, tools: AgentModel.tools(root: root), journal: journal,
+            let runner = AgentRunner(goal: task.goal, model: model, tools: AgentModel.tools(root: root), journal: journal, config: config,
                                      authorize: { _, _ in true })
             let t0 = Date()
             let outcome = await runner.run()

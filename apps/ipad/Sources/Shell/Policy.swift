@@ -28,7 +28,20 @@ final class PolicyModel {
     }
 
     var context: PolicyContext {
-        PolicyContext(planeMode: planeMode, project: projectRoot.map { ProjectPolicy.load(projectRoot: $0) } ?? .none)
+        PolicyContext(planeMode: planeMode, approvedProviders: projectRoot.map(approvedProviders(for:)) ?? [],
+                      project: projectRoot.map { ProjectPolicy.load(projectRoot: $0) } ?? .none)
+    }
+
+    /// Providers you've agreed to send this project's code to (PLAN.md §12: the first time is
+    /// Ask + Face ID). Kept per project on this device.
+    func approvedProviders(for root: URL) -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: "policy.providers." + root.standardizedFileURL.path) ?? [])
+    }
+
+    func approve(_ provider: String, for root: URL) {
+        var set = approvedProviders(for: root)
+        set.insert(provider)
+        UserDefaults.standard.set(Array(set).sorted(), forKey: "policy.providers." + root.standardizedFileURL.path)
     }
 
     /// Decides, asks if needed, audits, and returns whether `action` may happen now.

@@ -6,6 +6,8 @@ import CommandKit
 import DesignKit
 import EditorKit
 import GitKit
+import ModelKit
+import SecretsKit
 
 @main
 struct OmnieDevApp: App {
@@ -85,6 +87,13 @@ struct OmnieDevApp: App {
                         try? await Task.sleep(for: .milliseconds(800))
                         model.showAgent()
                         await AgentDemo.run(model)
+                    }
+                    // `-OmnieOnlineModel <base URL>` routes agent tasks to an OpenAI-compatible server
+                    // (a local mock in tests) with the key "test".
+                    if let i = args.firstIndex(of: "-OmnieOnlineModel"), args.indices.contains(i + 1), let url = URL(string: args[i + 1]) {
+                        model.models.online = RemoteModelConfig(kind: .openAICompatible, provider: "custom", baseURL: url, model: "mock")
+                        model.models.route = .online
+                        try? APIKeys.save("test", provider: "custom")
                     }
                     // `-OmnieAgentTask <goal>` starts an agent task in the open project.
                     if let i = args.firstIndex(of: "-OmnieAgentTask"), args.indices.contains(i + 1) {

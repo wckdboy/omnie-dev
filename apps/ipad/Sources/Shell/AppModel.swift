@@ -90,6 +90,7 @@ final class AppModel {
         workspace = WorkspaceModel(policy: policy)
         models = ModelsModel(policy: policy)
         agent = AgentModel(workspace: workspace, models: models, policy: policy)
+        agent.isOffline = { [weak self] in self?.isOffline ?? false }
         workspace.onProjectOpened = { [agent] root in agent.attach(root) }
         workspace.completionModel = { [models] in
             guard models.inlineSuggestions else { return nil }

@@ -4,6 +4,7 @@
 import DesignKit
 import GitKit
 import ModelKit
+import SecretsKit
 import SwiftUI
 
 /// Settings: who you commit as, your SSH key, how the app looks, what it's allowed to do, and the
@@ -44,6 +45,7 @@ struct SettingsView: View {
                 }
 
                 ModelsSection()
+                OnlineModelSection()
 
                 Section {
                     Toggle("Plane mode", isOn: $policy.planeMode)
@@ -173,6 +175,68 @@ private struct ModelsSection: View {
             Text("Models")
         } footer: {
             Text("Models run on this device; nothing you write is sent anywhere. Downloads come from Hugging Face and are checked against pinned checksums. Keep the app open while one downloads.")
+        }
+    }
+}
+
+/// The online model for agent tasks (PLAN.md §7, P4): provider, model, key, and where tasks run.
+private struct OnlineModelSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var key = ""
+    /// Bumped when the key changes; the Keychain isn't observable.
+    @State private var revision = 0
+
+    static let presets: [(name: String, config: RemoteModelConfig)] = [
+        ("Anthropic", .anthropic), ("OpenAI", .openAI), ("DeepSeek", .deepSeek), ("OpenRouter", .openRouter),
+    ]
+
+    var body: some View {
+        @Bindable var models = model.models
+        let _ = revision
+        Section {
+            Picker("Agent tasks run", selection: $models.route) {
+                ForEach(ModelsModel.Route.allCases) { Text($0.rawValue).tag($0) }
+            }
+            Picker("Provider", selection: Binding(
+                get: { Self.presets.first { $0.config.provider == models.online.provider }?.name ?? "Custom" },
+                set: { name in
+                    if let preset = Self.presets.first(where: { $0.name == name }) { models.online = preset.config }
+                    else { models.online = RemoteModelConfig(kind: .openAICompatible, provider: "custom",
+                                                             baseURL: URL(string: "http://localhost:8080/v1")!, model: "local-model") }
+                    key = ""; revision += 1
+                })) {
+                ForEach(Self.presets.map(\.name) + ["Custom"], id: \.self) { Text($0).tag($0) }
+            }
+            TextField("Model", text: $models.online.model)
+                .font(.system(size: 13, design: .monospaced))
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            if models.online.provider == "custom" {
+                TextField("Base URL", text: Binding(get: { models.online.baseURL.absoluteString },
+                                                    set: { if let url = URL(string: $0) { models.online.baseURL = url } }))
+                    .font(.system(size: 13, design: .monospaced))
+                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+            }
+            if models.hasOnlineKey {
+                HStack {
+                    Label("API key saved", systemImage: "key.fill")
+                    Spacer()
+                    Button("Remove", role: .destructive) { APIKeys.delete(provider: models.online.provider); revision += 1 }
+                }
+            } else {
+                HStack {
+                    SecureField("API key", text: $key).textContentType(.password)
+                    Button("Save") {
+                        try? APIKeys.save(key, provider: models.online.provider)
+                        key = ""
+                        revision += 1
+                    }
+                    .disabled(key.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        } header: {
+            Text("Online model")
+        } footer: {
+            Text("Auto uses the online model when you're connected and on this device otherwise; plane mode always means this device. Code goes to a provider only after you agree for that project, with Face ID. Ghost text and commit drafts always stay on this device. The key is kept in this device's Keychain.")
         }
     }
 }

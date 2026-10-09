@@ -31,6 +31,8 @@ final class AgentModel {
         /// Set when the task stopped early: a cap, Stop, or the model getting stuck.
         var attention: String?
         var tip: String?
+        /// The model that did the work, for the Assisted-by trailer.
+        var modelName: String?
     }
 
     private(set) var current: TaskRecord?
@@ -42,6 +44,8 @@ final class AgentModel {
     @ObservationIgnored private let workspace: WorkspaceModel
     @ObservationIgnored private let models: ModelsModel
     @ObservationIgnored private let policy: PolicyModel
+    /// Whether the device is offline right now (AppModel's network monitor).
+    @ObservationIgnored var isOffline: () -> Bool = { false }
     @ObservationIgnored private var runner: AgentRunner?
     #if DEBUG
     /// Stands in for the 7B (simulator UI checks, where MLX can't run).
@@ -90,13 +94,16 @@ final class AgentModel {
             error = "Open a git project first."
             return
         }
+        let local = models.isInstalled(.standard), online = models.hasOnlineKey
         #if DEBUG
-        let hasModel = modelOverride != nil || models.isInstalled(.standard)
+        let hasModel = modelOverride != nil || (models.route == .local ? local : models.route == .online ? online : local || online)
         #else
-        let hasModel = models.isInstalled(.standard)
+        let hasModel = models.route == .local ? local : models.route == .online ? online : local || online
         #endif
         guard hasModel else {
-            error = "The agent runs on \(ModelPack.standard.displayName). Download it in Settings › Models."
+            error = models.route == .online
+                ? "Add an API key for \(models.online.provider) in Settings › Models, or run agent tasks on this device."
+                : "The agent runs on \(ModelPack.standard.displayName) on this device. Download it in Settings › Models, or add an online model."
             return
         }
         workspace.saveCurrent()
@@ -125,20 +132,56 @@ final class AgentModel {
         }
     }
 
-    private func run(_ record: TaskRecord) async {
+    /// The router (PLAN.md §7): plane mode or offline means the local 7B; Online and Auto use the
+    /// online model when there's a key, after you've agreed to send this project's code to that
+    /// provider (Ask + Face ID the first time).
+    private func chooseModel(for record: TaskRecord) async -> (model: any TextModel, name: String, remote: Bool)? {
         #if DEBUG
-        let loaded: (any TextModel)? = if let modelOverride { modelOverride } else { await models.standardModel() }
-        #else
-        let loaded = await models.standardModel()
+        if let modelOverride { return (modelOverride, "scripted model", false) }
         #endif
-        guard let model = loaded else {
-            error = models.error ?? "The model isn't available."
-            return
+        let unavailable = policy.planeMode || isOffline()
+        let wantsOnline = models.route == .online || (models.route == .auto && !unavailable && models.hasOnlineKey)
+        if wantsOnline {
+            if unavailable {
+                error = policy.planeMode ? "Plane mode is on, so online models are off. Set Agent tasks to On this device or Auto in Settings › Models."
+                    : "You're offline. Set Agent tasks to On this device or Auto in Settings › Models."
+                return nil
+            }
+            let config = models.online
+            let root = URL(filePath: record.repoPath)
+            if !policy.approvedProviders(for: root).contains(config.provider) {
+                guard await policy.authorize(.sendToProvider(provider: config.provider),
+                                             artifact: "Agent tasks in \(root.lastPathComponent) will send code to \(config.provider) (\(config.model)) at \(config.host).")
+                else {
+                    error = "Not sent to \(config.provider)."
+                    return nil
+                }
+                policy.approve(config.provider, for: root)
+            }
+            guard let key = APIKeys.load(provider: config.provider) else {
+                error = "Add an API key for \(config.provider) in Settings › Models."
+                return nil
+            }
+            return (RemoteModel(config: config, apiKey: key), config.model, true)
         }
+        guard let model = await models.standardModel() else {
+            error = models.error ?? "The model isn't available."
+            return nil
+        }
+        return (model, ModelPack.standard.displayName, false)
+    }
+
+    private func run(_ record: TaskRecord) async {
+        guard let (model, modelName, remote) = await chooseModel(for: record) else { return }
+        var record = record
+        record.modelName = modelName
+        update(record)
+        var config = AgentConfig()
+        if remote { config.stepCap = 30 } // PLAN.md §6.2: 12 local, 30 API
         let policy = policy
         let runner = AgentRunner(
             goal: record.goal, model: model, tools: Self.tools(root: URL(filePath: record.worktreePath)),
-            journal: journal(for: record),
+            journal: journal(for: record), config: config,
             authorize: { action, artifact in await policy.authorize(action, by: .agent, artifact: artifact) },
             onEntry: { entry in
                 Task { @MainActor [weak self] in
@@ -223,7 +266,7 @@ final class AgentModel {
         }
         let message = record.summary.flatMap(CommitDraft.clean) ?? "Agent: \(record.goal.prefix(60))"
         do {
-            try await repo.squashMerge(record.branch, message: message, author: author, assistedBy: ModelPack.standard.displayName)
+            try await repo.squashMerge(record.branch, message: message, author: author, assistedBy: record.modelName ?? ModelPack.standard.displayName)
             if let worktree = try await repo.taskWorktrees().first(where: { $0.name == record.worktreeName }) {
                 try await repo.removeTaskWorktree(worktree, deleteBranch: true)
             }

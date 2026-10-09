@@ -4,6 +4,7 @@
 import Foundation
 import ModelKit
 import PolicyKit
+import SecretsKit
 import UIKit
 import os
 
@@ -56,6 +57,25 @@ final class ModelsModel {
     private(set) var states: [String: ModelStore.State] = [:]
     private(set) var downloads: [String: Download] = [:]
     var error: String?
+    /// Where agent tasks run (PLAN.md §7 router): on the device, on an online model, or online when
+    /// you're connected and allowed it, else on the device. Plane mode always means local.
+    enum Route: String, CaseIterable, Identifiable {
+        case local = "On this device", online = "Online", auto = "Auto"
+        var id: Self { self }
+    }
+
+    var route = Route(rawValue: UserDefaults.standard.string(forKey: "models.route") ?? "") ?? .local {
+        didSet { UserDefaults.standard.set(route.rawValue, forKey: "models.route") }
+    }
+
+    /// The online model for agent tasks. The key lives in the Keychain (SecretsKit.APIKeys).
+    var online: RemoteModelConfig = (UserDefaults.standard.data(forKey: "models.online"))
+        .flatMap { try? JSONDecoder().decode(RemoteModelConfig.self, from: $0) } ?? .anthropic {
+        didSet { UserDefaults.standard.set(try? JSONEncoder().encode(online), forKey: "models.online") }
+    }
+
+    var hasOnlineKey: Bool { APIKeys.has(provider: online.provider) }
+
     /// Ghost text from the Tiny model while you type. On by default once it's installed.
     var inlineSuggestions = UserDefaults.standard.object(forKey: "models.inlineSuggestions") as? Bool ?? true {
         didSet { UserDefaults.standard.set(inlineSuggestions, forKey: "models.inlineSuggestions") }
