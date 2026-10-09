@@ -47,7 +47,8 @@ struct WebGPUSpikeView: View {
             config.userContentController.add(context.coordinator, name: "spike")
             let view = WKWebView(frame: .zero, configuration: config)
             view.isInspectable = true
-            view.loadHTMLString(Self.page, baseURL: nil)
+            // WebGPU exists only in secure contexts; a nil base URL gives an opaque, insecure origin.
+            view.loadHTMLString(Self.page, baseURL: URL(string: "https://stage.omnie.invalid/"))
             return view
         }
 
@@ -67,7 +68,7 @@ struct WebGPUSpikeView: View {
         <canvas id="gl" width="300" height="200"></canvas>
         <script>
         const post = (m) => window.webkit.messageHandlers.spike.postMessage(m);
-        const result = { userAgent: navigator.userAgent };
+        const result = { userAgent: navigator.userAgent, isSecureContext: window.isSecureContext, origin: location.origin };
         async function webgpu() {
           result.navigatorGPU = !!navigator.gpu;
           if (!navigator.gpu) return;
