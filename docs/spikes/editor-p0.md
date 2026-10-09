@@ -21,6 +21,21 @@ Raw results: `results/ipad-pro-13-m5-engine-0.6.2-*.json` (and the earlier 0.6.1
 - Typing is close but not passing. The p95 is about 1 ms over, while the worst keystroke is 5.7 ms against TextKit's 78–122 ms stalls; for the feel of typing, the tail is arguably what matters. What's left is per-keystroke layout and Swift reference counting in Runestone's line tree (weak parent pointers force slow-path refcounting).
 - By §5.1.6 the engine isn't locked yet. The fallback for a performance miss is "profile first", and the miss is narrow and localized.
 
+## After engine 0.6.4 (simulator, release build; device run pending)
+
+Engine 0.6.4 adds patch 0013: Runestone kept re-announcing the selection to the input system on every layout pass once any caret placement had set a flag, so every keystroke made UIKit's keyboard state re-tokenize the surrounding sentence with ICU. That was most of the per-keystroke cost all along, which is why earlier layout fixes moved typing so little. It now announces once.
+
+| Test | Result (simulator) |
+|---|---|
+| 3 typing, no on-screen keyboard (p95 ≤ 4 ms) | ✅ **0.8 ms** (was 7.1), worst 4.5 ms |
+| 3 typing, on-screen keyboard (info) | 0.8 ms (was 11.7) |
+| 9 decoration load: 500 diagnostics + 50 agent hunks, then fling and typing | setting 600 marks: 0.9 ms; fling and typing unchanged from undecorated runs (device decides fling) |
+| 10 multi-cursor, 50 carets (typing within 8.3 ms, IME on the primary caret) | ✅ **5.9 ms** p95, every line correct, IME marked text on the primary caret only |
+
+**Patch 0013 touches IME behavior.** Tests 5–7 on the device (Korean, Japanese and Chinese input, Scribble, shift and option-shift selection) are the check that it didn't break multi-stage input.
+
+**Not built yet:** ghost text (test 9's third load), and mirroring committed IME text to secondary carets (test 10 prototype limit).
+
 ## Simulator setup and history
 
 The rest of this document is the simulator work that led to the patches.
