@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: fsfe/reuse-action@v5
 
   packages:
@@ -36,12 +36,12 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Xcode
         run: xcodebuild -version
       - name: Tools
         run: brew install ninja xcodegen
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
@@ -51,7 +51,7 @@ jobs:
 
       - name: Cache libgit2
         id: libgit2
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/GitKit/Vendor
           key: libgit2-${{ hashFiles('scripts/build-git-deps.sh', 'scripts/patches/**') }}
@@ -61,7 +61,7 @@ jobs:
 
       - name: Cache grammars
         id: grammars
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             packages/LangKit/Sources/TreeSitterGrammars
@@ -74,7 +74,7 @@ jobs:
 
       - name: Cache RunKit bundles
         id: runkit
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             packages/RunKit/Sources/RunKit/JS/sucrase.js
@@ -98,10 +98,10 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Tools
         run: brew install ninja xcodegen
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
@@ -109,12 +109,12 @@ jobs:
         with:
           targets: wasm32-wasip1
       - name: Restore libgit2
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: packages/GitKit/Vendor
           key: libgit2-${{ hashFiles('scripts/build-git-deps.sh', 'scripts/patches/**') }}
       - name: Restore grammars
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             packages/LangKit/Sources/TreeSitterGrammars
@@ -122,7 +122,7 @@ jobs:
             packages/LangKit/REUSE.toml
           key: grammars-${{ hashFiles('scripts/vendor-grammars.py') }}
       - name: Restore RunKit bundles
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             packages/RunKit/Sources/RunKit/JS/sucrase.js
@@ -138,7 +138,7 @@ jobs:
         run: scripts/test-all.sh --ui 2>&1 | tail -3
       - name: Results on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-test-results
           path: .build/test-all/app/Logs/Test
