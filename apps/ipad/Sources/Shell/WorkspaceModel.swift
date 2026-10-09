@@ -61,6 +61,8 @@ final class WorkspaceModel {
 
     /// One-line inline banner, per the brand rule: what happened and the one next action.
     var banner: String?
+    /// A file the editor can't show, open in the binary viewer.
+    var binaryFile: URL?
 
     init(policy: PolicyModel) {
         self.policy = policy
@@ -336,9 +338,10 @@ final class WorkspaceModel {
             cursor = (1, 1)
             banner = nil
         } catch TextFile.LoadError.binary {
-            banner = "\(url.lastPathComponent) is a binary file. A viewer for it comes later."
-        } catch TextFile.LoadError.tooLarge(let bytes) {
-            banner = "\(url.lastPathComponent) is \(bytes / 1_048_576) MB, over the 8 MB editor limit."
+            binaryFile = url
+        } catch TextFile.LoadError.tooLarge {
+            // Over the editor's 8 MB: the byte view still opens it.
+            binaryFile = url
         } catch {
             banner = "Can't open \(url.lastPathComponent): \(error.localizedDescription)"
         }
