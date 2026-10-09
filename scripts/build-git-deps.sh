@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Builds GitKit's native dependencies as one static XCFramework (iOS device, iOS simulator, macOS):
 #   OpenSSL (libcrypto only) -> libssh2 -> libgit2 (SSH via libssh2, HTTPS via SecureTransport)
+# libgit2 gets the patches in scripts/patches.
 # The three static libraries are merged into a single libgit2 archive.
 # Output: packages/GitKit/Vendor/Clibgit2.xcframework (gitignored; re-run this script to recreate it).
 set -euo pipefail
@@ -37,6 +38,9 @@ if [ ! -d libgit2 ]; then
   git clone --quiet --depth 1 --branch "$LIBGIT2_TAG" https://github.com/libgit2/libgit2.git libgit2
 fi
 [ "$(git -C libgit2 rev-parse HEAD)" = "$LIBGIT2_COMMIT" ] || { echo "libgit2 is not at $LIBGIT2_COMMIT" >&2; exit 1; }
+# Our patches on top (scripts/patches/libgit2-*.patch; each says why in its comment).
+git -C libgit2 checkout --quiet -- .
+for patch in "$ROOT"/scripts/patches/libgit2-*.patch; do git -C libgit2 apply "$patch"; done
 
 build_slice() { # name openssl-target min-version-flag cmake-system sysroot
   local name="$1" ossl_target="$2" min_flag="$3" system="$4" sysroot="$5"

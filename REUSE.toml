@@ -26,3 +26,10 @@ path = ["tools/wasi/jq/patches/jaq-json/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "Michael Färber <michael.faerber@gedenkt.at>"
 SPDX-License-Identifier = "MIT"
+
+# Patches to libgit2 (scripts/build-git-deps.sh applies them): libgit2's own licence, GPL v2 with
+# its linking exception.
+[[annotations]]
+path = ["scripts/patches/libgit2-*.patch"]
+SPDX-FileCopyrightText = ["the libgit2 contributors", "2026 wckdboy and Omnie-dev contributors"]
+SPDX-License-Identifier = "GPL-2.0-only WITH GCC-exception-2.0"

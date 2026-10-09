@@ -140,9 +140,19 @@ struct OmnieDevApp: App {
                         await ModelSmoke.run(model)
                     }
                     // `-OmnieClone <url>` clones and opens the result.
-                    if let i = args.firstIndex(of: "-OmnieClone"), args.indices.contains(i + 1),
-                       let folder = await model.workspace.git.clone(args[i + 1]) {
-                        model.workspace.open(folder: folder)
+                    if let i = args.firstIndex(of: "-OmnieClone"), args.indices.contains(i + 1) {
+                        let started = Date()
+                        let folder = await model.workspace.git.clone(args[i + 1])
+                        let ms = Int(Date().timeIntervalSince(started) * 1000)
+                        if let folder {
+                            model.workspace.open(folder: folder)
+                            let files = FileManager.default.enumerator(atPath: folder.path(percentEncoded: false))?
+                                .compactMap { $0 as? String }.filter { !$0.hasPrefix(".git/") && $0 != ".git" }.count ?? 0
+                            let head = (try? await Repository.open(at: folder).log(limit: 1).first?.summary) ?? "?"
+                            print("[clone] \(args[i + 1]) → \(folder.lastPathComponent): \(files) entries, HEAD \"\(head ?? "")\", \(ms) ms")
+                        } else {
+                            print("[clone] \(args[i + 1]) failed after \(ms) ms: \(model.workspace.git.error ?? "no error recorded")")
+                        }
                     }
                 }
                 #endif

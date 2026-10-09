@@ -19,7 +19,9 @@ Shell, command palette and menus; editor with tree-sitter highlighting, marks, m
 
 Editor navigation: tabs (preview tabs, overflow past 8, ⌃Tab), quick open (⌘P), find in project (⇧⌘F), go to line (⌘L), go to symbol (⇧⌘O and `@` in the palette; `?` sends a task to the agent), and file operations in the navigator (new, rename, duplicate, delete after a checkpoint).
 
-Open from the P1 bar: your hands-on editor checks; cloning from forges other than GitHub (GitLab, Forgejo, Origin) isn't tested.
+Cloning over HTTPS from Codeberg (Forgejo) and GitLab works on the iPad, HEADs matching: forgejo/docs (11 MB, 360 files) in 1.3 s, GitLab's plain-html in 1.8 s. That needed a libgit2 fix (scripts/patches): its SecureTransport stream asked for more than SecureTransport had decrypted, so the last of a pack waited for the server's next packet, 15 s on Codeberg. `OMNIE_LIVE_FORGES=1 swift test --filter LiveForgeTests` checks it from a Mac.
+
+Open from the P1 bar: your hands-on editor checks; SSH to forges other than GitHub, and Origin, aren't tested.
 
 ## P2 plane-ready agent: mostly built
 

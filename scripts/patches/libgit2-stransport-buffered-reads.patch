@@ -1,0 +1,25 @@
+diff --git a/src/libgit2/streams/stransport.c b/src/libgit2/streams/stransport.c
+index 863616d..f89fb65 100644
+--- a/src/libgit2/streams/stransport.c
++++ b/src/libgit2/streams/stransport.c
+@@ -260,9 +260,19 @@ static OSStatus read_cb(SSLConnectionRef conn, void *data, size_t *len)
+ static ssize_t stransport_read(git_stream *stream, void *data, size_t len)
+ {
+ 	stransport_stream *st = (stransport_stream *)stream;
+-	size_t processed;
++	size_t processed, buffered = 0;
+ 	OSStatus ret;
+ 
++	/*
++	 * SecureTransport may hold decrypted data it hasn't returned yet. Asked
++	 * for more than that, SSLRead reads another record from the socket
++	 * first, which blocks when the server has nothing more to send (the
++	 * rest of a pack sat there until Codeberg's next packet, 15 s later).
++	 * Take what is buffered without touching the socket.
++	 */
++	if (SSLGetBufferedReadSize(st->ctx, &buffered) == noErr && buffered > 0 && buffered < len)
++		len = buffered;
++
+ 	if ((ret = SSLRead(st->ctx, data, len, &processed)) != noErr) {
+ 		/* This specific SecureTransport error is not well described */
+ 		if (ret == -9806)
