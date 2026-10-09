@@ -447,6 +447,10 @@ final class AppModel {
             Command(id: "help.welcome", title: "Welcome", menu: "Help", keywords: ["onboarding", "sample project", "get started"]) { [weak self] in
                 self?.welcomeOpen = true
             },
+            Command(id: "git.lfsPull", title: "Download Git LFS files", menu: "Git", keywords: ["large files", "lfs", "pull"]) { [weak self] in
+                guard let self, self.workspace.git.repo != nil else { return }
+                Task { await self.workspace.git.lfsPull(isOffline: self.networkUnavailable) }
+            },
             Command(id: "git.remotes", title: "Remotes…", menu: "Git",
                     keywords: ["move repo", "migrate", "mirror", "forge", "upstream", "add remote"]) { [weak self] in
                 guard let self, self.workspace.git.repo != nil else { return }

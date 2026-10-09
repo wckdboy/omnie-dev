@@ -201,7 +201,12 @@ final class GitModel {
         beforeWorktreeChange?()
         await network({ [weak self] in await self?.sync(isOffline: false) }) {
             do {
+                let lfsRemote = (try await repo.upstreamName())?.split(separator: "/").first.map(String.init) ?? "origin"
+                let lfs = await repo.usesLFS()
+                // Large files go up before the commits that point at them, and new ones come down after.
+                if lfs { try await repo.lfsPush(remote: lfsRemote, auth: auth) }
                 let result = try await repo.sync(auth: auth, committer: committer)
+                if lfs { try await repo.lfsPull(remote: lfsRemote, auth: auth) }
                 syncMessage = result.summary
             } catch SyncError.conflicts {
                 // Fetched already; open the resolver against upstream instead of a dead end.
@@ -219,6 +224,7 @@ final class GitModel {
         let auth = remoteAuth
         for intent in queuedPushes {
             await network({}) {
+                if await repo.usesLFS() { try await repo.lfsPush(auth: auth) }
                 switch try await repo.flush(intent, auth: auth) {
                 case .pushed:
                     queuedPushes.removeAll { $0.id == intent.id }
@@ -247,8 +253,17 @@ final class GitModel {
         var cloned: URL?
         let auth = remoteAuth
         await network({ [weak self] in _ = await self?.clone(url) }) {
-            _ = try await Repository.clone(from: url, to: destination, auth: auth)
+            let repo = try await Repository.clone(from: url, to: destination, auth: auth)
             cloned = destination
+            // Large files (Git LFS) come down with the clone; a failure there doesn't undo it.
+            if await repo.usesLFS() {
+                do {
+                    let count = try await repo.lfsPull(auth: auth)
+                    syncMessage = "Cloned, with \(count) large file\(count == 1 ? "" : "s") (Git LFS)"
+                } catch {
+                    self.error = "Cloned, but its Git LFS files didn't download: \((error as? LocalizedError)?.errorDescription ?? "\(error)"). Git › Download Git LFS files tries again."
+                }
+            }
         }
         return cloned
     }
@@ -332,6 +347,25 @@ final class GitModel {
             error = "Reverting conflicts with later changes in \(paths.joined(separator: ", ")). Nothing was changed."
         } catch {
             self.error = describe(error)
+        }
+        afterWorktreeChange?()
+        await refresh()
+    }
+
+    // MARK: Git LFS
+
+    /// Downloads the large files HEAD needs (Git › Download Git LFS files).
+    func lfsPull(isOffline: Bool) async {
+        guard let repo else { return }
+        guard !isOffline else { error = "Downloading Git LFS files needs the network."; return }
+        isSyncing = true
+        defer { isSyncing = false }
+        let auth = remoteAuth
+        let remote = ((try? await repo.upstreamName()) ?? nil)?.split(separator: "/").first.map(String.init) ?? "origin"
+        beforeWorktreeChange?()
+        await network({ [weak self] in await self?.lfsPull(isOffline: false) }) {
+            let count = try await repo.lfsPull(remote: remote, auth: auth)
+            syncMessage = count == 0 ? "Git LFS files are all here" : "Downloaded \(count) Git LFS file\(count == 1 ? "" : "s")"
         }
         afterWorktreeChange?()
         await refresh()

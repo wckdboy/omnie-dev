@@ -64,8 +64,10 @@ extension Repository {
 
     /// Runs the plan. Each step is safe to repeat, so a move that failed partway (the network)
     /// can simply be run again.
-    public func migrate(_ plan: MigrationPlan, auth: RemoteAuth) throws {
+    public func migrate(_ plan: MigrationPlan, auth: RemoteAuth) async throws {
         if try !remotes().contains(where: { $0.name == plan.to }) { try addRemote(name: plan.to, url: plan.url) }
+        // Large files first, so the moved commits don't point at objects the new forge lacks.
+        if usesLFS() { try await lfsPush(remote: plan.to, auth: auth) }
         let refspecs = plan.branches.map { "refs/heads/\($0):refs/heads/\($0)" } + plan.tags.map { "refs/tags/\($0):refs/tags/\($0)" }
         try push(remote: plan.to, refspecs: refspecs, auth: auth)
         // Remote-tracking branches for the new remote, so upstreams can point at them.

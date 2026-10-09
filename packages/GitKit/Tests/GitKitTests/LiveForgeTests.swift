@@ -30,4 +30,23 @@ struct LiveForgeTests {
         print("[forge] \(url): \(Int(Date().timeIntervalSince(started) * 1000)) ms, HEAD \(log.first?.summary ?? "?")")
         #expect(!log.isEmpty)
     }
+
+    /// Git LFS from a real forge (Gitea), anonymous: clone, download the large files, check them.
+    @Test(.enabled(if: enabled))
+    func clonesWithLFSFiles() async throws {
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent("lfs-live-\(UUID().uuidString)")
+        let auth = RemoteAuth(credential: { _ in nil }, checkHostKey: { _ in .trusted })
+        let started = Date()
+        let repo = try await Repository.clone(from: "https://gitea.com/jkelroy/lfs-example-2.git", to: dest, auth: auth)
+        #expect(await repo.usesLFS())
+        let pointers = try await repo.lfsPointers()
+        let count = try await repo.lfsPull(auth: auth)
+        print("[forge] LFS: \(pointers.count) pointers, \(count) downloaded in \(Int(Date().timeIntervalSince(started) * 1000)) ms")
+        #expect(!pointers.isEmpty && count == Set(pointers.values).count)
+        for (path, pointer) in pointers {
+            let data = try Data(contentsOf: dest.appending(path: path))
+            #expect(LFS.Pointer(content: data) == pointer, "\(path) has its real content")
+        }
+        #expect(try await repo.status().entries.isEmpty)
+    }
 }

@@ -107,6 +107,7 @@ build_slice() { # name openssl-target min-version-flag cmake-system sysroot
   cat > "$dir/headers/module.modulemap" <<'EOF'
 module Clibgit2 {
     header "git2.h"
+    header "git2/sys/filter.h"
     export *
     link "iconv"
     link framework "CoreFoundation"

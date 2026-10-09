@@ -285,6 +285,10 @@ struct OmnieDevApp: App {
                                 .compactMap { $0 as? String }.filter { !$0.hasPrefix(".git/") && $0 != ".git" }.count ?? 0
                             let head = (try? await Repository.open(at: folder).log(limit: 1).first?.summary) ?? "?"
                             print("[clone] \(args[i + 1]) → \(folder.lastPathComponent): \(files) entries, HEAD \"\(head ?? "")\", \(ms) ms")
+                            if let pointers = try? await Repository.open(at: folder).lfsPointers(), !pointers.isEmpty {
+                                let stillPointers = pointers.keys.filter { (try? Data(contentsOf: folder.appending(path: $0))).flatMap(LFS.Pointer.parse) != nil }
+                                print("[clone] LFS: \(pointers.count) files, \(stillPointers.count) still pointers; \(model.workspace.git.syncMessage ?? model.workspace.git.error ?? "")")
+                            }
                         } else {
                             print("[clone] \(args[i + 1]) failed after \(ms) ms: \(model.workspace.git.error ?? "no error recorded")")
                         }

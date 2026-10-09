@@ -10,6 +10,8 @@ enum Libgit2 {
     static let initialize: Void = {
         git_libgit2_init()
         omnie_ssh_set_sign_function(sshSignFunction)
+        // Files marked filter=lfs go through Git LFS (LFS.swift).
+        LFS.register
         return ()
     }()
 }
