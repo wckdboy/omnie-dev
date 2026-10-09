@@ -290,9 +290,17 @@ public actor AgentRunner {
 
     static let callPrefix = "<tool_call>\n{\"name\": \""
 
+    /// One model call, retried once if it fails partway (a dropped stream loses only this step).
     private func generate(_ entries: [JournalEntry], prefix: String?) async throws -> String {
-        try await model.complete(.conversation(conversation(entries), toolsJSON: toolsJSON(), assistantPrefix: prefix),
-                                 maxTokens: config.maxTokensPerStep, temperature: config.temperature, stop: ["</tool_call>"])
+        let prompt = ModelPrompt.conversation(conversation(entries), toolsJSON: toolsJSON(), assistantPrefix: prefix)
+        do {
+            return try await model.complete(prompt, maxTokens: config.maxTokensPerStep, temperature: config.temperature, stop: ["</tool_call>"])
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            try await Task.sleep(for: .seconds(2))
+            return try await model.complete(prompt, maxTokens: config.maxTokensPerStep, temperature: config.temperature, stop: ["</tool_call>"])
+        }
     }
 
     static func containsCodeBlock(_ output: String) -> Bool {

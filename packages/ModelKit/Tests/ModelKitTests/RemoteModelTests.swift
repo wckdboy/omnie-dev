@@ -75,6 +75,7 @@ struct RemoteModelTests {
         let body = try JSONSerialization.jsonObject(with: StubProtocol.bodies[0]) as! [String: Any]
         #expect(body["model"] as? String == "claude-sonnet-5-5")
         #expect(body["system"] as? String == "You are a coding agent.")
+        #expect(body["temperature"] == nil)
         let messages = body["messages"] as! [[String: String]]
         // Alternating roles; the tool turn merged into the user turn before it.
         #expect(messages.map { $0["role"]! } == ["user", "assistant", "user"])
@@ -114,6 +115,9 @@ struct RemoteModelTests {
             _ = try await model.complete(.chat(system: nil, user: "hi"), maxTokens: 5)
         }
         #expect(RemoteModelError.http(status: 401, message: "x").localizedDescription.contains("Settings › Models"))
+        #expect(RemoteModel.isTransient(RemoteModelError.http(status: 529, message: "overloaded")))
+        #expect(RemoteModel.isTransient(URLError(.networkConnectionLost)))
+        #expect(!RemoteModel.isTransient(RemoteModelError.http(status: 400, message: "bad")))
         StubProtocol.status = 200
     }
 }

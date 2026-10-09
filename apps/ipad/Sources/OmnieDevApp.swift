@@ -97,6 +97,17 @@ struct OmnieDevApp: App {
                         model.models.route = .online
                         try? APIKeys.save("test", provider: "custom")
                     }
+                    // `-OmnieImportKey <file in Documents> <provider>` moves an API key from a file into the
+                    // Keychain and deletes the file (so the key never appears in launch arguments or logs).
+                    if let i = args.firstIndex(of: "-OmnieImportKey"), args.indices.contains(i + 2) {
+                        let url = URL.documentsDirectory.appending(path: args[i + 1])
+                        if let key = try? String(contentsOf: url, encoding: .utf8) {
+                            try? APIKeys.save(key, provider: args[i + 2])
+                            if args[i + 2] == "anthropic" { model.models.online = .anthropic }
+                            print("[key] imported for \(args[i + 2]): \(APIKeys.has(provider: args[i + 2]))")
+                        }
+                        try? FileManager.default.removeItem(at: url)
+                    }
                     // `-OmnieAgentTask <goal>` starts an agent task in the open project.
                     if let i = args.firstIndex(of: "-OmnieAgentTask"), args.indices.contains(i + 1) {
                         try? await Task.sleep(for: .milliseconds(800))

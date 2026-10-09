@@ -66,18 +66,31 @@ public struct RemoteModel: TextModel {
 
     public func stream(_ prompt: ModelPrompt, maxTokens: Int, temperature: Float) async throws -> AsyncThrowingStream<String, Error> {
         let request = try makeRequest(prompt, maxTokens: maxTokens, temperature: temperature)
-        let (bytes, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse else { throw RemoteModelError.badResponse }
-        guard (200..<300).contains(http.statusCode) else {
-            var body = ""
-            for try await line in bytes.lines { body += line; if body.count > 2_000 { break } }
-            throw RemoteModelError.http(status: http.statusCode, message: Self.errorMessage(body))
+        var attempt = 0
+        var bytes: URLSession.AsyncBytes
+        while true {
+            attempt += 1
+            do {
+                let (b, response) = try await session.bytes(for: request)
+                guard let http = response as? HTTPURLResponse else { throw RemoteModelError.badResponse }
+                guard (200..<300).contains(http.statusCode) else {
+                    var body = ""
+                    for try await line in b.lines { body += line; if body.count > 2_000 { break } }
+                    throw RemoteModelError.http(status: http.statusCode, message: Self.errorMessage(body))
+                }
+                bytes = b
+                break
+            } catch where attempt < Self.attempts && Self.isTransient(error) {
+                // Dropped connections, rate limits and overloads usually pass: wait and retry.
+                try await Task.sleep(for: .milliseconds(500 * (1 << attempt)))
+            }
         }
         let kind = config.kind
+        let received = bytes
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    for try await line in bytes.lines {
+                    for try await line in received.lines {
                         guard line.hasPrefix("data:") else { continue }
                         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
                         if payload == "[DONE]" { break }
@@ -134,7 +147,8 @@ public struct RemoteModel: TextModel {
             request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
             if let prefill { messages.append(Message(role: "assistant", content: prefill)) }
-            body = ["model": config.model, "max_tokens": maxTokens, "stream": true, "temperature": Double(temperature),
+            // No temperature: current Claude models reject it ("deprecated for this model").
+            body = ["model": config.model, "max_tokens": maxTokens, "stream": true,
                     "messages": messages.map { ["role": $0.role, "content": $0.content] }]
             if let system { body["system"] = system }
         case .openAICompatible:
@@ -165,6 +179,19 @@ public struct RemoteModel: TextModel {
             let choice = (json["choices"] as? [[String: Any]])?.first
             return (choice?["delta"] as? [String: Any])?["content"] as? String
         }
+    }
+
+    static let attempts = 3
+
+    /// Worth retrying: network drops and timeouts, 408, 429, and server errors (529 is "overloaded").
+    static func isTransient(_ error: Error) -> Bool {
+        if let error = error as? RemoteModelError, case .http(let status, _) = error {
+            return status == 408 || status == 429 || status >= 500
+        }
+        if let error = error as? URLError {
+            return [.networkConnectionLost, .timedOut, .notConnectedToInternet, .cannotConnectToHost, .dnsLookupFailed].contains(error.code)
+        }
+        return false
     }
 
     static func errorMessage(_ body: String) -> String {
