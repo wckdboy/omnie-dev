@@ -20,8 +20,10 @@ struct WasiTests {
         try "x".write(to: root.appending(path: "data/sub/b.txt"), atomically: true, encoding: .utf8)
     }
 
-    func run(_ args: String..., stdin: String = "", cwd: String = "", timeout: Double = 20, memory: Int = 1024) async throws -> RunResult {
-        await (try JSRunner(root: root)).runWasm("bin/probe.wasm", args: args, stdin: stdin, env: ["GREETING": "hi"], cwd: cwd, timeout: timeout, memoryLimitMB: memory)
+    func run(_ args: String..., stdin: String = "", cwd: String = "", timeout: Double = 20, memory: Int = 1024,
+             fuel: Int64 = JSRunner.defaultFuel) async throws -> RunResult {
+        await (try JSRunner(root: root)).runWasm("bin/probe.wasm", args: args, stdin: stdin, env: ["GREETING": "hi"], cwd: cwd,
+                                                  timeout: timeout, memoryLimitMB: memory, fuel: fuel)
     }
 
     func text(_ r: RunResult) -> [String] { r.output.map(\.text) }
@@ -77,8 +79,12 @@ struct WasiTests {
     }
 
     @Test func limits() async throws {
-        let spin = try await run("spin", timeout: 2)
+        let spin = try await run("spin", timeout: 2, fuel: 0)
         #expect(spin.ending == .timedOut(seconds: 2))
+        // Fuel stops it deterministically, long before the timeout.
+        let budget = try await run("spin", timeout: 20, fuel: 50_000_000)
+        #expect(budget.exitCode == 124 && budget.ending == .finished && budget.output.contains { $0.text.contains("used up its fuel") }, "\(budget.report)")
+        #expect(budget.ms < 5_000)
         let big = try await run("alloc", "300", memory: 128)
         #expect(big.exitCode == 137 || big.output.contains { $0.text.contains("memory") }, "\(big.report)")
         #expect(text(try await run("alloc", "16")) == ["16"])
@@ -150,6 +156,9 @@ struct WasiToolTests {
         #expect(pretty.output.map(\.text) == ["{", "  \"n\": 2", "}"])
         let compact = await runner.runWasm("jq", args: ["-c", "--arg", "who", "Ada", "[.users[] | .name == $who]", "data.json"])
         #expect(compact.output.map(\.text) == ["[true,false]"])
+        // Integers past 32 bits (isize on wasm32) don't wrap, and print like jq's.
+        let big = await runner.runWasm("jq", args: ["-n", "[range(200000)] | add, 3 * 1500000000, 1.5, -(-2147483648)"])
+        #expect(big.output.map(\.text) == ["19999900000", "4500000000", "1.5", "2147483648"], "\(big.report)")
         let bad = await runner.runWasm("jq", args: [".users[", "data.json"])
         #expect(bad.exitCode == 3 && bad.output.first?.text.hasPrefix("jq: error") == true, "\(bad.report)")
     }

@@ -33,15 +33,20 @@ extension JSRunner {
         return tools
     }
 
+    /// The fuel budget per run: one unit per function call or loop iteration, about half a minute
+    /// of busy work on an M-series chip. 0 means none (the timeout still applies).
+    public nonisolated static let defaultFuel: Int64 = 20_000_000_000
+
     /// Runs `program`: a `.wasm` path in the project, or the name of a bundled tool.
     public func runWasm(_ program: String, args: [String] = [], stdin: String = "", env: [String: String] = [:],
-                        cwd: String = "", timeout: Double = 60, memoryLimitMB: Int = 1024, preopens: Preopens = .standard) async -> RunResult {
+                        cwd: String = "", timeout: Double = 60, memoryLimitMB: Int = 1024, preopens: Preopens = .standard,
+                        fuel: Int64 = defaultFuel) async -> RunResult {
         let isProjectFile = program.hasSuffix(".wasm")
         let moduleURL = isProjectFile
             ? "omnie-run://local/" + program.split(separator: "/").map { $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String($0) }.joined(separator: "/")
             : "omnie-run://local/__omnie/packages/wasi/\(program).wasm"
         let name = isProjectFile ? ((program as NSString).lastPathComponent as NSString).deletingPathExtension : program
-        let spec: [String: Any] = ["module": moduleURL, "args": [name] + args, "env": env, "stdin": stdin, "cwd": cwd, "memoryLimitMB": memoryLimitMB, "preopens": preopens.rawValue]
+        let spec: [String: Any] = ["module": moduleURL, "args": [name] + args, "env": env, "stdin": stdin, "cwd": cwd, "memoryLimitMB": memoryLimitMB, "preopens": preopens.rawValue, "fuel": fuel]
         let specJSON = String(decoding: try! JSONSerialization.data(withJSONObject: spec), as: UTF8.self)
 
         let session = Session(root: root, transpiler: transpiler)

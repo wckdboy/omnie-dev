@@ -32,7 +32,8 @@ The app also bundles, built from source:
   TypeScript 5.9.3   Apache-2.0   https://www.typescriptlang.org   (offline type checking)
                    its lib .d.ts files carry third-party notices, kept in ThirdPartyNoticeText.txt
   jq for WASI (tools/wasi/jq, our own command line) on jaq-core 2.2.1, jaq-std 2.1.2 and
-                   jaq-json 1.1.3 (MIT, https://github.com/01mf02/jaq), their dependencies, the
+                   jaq-json 1.1.3 (MIT, https://github.com/01mf02/jaq; jaq-json patched so integer
+                   overflow becomes a float, in tools/wasi/jq/patches), their dependencies, the
                    Rust standard library and wasi-libc; every licence text ships beside it
                    (jq-LICENSES.txt, gathered by scripts/collect-cargo-licenses.py)
   Pyodide 314.0.7   MPL-2.0 (unmodified)   https://github.com/pyodide/pyodide

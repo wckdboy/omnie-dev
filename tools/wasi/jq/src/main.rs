@@ -193,6 +193,8 @@ fn pretty(out: &mut String, v: &Val, opts: &Opts, level: usize) {
             if !opts.compact { indent(out, level); }
             out.push('}');
         }
+        // jq prints whole numbers without a decimal point, whatever their representation.
+        Val::Float(f) if f.is_finite() && f.fract() == 0.0 && f.abs() < 1e17 => { let _ = write!(out, "{f:.0}"); }
         other => { let _ = write!(out, "{other}"); }
     }
 }

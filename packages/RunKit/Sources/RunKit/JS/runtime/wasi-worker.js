@@ -7,6 +7,7 @@
 // absolute paths, no ".." past it), rights only shrink, and there are no sockets. A memory cap is
 // checked at every system call; the run's timeout stops runaways.
 const base = "omnie-run://local/";
+importScripts(base + "__omnie/runtime/wasm-fuel.js");
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 
 const E = { SUCCESS: 0, ACCES: 2, BADF: 8, EXIST: 20, INVAL: 28, IO: 29, ISDIR: 31, LOOP: 32, NAMETOOLONG: 37, NOENT: 44,
@@ -33,7 +34,7 @@ class Errno { constructor(code) { this.code = code; } }
 const fail = (code) => { throw new Errno(code); };
 
 self.onmessage = async (event) => {
-  const { module: moduleURL, args, env, stdin, cwd, memoryLimitMB, preopens } = event.data;
+  const { module: moduleURL, args, env, stdin, cwd, memoryLimitMB, preopens, fuel } = event.data;
   const out = { log: "", error: "" };
   const flush = (stream, final) => {
     const lines = out[stream].split("\n");
@@ -480,20 +481,31 @@ self.onmessage = async (event) => {
     };
   }
 
-  let code = 0;
+  let code = 0, instance = null;
   try {
     const response = await fetch(moduleURL);
     if (!response.ok) throw new Error(`Can't find ${moduleURL.replace(base, "")}`);
-    const module = await WebAssembly.compile(await response.arrayBuffer());
+    let bytes = await response.arrayBuffer();
+    // Fuel: a deterministic budget, spent at every call and loop iteration (wasm-fuel.js).
+    let fueled = false;
+    if (fuel > 0) {
+      const instrumented = self.omnieInstrumentFuel(bytes, fuel);
+      if (instrumented) { bytes = instrumented; fueled = true; }
+      else postMessage({ type: "console", level: "error", text: "Note: this module couldn't be given a fuel budget; only the timeout limits it." });
+    }
+    const module = await WebAssembly.compile(bytes);
     const unsupported = WebAssembly.Module.imports(module).filter((i) => i.module !== "wasi_snapshot_preview1" || !(i.name in imports));
     if (unsupported.length) throw new Error("Needs imports RunKit doesn't provide: " + unsupported.map((i) => `${i.module}.${i.name}`).join(", "));
-    const instance = await WebAssembly.instantiate(module, { wasi_snapshot_preview1: imports });
+    instance = await WebAssembly.instantiate(module, { wasi_snapshot_preview1: imports });
     memory = instance.exports.memory;
     if (instance.exports._start) instance.exports._start();
     else throw new Error("Not a WASI command (no _start export).");
   } catch (e) {
     if (e instanceof Exit) code = e.code;
     else if (e instanceof MemoryLimit) { code = 137; postMessage({ type: "console", level: "error", text: `Stopped: used more than ${memoryLimitMB ?? 1024} MB of memory.` }); }
+    else if (instance?.exports.__omnie_fuel && instance.exports.__omnie_fuel.value < 0n) {
+      code = 124; postMessage({ type: "console", level: "error", text: `Stopped: used up its fuel (${fuel.toLocaleString("en")} units).` });
+    }
     else { code = 1; postMessage({ type: "console", level: "error", text: e instanceof WebAssembly.RuntimeError ? `wasm trap: ${e.message}` : String(e.message ?? e) }); }
   }
   flush("log", true); flush("error", true);

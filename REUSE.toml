@@ -19,3 +19,10 @@ SPDX-License-Identifier = "LicenseRef-Omnie-dev-Icon"
 path = ["fixtures/**"]
 SPDX-FileCopyrightText = "2026 wckdboy and Omnie-dev contributors"
 SPDX-License-Identifier = "Apache-2.0"
+
+# jaq-json 1.1.3 (MIT, https://github.com/01mf02/jaq), vendored with one patch for the WASI jq.
+[[annotations]]
+path = ["tools/wasi/jq/patches/jaq-json/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Michael Färber <michael.faerber@gedenkt.at>"
+SPDX-License-Identifier = "MIT"
