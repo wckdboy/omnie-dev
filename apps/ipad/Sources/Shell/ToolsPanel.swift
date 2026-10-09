@@ -18,7 +18,7 @@ struct ToolsPanel: View {
     @State private var tool = Tool.http
 
     enum Tool: String, CaseIterable, Identifiable {
-        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff"
+        case http = "HTTP", sqlite = "SQLite", patterns = "Patterns", diff = "Diff", snippets = "Snippets"
         var id: Self { self }
     }
 
@@ -35,11 +35,13 @@ struct ToolsPanel: View {
             case .sqlite: SQLiteTool()
             case .patterns: PatternsTool()
             case .diff: DiffTool()
+            case .snippets: SnippetsTool()
             }
         }
         // "Compare open file with…" in the palette lands here.
         .onChange(of: model.diffLeft) { if model.diffLeft != nil { tool = .diff } }
-        .onAppear { if model.diffLeft != nil { tool = .diff } }
+        .onAppear { if model.diffLeft != nil { tool = .diff } else if model.snippetRequest != nil { tool = .snippets } }
+        .onChange(of: model.snippetRequest) { if model.snippetRequest != nil { tool = .snippets } }
         #if DEBUG
         // `-OmnieTools Patterns` opens that tool.
         .task {

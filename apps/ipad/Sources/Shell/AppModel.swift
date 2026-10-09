@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import SwiftUI
+import ToolsKit
 import Network
 import GameController
 import CommandKit
@@ -69,6 +70,10 @@ final class AppModel {
     var terminalRequest: String?
     /// A file for the diff tool's left side ("Compare open file with…").
     var diffLeft: String?
+    /// A new snippet to edit ("Save selection as snippet").
+    var snippetRequest: SnippetVault.Snippet?
+    /// The snippet vault (PLAN.md §11.1), in Application Support.
+    let snippets = try? SnippetVault(url: AppPaths.support.appendingPathComponent("snippets.sqlite"))
     /// The docs sheet's starting query, or nil when it's closed.
     var docsQuery: String?
     var focusMode = false
@@ -106,6 +111,7 @@ final class AppModel {
         models = ModelsModel(policy: policy)
         docs = DocsModel(policy: policy)
         agent = AgentModel(workspace: workspace, models: models, policy: policy)
+        agent.snippets = snippets
         agent.isOffline = { [weak self] in self?.isOffline ?? false }
         workspace.onProjectOpened = { [agent] root in agent.attach(root) }
         workspace.completionModel = { [models] in
@@ -254,6 +260,15 @@ final class AppModel {
             Command(id: "tools.compare", title: "Compare open file with…", menu: "File", keywords: ["diff", "compare", "difference", "clipboard"]) { [weak self] in
                 guard let self, let path = workspace.relativePath else { return }
                 diffLeft = path
+                show(.tools)
+            },
+            Command(id: "snippets.saveSelection", title: "Save selection as snippet", menu: "File", keywords: ["snippet", "vault", "save code"]) { [weak self] in
+                guard let self, workspace.openFile != nil else { return }
+                let range = workspace.editor.selectedRange
+                guard range.length > 0 else { return }
+                let text = (workspace.editor.text as NSString).substring(with: range)
+                let firstLine = text.split(separator: "\n").first.map { String($0.prefix(50)).trimmingCharacters(in: .whitespaces) } ?? "Snippet"
+                snippetRequest = .init(title: firstLine, language: workspace.language?.rawValue ?? "", body: text)
                 show(.tools)
             },
             Command(id: "problems.show", title: "Show problems", menu: "File",

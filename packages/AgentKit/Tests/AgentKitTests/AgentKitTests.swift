@@ -300,6 +300,9 @@ struct AgentLoopTests {
         #expect(try tests.action(for: ToolCall(name: "run_tests", arguments: [:])) == .runSandboxed(command: "run_tests", network: false))
         #expect(try script.action(for: ToolCall(name: "run_script", arguments: ["path": .string("a.ts")])) == .runSandboxed(command: "run_script a.ts", network: false))
         #expect(try await tests.run(ToolCall(name: "run_tests", arguments: ["path": .string("t.test.ts")])) == "ran t.test.ts")
+        let snippets = SnippetsSearchTool { "found \($0)" }
+        #expect(try await snippets.run(ToolCall(name: "snippets_search", arguments: ["query": .string("fetch")])) == "found fetch")
+        #expect(PolicyEngine.decide(try snippets.action(for: ToolCall(name: "snippets_search", arguments: ["query": .string("x")])), by: .agent, in: PolicyContext(planeMode: true)).tier == .auto)
         let stage = StageSceneTool { "Stage: scene.stage.js" }
         #expect(try await stage.run(ToolCall(name: "stage_scene", arguments: [:])) == "Stage: scene.stage.js")
         #expect(try stage.action(for: ToolCall(name: "stage_scene", arguments: [:])) == .readProject(path: "stage:scene"))

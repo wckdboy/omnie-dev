@@ -188,8 +188,17 @@ final class AgentModel {
         var config = AgentConfig()
         if remote { config.stepCap = 30 } // PLAN.md §6.2: 12 local, 30 API
         let policy = policy
+        // Snippets you pinned ride along as context (PLAN.md §11.1); the rest are searchable.
+        let vault = snippets
+        let pinned: String? = (try? vault?.agentContext()) ?? nil
+        var search: (@Sendable (String) -> String)?
+        if let vault {
+            search = { @Sendable query in Self.describe((try? vault.search(query, limit: 5)) ?? []) }
+        }
+        let goal = record.goal + (pinned.map { "\n\n" + $0 } ?? "")
+        let tools = Self.tools(root: URL(filePath: record.worktreePath), stage: { await StageSnapshot.shared.summary() }, snippets: search)
         let runner = AgentRunner(
-            goal: record.goal, model: model, tools: Self.tools(root: URL(filePath: record.worktreePath), stage: { await StageSnapshot.shared.summary() }),
+            goal: goal, model: model, tools: tools,
             journal: journal(for: record), config: config,
             authorize: { action, artifact in await policy.authorize(action, by: .agent, artifact: artifact) },
             onEntry: { entry in
@@ -363,7 +372,8 @@ final class AgentModel {
     // MARK: Helpers
 
     /// The typed tools plus RunKit's runners, all confined to the task's worktree.
-    nonisolated static func tools(root: URL, stage: (@Sendable () async -> String)? = nil) -> [any AgentTool] {
+    nonisolated static func tools(root: URL, stage: (@Sendable () async -> String)? = nil,
+                                  snippets: (@Sendable (String) -> String)? = nil) -> [any AgentTool] {
         // check_types only where there's TypeScript: one less tool for the model to weigh elsewhere.
         standardTools(root: root) + [
             RunTestsTool { file in await AgentRuns.tests(root: root, file: file) },
@@ -373,6 +383,16 @@ final class AgentModel {
                 await DocsStore(root: DocsModel.root) { _ in throw URLError(.notConnectedToInternet) }.lookup(query)
             }])
             + (stage.map { [StageSceneTool(runner: $0)] } ?? [])
+            + (snippets.map { search in [SnippetsSearchTool(runner: { search($0) })] } ?? [])
+    }
+
+    /// The vault, shared with the Tools tab (set by AppModel).
+    @ObservationIgnored var snippets: SnippetVault?
+
+    nonisolated static func describe(_ found: [SnippetVault.Snippet]) -> String {
+        guard !found.isEmpty else { return "No snippets match." }
+        return found.map { "\($0.title)\($0.tags.isEmpty ? "" : " [" + $0.tags.joined(separator: ", ") + "]"):\n```\($0.language)\n\($0.body)\n```" }
+            .joined(separator: "\n\n")
     }
 
     private func journal(for record: TaskRecord) -> Journal {

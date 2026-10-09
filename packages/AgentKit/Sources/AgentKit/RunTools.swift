@@ -64,3 +64,15 @@ public struct StageSceneTool: AgentTool {
     public func action(for call: ToolCall) throws -> Action { .readProject(path: "stage:scene") }
     public func run(_ call: ToolCall) async throws -> String { await runner() }
 }
+
+/// `snippets_search`: the user's snippet vault (PLAN.md §11.1), read-only. Their own patterns, to
+/// follow where they fit.
+public struct SnippetsSearchTool: AgentTool {
+    let runner: @Sendable (_ query: String) -> String
+    public init(runner: @escaping @Sendable (_ query: String) -> String) { self.runner = runner }
+    public let name = "snippets_search"
+    public let description = "Search the user's saved code snippets (their preferred patterns) by words. Returns matching snippets with code."
+    public var parameters: [String: JSONValue] { schema(["query": ("string", "Words to look for.")], required: ["query"]) }
+    public func action(for call: ToolCall) throws -> Action { .readProject(path: "snippets:" + (try call.string("query"))) }
+    public func run(_ call: ToolCall) async throws -> String { runner(try call.string("query")) }
+}
