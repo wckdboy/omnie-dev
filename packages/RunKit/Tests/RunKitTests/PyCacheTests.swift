@@ -129,6 +129,10 @@ struct PyCacheRunTests {
         try "greetlib>=1.1,<2\n".write(to: project.appending(path: "requirements.txt"), atomically: true, encoding: .utf8)
         try "import greetlib\nprint(greetlib.hello('ada'))\n".write(to: project.appending(path: "main.py"), atomically: true, encoding: .utf8)
         try await FakePyPI.standard().cache(cacheRoot).installProject(project)
+        let warm = FileManager.default.temporaryDirectory.appendingPathComponent("pycache-warm-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: warm, withIntermediateDirectories: true)
+        try "print('warm')\n".write(to: warm.appending(path: "main.py"), atomically: true, encoding: .utf8)
+        try await WebKitSuites.PythonRunnerTests.warmUp(root: warm)
         PyCache.sharedRoot = cacheRoot
         defer { PyCache.sharedRoot = nil }
         let result = await (try JSRunner(root: project)).runPython("main.py", timeout: JSRunnerTests.pythonTimeout)

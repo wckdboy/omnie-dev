@@ -8,9 +8,9 @@ import Testing
 extension WebKitSuites {
 @MainActor
 struct JSRunnerTests {
-    /// Long enough for Pyodide's first load on a slow CI runner (198 s seen on a hosted macOS
-    /// runner; 36 s on a Mac, under a second on the iPad).
-    static let pythonTimeout: Double = 420
+    /// Long enough for Pyodide's first load on a slow CI runner (36 s on a Mac, under a second on
+    /// the iPad). PythonRunnerTests warms it up first, retrying a stalled load.
+    static let pythonTimeout: Double = 180
 
     let root: URL
 
@@ -129,14 +129,38 @@ struct PythonRunnerTests {
         }
     }
 
+    /// Whether Pyodide has loaded once in this test process.
+    static var warmed = false
+
+    /// Loads Pyodide once before the tests that check what it does. On hosted CI runners the very
+    /// first load sometimes stalls with no output at all (7 minutes made no difference) and the
+    /// next one is fine, so a stalled load is retried here instead of failing the test after it.
+    func warmUp() async throws { try await Self.warmUp(root: root) }
+
+    /// Any folder with a `main.py` that prints.
+    static func warmUp(root: URL) async throws {
+        guard !warmed else { return }
+        var last = ""
+        for _ in 0..<3 {
+            let result = await (try JSRunner(root: root)).runPython("main.py", timeout: JSRunnerTests.pythonTimeout)
+            if !result.output.isEmpty {
+                warmed = true
+                return
+            }
+            last = result.report
+        }
+        Issue.record("Pyodide didn't load in three tries: \(last)")
+    }
+
     @Test func runsAScript() async throws {
-        // Pyodide's cold start on a 3-core CI runner, beside other WebKit tests, can pass a minute.
+        try await warmUp()
         let result = await (try JSRunner(root: root)).runPython("main.py", timeout: JSRunnerTests.pythonTimeout)
-        #expect(result.output.contains(.init(stream: .out, text: "total 6")))
+        #expect(result.output.contains(.init(stream: .out, text: "total 6")), "\(result.report)")
         #expect(result.output.contains(.init(stream: .err, text: "oops")))
     }
 
     @Test func runsPytestStyleTests() async throws {
+        try await warmUp()
         #expect(JSRunner.pythonTestFiles(in: root) == ["tests/test_calc.py"])
         let result = await (try JSRunner(root: root)).runPythonTests(["tests/test_calc.py"], timeout: JSRunnerTests.pythonTimeout)
         // Say why when nothing came back (a slow CI runner timing out), and never index past the end.
@@ -147,6 +171,7 @@ struct PythonRunnerTests {
     }
 
     @Test func reportsExceptionsAndStopsLoops() async throws {
+        try await warmUp()
         let boom = await (try JSRunner(root: root)).runPython("boom.py")
         #expect(boom.output.contains { $0.stream == .err && $0.text.contains("ValueError: bad input") })
         let loop = await (try JSRunner(root: root)).runPython("loop.py", timeout: 8)
