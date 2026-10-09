@@ -1,0 +1,5 @@
+Copyright 2026 wckdboy. All rights reserved.
+
+The Omnie-dev app icon (the seamed O) and its appearance variants are not licensed under
+Apache-2.0 or any other license in this repository. See TRADEMARKS.md: forks must replace the
+app icon. Unmodified builds of this repository may include it.
