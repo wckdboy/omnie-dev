@@ -76,3 +76,24 @@ public struct SnippetsSearchTool: AgentTool {
     public func action(for call: ToolCall) throws -> Action { .readProject(path: "snippets:" + (try call.string("query"))) }
     public func run(_ call: ToolCall) async throws -> String { runner(try call.string("query")) }
 }
+
+/// `sqlite_query`: a read-only query on a SQLite database in the project (PLAN.md §11.1: the
+/// SQLite browser's state for the agent; writes stay with you). The runner opens it read-only.
+public struct SQLiteQueryTool: AgentTool {
+    let root: URL
+    let runner: @Sendable (_ file: URL, _ sql: String) -> String
+    public init(root: URL, runner: @escaping @Sendable (_ file: URL, _ sql: String) -> String) {
+        self.root = root
+        self.runner = runner
+    }
+    public let name = "sqlite_query"
+    public let description = "Run a read-only SQL query (SELECT, PRAGMA table_info…) on a SQLite database file in the project. Returns up to 50 rows."
+    public var parameters: [String: JSONValue] {
+        schema(["path": ("string", "The database file."), "sql": ("string", "The query.")], required: ["path", "sql"])
+    }
+    public func action(for call: ToolCall) throws -> Action { .readProject(path: try call.string("path")) }
+    public func run(_ call: ToolCall) async throws -> String {
+        let url = try Sandbox(root: root).resolve(try call.string("path"))
+        return runner(url, try call.string("sql"))
+    }
+}

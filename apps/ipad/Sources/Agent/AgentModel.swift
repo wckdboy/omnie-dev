@@ -384,10 +384,23 @@ final class AgentModel {
             }])
             + (stage.map { [StageSceneTool(runner: $0)] } ?? [])
             + (snippets.map { search in [SnippetsSearchTool(runner: { search($0) })] } ?? [])
+            + (SQLiteDatabase.files(in: root).isEmpty ? [] : [SQLiteQueryTool(root: root) { url, sql in Self.query(url, sql) }])
     }
 
     /// The vault, shared with the Tools tab (set by AppModel).
     @ObservationIgnored var snippets: SnippetVault?
+
+    /// A read-only query, as a plain table.
+    nonisolated static func query(_ url: URL, _ sql: String) -> String {
+        do {
+            let result = try SQLiteDatabase(url: url, readOnly: true).query(sql, limit: 50)
+            guard !result.columns.isEmpty else { return "No rows." }
+            let lines = [result.columns.joined(separator: " | ")] + result.rows.map { $0.joined(separator: " | ") }
+            return lines.joined(separator: "\n") + (result.truncated ? "\n… more rows" : "")
+        } catch {
+            return error.localizedDescription + " (the database is read-only for the agent)"
+        }
+    }
 
     nonisolated static func describe(_ found: [SnippetVault.Snippet]) -> String {
         guard !found.isEmpty else { return "No snippets match." }
