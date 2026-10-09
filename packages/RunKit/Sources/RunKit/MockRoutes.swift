@@ -26,9 +26,15 @@ public struct MockRoute: Codable, Sendable, Hashable {
 public enum MockRoutes {
     public static let relativePath = ".omnie/mocks.json"
 
+    /// The recorded routes in `.omnie/mocks.json`.
     public static func load(root: URL) -> [MockRoute] {
         guard let data = try? Data(contentsOf: root.appending(path: relativePath)) else { return [] }
         return (try? JSONDecoder().decode([MockRoute].self, from: data)) ?? []
+    }
+
+    /// What previews are served: recorded responses first, then the project's OpenAPI spec.
+    public static func all(root: URL) -> [MockRoute] {
+        load(root: root) + OpenAPIMocks.load(root: root)
     }
 
     /// Adds or replaces the route for the same method and path.
