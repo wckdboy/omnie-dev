@@ -48,6 +48,8 @@ final class AppModel {
 
     // Layout
     var paletteOpen = false
+    /// What the palette opens with ("@" for go to symbol).
+    var paletteSeed = ""
     var commitSheetOpen = false
     var sshKeySheetOpen = false
     var cloneSheetOpen = false
@@ -196,6 +198,12 @@ final class AppModel {
                     shortcut: Shortcut("w"), surfaces: .ide, keywords: ["close file"]) { [weak self] in
                 guard let self, let file = workspace.openFile else { return }
                 workspace.closeTab(file)
+            },
+            Command(id: "editor.goToSymbol", title: "Go to symbol…", menu: "File",
+                    shortcut: Shortcut("o", [.command, .shift]), keywords: ["outline", "function", "class", "@"]) { [weak self] in
+                guard let self, workspace.openFile != nil else { return }
+                paletteSeed = "@"
+                paletteOpen = true
             },
             Command(id: "file.quickOpen", title: "Open file…", menu: "File",
                     shortcut: Shortcut("p"), keywords: ["go to file", "quick open", "find file"]) { [weak self] in
