@@ -2,7 +2,8 @@ version = 1
 
 # Files that can't carry an SPDX comment header.
 [[annotations]]
-path = ["**/*.json", "**/*.md", "**/*.yml", "**/*.toml", "**/Package.resolved", ".gitignore", ".github/**", "NOTICE"]
+path = ["**/*.json", "**/*.md", "**/*.yml", "**/*.toml", "**/Package.resolved", ".gitignore", ".github/**", "NOTICE",
+        "packages/RunKit/Tests/wasi-probe/wasi-probe.wasm", "packages/RunKit/Tests/wasi-probe/Cargo.lock"]
 SPDX-FileCopyrightText = "2026 wckdboy and Omnie-dev contributors"
 SPDX-License-Identifier = "Apache-2.0"
 

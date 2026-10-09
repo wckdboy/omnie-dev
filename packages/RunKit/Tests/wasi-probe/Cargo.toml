@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "wasi-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"

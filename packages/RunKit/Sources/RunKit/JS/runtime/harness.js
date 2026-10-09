@@ -20,7 +20,16 @@ const project = (path) => "omnie-run://local/" + path.split("/").map(encodeURICo
 
 (async () => {
   try {
-    if (params.get("mode") === "typecheck") {
+    if (params.get("mode") === "wasi") {
+      const worker = new Worker("omnie-run://local/__omnie/runtime/wasi-worker.js");
+      await new Promise((resolve) => {
+        worker.onmessage = (e) => { if (e.data.type === "done") resolve(); else send(e.data); };
+        worker.onerror = (e) => { send({ type: "error", text: e.message || "WASI worker failed" }); resolve(); };
+        worker.postMessage(JSON.parse(params.get("spec")));
+      });
+      worker.terminate();
+      send({ type: "done" });
+    } else if (params.get("mode") === "typecheck") {
       const worker = new Worker("omnie-run://local/__omnie/runtime/typecheck-worker.js");
       await new Promise((resolve) => {
         worker.onmessage = (e) => { if (e.data.type === "done") resolve(); else send(e.data); };

@@ -29,10 +29,15 @@ public struct RunResult: Sendable, Equatable {
     public var tests: [TestResult] = []
     public var ending: Ending = .finished
     public var ms: Int = 0
+    /// A WASI program's exit status.
+    public var exitCode: Int32?
+    /// Project files a WASI program wrote or deleted.
+    public var changedFiles: [String] = []
 
     /// Uncaught errors count as failures, like a non-zero exit.
     public var passed: Bool {
         ending == .finished && !output.contains { $0.stream == .err && $0.text.hasPrefix("Uncaught") } && tests.allSatisfy(\.passed)
+            && (exitCode ?? 0) == 0
     }
 
     /// A plain-text report: what a terminal would show, and what the agent reads.
@@ -47,6 +52,8 @@ public struct RunResult: Sendable, Equatable {
             lines.append(failed == 0 ? "\(tests.count) passed (\(ms) ms)" : "\(failed) failed, \(tests.count - failed) passed (\(ms) ms)")
         }
         if case .timedOut(let s) = ending { lines.append("Stopped: took longer than \(Int(s)) s.") }
+        if let exitCode, exitCode != 0 { lines.append("Exited with \(exitCode).") }
+        if !changedFiles.isEmpty { lines.append("Changed: " + changedFiles.joined(separator: ", ")) }
         return lines.isEmpty ? "(no output)" : lines.joined(separator: "\n")
     }
 }
@@ -223,6 +230,20 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
 
     /// The project's files for Pyodide's file system: under 2 MB each, at most 3,000, skipping
     /// version control, dependencies and build output.
+    /// The project's directories (empty ones too), skipping what projectFiles skips.
+    nonisolated static func projectDirectories(_ root: URL) -> [String] {
+        var dirs: [String] = []
+        let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey])
+        while let url = enumerator?.nextObject() as? URL, dirs.count < 3_000 {
+            if [".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", ".build"].contains(url.lastPathComponent) {
+                enumerator?.skipDescendants(); continue
+            }
+            guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
+            if url.path.hasPrefix(root.path + "/") { dirs.append(String(url.path.dropFirst(root.path.count + 1))) }
+        }
+        return dirs.sorted()
+    }
+
     nonisolated static func projectFiles(_ root: URL) -> [String] {
         var files: [String] = []
         let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
@@ -249,6 +270,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             path = String(full.dropFirst("__omnie/\(bundled)/".count))
         }
         if full == "__omnie/manifest.json" { area = "manifest" }
+        if full == "__omnie/dirs.json" { area = "dirs" }
         if full == "__omnie/npm-types.json" { area = "npm-types" }
         if full == "__omnie/python-packages.json" { area = "python-packages" }
         if full.hasPrefix("__omnie/pypi/") { area = "pypi"; path = String(full.dropFirst("__omnie/pypi/".count)) }
@@ -338,6 +360,9 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
                                           with: PackageCache.importMapTag(adding: npmImports.merging(["vitest": "omnie-run://local/__omnie/runtime/vitest.js"]) { _, v in v })).utf8)
             }
             return (data, Self.mimeTypes[ext] ?? (ext == "py" ? "text/plain" : "application/octet-stream"))
+        }
+        if area == "dirs" {
+            return (try JSONSerialization.data(withJSONObject: Self.projectDirectories(resolver.root)), "application/json")
         }
         if area == "manifest" {
             return (try JSONSerialization.data(withJSONObject: Self.projectFiles(resolver.root)), "application/json")

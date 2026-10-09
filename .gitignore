@@ -28,3 +28,4 @@ packages/RunKit/Sources/RunKit/JS/sucrase-LICENSE.txt
 scripts/runkit/node_modules/
 packages/RunKit/Sources/RunKit/JS/pyodide/
 packages/RunKit/Sources/RunKit/JS/packages/
+packages/RunKit/Tests/wasi-probe/target/
