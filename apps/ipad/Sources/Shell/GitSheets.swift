@@ -200,6 +200,9 @@ extension View {
             .fullScreenCover(isPresented: $model.wasiSpikeOpen) { WASISpikeView() }
             .sheet(isPresented: $model.auditLogOpen) { AuditLogView() }
             .sheet(isPresented: $model.settingsOpen) { SettingsView() }
+            .sheet(isPresented: $model.quickOpenOpen) { QuickOpenSheet() }
+            .sheet(isPresented: $model.findOpen) { FindInProjectSheet() }
+            .sheet(isPresented: $model.goToLineOpen) { GoToLineSheet() }
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }

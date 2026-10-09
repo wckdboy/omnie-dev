@@ -58,6 +58,9 @@ final class AppModel {
     var wasiSpikeOpen = false
     var auditLogOpen = false
     var settingsOpen = false
+    var quickOpenOpen = false
+    var findOpen = false
+    var goToLineOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -153,7 +156,7 @@ final class AppModel {
                 self?.paletteOpen = true
             },
             Command(id: "view.focus", title: "Toggle focus mode", menu: "View",
-                    shortcut: Shortcut("f", [.command, .shift]), surfaces: .ide, keywords: ["zen", "distraction"]) { [weak self] in
+                    shortcut: Shortcut("f", [.command, .control]), surfaces: .ide, keywords: ["zen", "distraction", "full screen"]) { [weak self] in
                 guard let self else { return }
                 withAnimation(Motion.pane) { self.focusMode.toggle() }
             },
@@ -170,6 +173,21 @@ final class AppModel {
             Command(id: "file.openFolder", title: "Open folder", menu: "File",
                     shortcut: Shortcut("o"), keywords: ["project", "workspace"]) { [weak self] in
                 self?.workspace.isPickingFolder = true
+            },
+            Command(id: "file.quickOpen", title: "Open file…", menu: "File",
+                    shortcut: Shortcut("p"), keywords: ["go to file", "quick open", "find file"]) { [weak self] in
+                guard let self, workspace.rootURL != nil else { return }
+                quickOpenOpen = true
+            },
+            Command(id: "search.project", title: "Find in project", menu: "File",
+                    shortcut: Shortcut("f", [.command, .shift]), keywords: ["search", "grep", "find all"]) { [weak self] in
+                guard let self, workspace.rootURL != nil else { return }
+                findOpen = true
+            },
+            Command(id: "editor.goToLine", title: "Go to line…", menu: "File",
+                    shortcut: Shortcut("l"), keywords: ["line number", "jump"]) { [weak self] in
+                guard let self, workspace.openFile != nil else { return }
+                goToLineOpen = true
             },
             Command(id: "file.save", title: "Save", menu: "File",
                     shortcut: Shortcut("s")) { [weak self] in

@@ -26,6 +26,8 @@ final class WorkspaceModel {
     private var isAccessingRoot = false
     @ObservationIgnored let recents = RecentProjects(fileURL: AppPaths.support.appendingPathComponent("recent-projects.json"))
     private(set) var recentProjects: [ProjectRef] = []
+    /// Files opened in this project, newest first (quick open lists them first).
+    private(set) var recentFiles: [String] = []
     @ObservationIgnored private var watcher: ProjectWatcher?
     /// The model for ghost text, when one is installed and suggestions are on. Set by AppModel.
     @ObservationIgnored var completionModel: (() async -> TextModel?)?
@@ -78,6 +80,7 @@ final class WorkspaceModel {
         rootURL = url
         policy.projectRoot = url
         closeFile()
+        recentFiles = []
         root = nil
         reload()
         guard root != nil else {
@@ -152,6 +155,34 @@ final class WorkspaceModel {
         catch { banner = "Can't read \(rootURL.lastPathComponent): \(error.localizedDescription)" }
     }
 
+    /// Opens a file and, once it's loaded, selects `range` and scrolls to it.
+    func open(file url: URL, select range: NSRange) {
+        open(file: url)
+        guard openFile == url else { return }
+        editor.onLoaded = { [weak self] in
+            guard let self else { return }
+            let length = (editor.text as NSString).length
+            let clamped = NSRange(location: min(range.location, length), length: min(range.length, max(0, length - range.location)))
+            editor.selectedRange = clamped
+            editor.scrollRangeToVisible(clamped)
+            editor.onLoaded = nil
+        }
+    }
+
+    /// Selects the start of a 1-based line in the open file.
+    func goToLine(_ line: Int) {
+        let text = editor.text as NSString
+        var location = 0
+        for _ in 1..<max(1, line) {
+            let next = text.range(of: "\n", options: [], range: NSRange(location: location, length: text.length - location))
+            guard next.location != NSNotFound else { break }
+            location = next.location + 1
+        }
+        let range = NSRange(location: location, length: 0)
+        editor.selectedRange = range
+        editor.scrollRangeToVisible(range)
+    }
+
     func open(file url: URL) {
         if isDirty { saveCurrent() }
         do {
@@ -161,6 +192,11 @@ final class WorkspaceModel {
             editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
             isDirty = false
             openFile = url
+            if let path = relativePath {
+                recentFiles.removeAll { $0 == path }
+                recentFiles.insert(path, at: 0)
+                if recentFiles.count > 20 { recentFiles.removeLast() }
+            }
             cursor = (1, 1)
             banner = nil
         } catch TextFile.LoadError.binary {
