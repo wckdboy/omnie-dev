@@ -65,7 +65,31 @@ public struct RemoteModel: TextModel {
     }
 
     public func stream(_ prompt: ModelPrompt, maxTokens: Int, temperature: Float) async throws -> AsyncThrowingStream<String, Error> {
-        let request = try makeRequest(prompt, maxTokens: maxTokens, temperature: temperature)
+        try await send(try makeRequest(prompt, maxTokens: maxTokens, temperature: temperature))
+    }
+
+    /// An image (PNG or JPEG bytes) for a vision request.
+    public struct Image: Sendable, Equatable {
+        public var data: Data
+        public var mediaType: String
+        public init(png: Data) { data = png; mediaType = "image/png" }
+        public init(jpeg: Data) { data = jpeg; mediaType = "image/jpeg" }
+    }
+
+    /// One user turn with images (sketches, screenshots), streamed like `stream`. Vision models
+    /// only: the local 7B is text-only (PLAN.md §11.2).
+    public func stream(system: String, text: String, images: [Image], maxTokens: Int) async throws -> AsyncThrowingStream<String, Error> {
+        try await send(try makeVisionRequest(system: system, text: text, images: images, maxTokens: maxTokens))
+    }
+
+    /// The collected reply of `stream(system:text:images:maxTokens:)`.
+    public func complete(system: String, text: String, images: [Image], maxTokens: Int) async throws -> String {
+        var reply = ""
+        for try await chunk in try await stream(system: system, text: text, images: images, maxTokens: maxTokens) { reply += chunk }
+        return reply
+    }
+
+    private func send(_ request: URLRequest) async throws -> AsyncThrowingStream<String, Error> {
         var attempt = 0
         var bytes: URLSession.AsyncBytes
         while true {
@@ -172,6 +196,36 @@ public struct RemoteModel: TextModel {
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
         request.timeoutInterval = 120
+        return request
+    }
+
+    func makeVisionRequest(system: String, text: String, images: [Image], maxTokens: Int) throws -> URLRequest {
+        var request: URLRequest
+        var body: [String: Any]
+        switch config.kind {
+        case .anthropic:
+            request = URLRequest(url: config.baseURL.appending(path: "v1/messages"))
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            // Images first, then the words about them (Anthropic's guidance for vision prompts).
+            let content: [[String: Any]] = images.map {
+                ["type": "image", "source": ["type": "base64", "media_type": $0.mediaType, "data": $0.data.base64EncodedString()]]
+            } + [["type": "text", "text": text]]
+            body = ["model": config.model, "max_tokens": maxTokens, "stream": true, "system": system,
+                    "messages": [["role": "user", "content": content]]]
+        case .openAICompatible:
+            request = URLRequest(url: config.baseURL.appending(path: "chat/completions"))
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            let content: [[String: Any]] = images.map {
+                ["type": "image_url", "image_url": ["url": "data:\($0.mediaType);base64,\($0.data.base64EncodedString())"]]
+            } + [["type": "text", "text": text]]
+            body = ["model": config.model, "max_tokens": maxTokens, "stream": true,
+                    "messages": [["role": "system", "content": system], ["role": "user", "content": content]]]
+        }
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+        request.timeoutInterval = 180
         return request
     }
 

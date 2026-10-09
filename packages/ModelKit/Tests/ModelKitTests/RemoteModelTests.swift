@@ -120,6 +120,30 @@ struct RemoteModelTests {
         #expect(messages[0]["content"]!.hasSuffix("</tool_call>"))
     }
 
+    @Test func visionRequestsCarryImages() async throws {
+        StubProtocol.status = 200
+        StubProtocol.requests = []; StubProtocol.bodies = []
+        StubProtocol.body = "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"<file>\"}}\n\n"
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+        let anthropic = RemoteModel(config: .anthropic, apiKey: "k", session: StubProtocol.session())
+        #expect(try await anthropic.complete(system: "s", text: "make it", images: [.init(png: png)], maxTokens: 50) == "<file>")
+        let body = try JSONSerialization.jsonObject(with: StubProtocol.bodies[0]) as! [String: Any]
+        #expect(body["system"] as? String == "s")
+        let content = ((body["messages"] as! [[String: Any]])[0]["content"]) as! [[String: Any]]
+        #expect(content.map { $0["type"] as! String } == ["image", "text"])
+        let source = content[0]["source"] as! [String: String]
+        #expect(source == ["type": "base64", "media_type": "image/png", "data": png.base64EncodedString()])
+
+        let openAI = RemoteModel(config: .openAI, apiKey: "k", session: StubProtocol.session())
+        StubProtocol.body = "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n"
+        #expect(try await openAI.complete(system: "s", text: "t", images: [.init(jpeg: png)], maxTokens: 50) == "ok")
+        let body2 = try JSONSerialization.jsonObject(with: StubProtocol.bodies[1]) as! [String: Any]
+        let messages = body2["messages"] as! [[String: Any]]
+        #expect(messages[0]["content"] as? String == "s")
+        let parts = messages[1]["content"] as! [[String: Any]]
+        #expect((parts[0]["image_url"] as! [String: String])["url"] == "data:image/jpeg;base64," + png.base64EncodedString())
+    }
+
     @Test func errorsSayWhatToDo() async throws {
         StubProtocol.status = 401
         StubProtocol.body = "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"}}"

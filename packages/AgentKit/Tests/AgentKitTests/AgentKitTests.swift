@@ -417,3 +417,60 @@ struct SyntaxGuardTests {
         try Sandbox.validate(good, path: "src/a.ts", previous: broken)
     }
 }
+
+struct SketchToCodeTests {
+    func project(_ files: [String: String]) throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("sketch-\(UUID().uuidString)")
+        for (path, text) in files {
+            let url = root.appending(path: path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        }
+        return root
+    }
+
+    @Test func readsTheStack() throws {
+        let react = try project(["package.json": #"{"dependencies": {"react": "^18"}}"#, "tsconfig.json": "{}",
+                                 "src/components/Button.tsx": "export function Button() { return <button/>; }\n",
+                                 "node_modules/x/index.js": ""])
+        let context = SketchToCode.context(root: react)
+        #expect(context.stack.hasPrefix("React with TypeScript"))
+        #expect(context.componentsFolder == "src/components")
+        #expect(context.files == ["package.json", "src/components/Button.tsx", "tsconfig.json"])
+        #expect(context.examples.map(\.path) == ["src/components/Button.tsx"])
+        #expect(SketchToCode.context(root: try project(["index.html": "<p>hi</p>"])).stack.hasPrefix("plain HTML"))
+        #expect(SketchToCode.context(root: try project(["Package.swift": "", "Sources/App/A.swift": ""])).stack == "SwiftUI views (.swift)")
+        let text = SketchToCode.request(source: .sketch, instruction: " a login card ", context: context)
+        #expect(text.contains("hand-drawn wireframe") && text.contains("What the user says about it: a login card"))
+        #expect(text.contains("New components go in src/components/."))
+    }
+
+    @Test func parsesAndWritesFiles() throws {
+        let reply = """
+            Here you go.
+            <file path="src/components/Login.tsx">
+            ```tsx
+            export function Login() { return <form />; }
+            ```
+            </file>
+            <file path="src/App.tsx">
+            import { Login } from "./components/Login";
+            export default function App() { return <Login />; }
+            </file>
+            <summary>Added a Login card and showed it in App.</summary>
+            """
+        let result = try SketchToCode.parse(reply)
+        #expect(result.files.map(\.path) == ["src/components/Login.tsx", "src/App.tsx"])
+        #expect(result.files[0].content == "export function Login() { return <form />; }\n")
+        #expect(result.summary == "Added a Login card and showed it in App.")
+        #expect(throws: SketchToCode.Failure.noFiles) { try SketchToCode.parse("I can't see the image.") }
+
+        let root = try project(["package.json": "{}", "src/App.tsx": "export default function App() { return null; }\n"])
+        #expect(try SketchToCode.write(result, into: root) == ["src/components/Login.tsx", "src/App.tsx"])
+        #expect(try String(contentsOf: root.appending(path: "src/App.tsx"), encoding: .utf8).contains("<Login />"))
+        let config = SketchToCode.Result(files: [.init(path: "package.json", content: "{}\n")], summary: "")
+        #expect(throws: ToolError.protectedFile("package.json")) { try SketchToCode.write(config, into: root) }
+        let escape = SketchToCode.Result(files: [.init(path: "../x.tsx", content: "")], summary: "")
+        #expect(throws: ToolError.self) { try SketchToCode.write(escape, into: root) }
+    }
+}

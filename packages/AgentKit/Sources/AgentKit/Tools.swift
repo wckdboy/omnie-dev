@@ -30,6 +30,7 @@ public enum ToolError: Error, Equatable, LocalizedError {
     case alreadyExists(String)
     case unknownTool(String)
     case wouldBreakSyntax(path: String, reason: String)
+    case protectedFile(String)
 
     public var errorDescription: String? {
         switch self {
@@ -40,6 +41,7 @@ public enum ToolError: Error, Equatable, LocalizedError {
         case .findNotUnique(let n): n == 0 ? "The find text isn't in the file. Copy it exactly from read." : "The find text appears \(n) times; include more surrounding lines so it's unique."
         case .alreadyExists(let p): "\(p) already exists. Use patch to change it."
         case .unknownTool(let n): "There's no tool called \(n)."
+        case .protectedFile(let p): "\(p) is project configuration; it isn't changed this way."
         case .wouldBreakSyntax(let p, let reason): "That would leave \(p) invalid, so nothing was written: \(reason)\nEdit inside the existing structure with patch."
         }
     }
