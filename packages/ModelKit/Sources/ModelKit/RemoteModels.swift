@@ -146,7 +146,15 @@ public struct RemoteModel: TextModel {
             request = URLRequest(url: config.baseURL.appending(path: "v1/messages"))
             request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-            if let prefill { messages.append(Message(role: "assistant", content: prefill)) }
+            // Current Claude models don't take a prefilled reply; ask for the same shape instead.
+            if prefill != nil {
+                let nudge = "Reply with exactly one tool call and nothing else: <tool_call>{\"name\": …, \"arguments\": {…}}</tool_call>"
+                if let last = messages.last, last.role == "user" {
+                    messages[messages.count - 1] = Message(role: "user", content: last.content + "\n\n" + nudge)
+                } else {
+                    messages.append(Message(role: "user", content: nudge))
+                }
+            }
             // No temperature: current Claude models reject it ("deprecated for this model").
             body = ["model": config.model, "max_tokens": maxTokens, "stream": true,
                     "messages": messages.map { ["role": $0.role, "content": $0.content] }]

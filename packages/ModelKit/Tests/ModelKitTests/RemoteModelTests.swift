@@ -107,6 +107,19 @@ struct RemoteModelTests {
         #expect(messages.last?["content"] == "{\"name\": \"")
     }
 
+    @Test func anthropicTurnsPrefillIntoAnInstruction() async throws {
+        StubProtocol.status = 200
+        StubProtocol.requests = []; StubProtocol.bodies = []
+        StubProtocol.body = "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\n"
+        let model = RemoteModel(config: .anthropic, apiKey: "k", session: StubProtocol.session())
+        let prompt = ModelPrompt.conversation([ChatTurn(.system, "s"), ChatTurn(.user, "u")], toolsJSON: nil, assistantPrefix: "<tool_call>")
+        _ = try await model.complete(prompt, maxTokens: 10)
+        let body = try JSONSerialization.jsonObject(with: StubProtocol.bodies[0]) as! [String: Any]
+        let messages = body["messages"] as! [[String: String]]
+        #expect(messages.map { $0["role"]! } == ["user"])
+        #expect(messages[0]["content"]!.hasSuffix("</tool_call>"))
+    }
+
     @Test func errorsSayWhatToDo() async throws {
         StubProtocol.status = 401
         StubProtocol.body = "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"}}"

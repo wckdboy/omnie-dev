@@ -208,7 +208,9 @@ public actor AgentRunner {
                 if ToolCallParser.parse(Self.clean(output)).call == nil {
                     // Constrained retry (PLAN.md §7: "constrained JSON decoding plus retry for local
                     // models"): pre-start the reply as a call, so the model can only continue it.
-                    output = Self.callPrefix + (try await generate(entries, prefix: Self.callPrefix))
+                    let continuation = try await generate(entries, prefix: Self.callPrefix)
+                    // A backend that can't prefill (Claude 5) answers with the whole call instead.
+                    output = continuation.contains("<tool_call>") ? continuation : Self.callPrefix + continuation
                 }
             } catch {
                 return finish(.failed("The model stopped: \(error.localizedDescription)"), &entries)

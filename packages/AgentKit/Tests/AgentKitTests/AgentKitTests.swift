@@ -117,6 +117,12 @@ struct AgentLoopTests {
         #expect(journal.entries().filter { $0.kind == .toolResult }.first?.tool == "list")
     }
 
+    @Test func aBackendWithoutPrefillCanAnswerWithTheWholeCall() async throws {
+        let model = ScriptedModel(["", call("list", [:]), call("finish", ["summary": "ok"]), call("finish", ["summary": "ok"])])
+        #expect(await runner(model, Recorder()).run() == .finished(summary: "ok"))
+        #expect(journal.entries().first { $0.kind == .toolResult }?.tool == "list")
+    }
+
     @Test func codeInProseIsReportedNotForcedIntoACall() async throws {
         // On the device the 7B wrote its fix as a code block; the forced call ran the tests instead.
         let prose = "Let's update slugify.\n```typescript\nexport function slugify(t: string) { return t; }\n```"
