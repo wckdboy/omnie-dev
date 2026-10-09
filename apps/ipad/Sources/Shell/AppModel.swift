@@ -90,6 +90,10 @@ final class AppModel {
     }
     /// Panels open in windows of their own (out of the docks meanwhile).
     var windowedPanels: Set<String> = []
+    /// The editor's minimap; kept between launches.
+    var showsMinimap = UserDefaults.standard.object(forKey: "editor.minimap") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showsMinimap, forKey: "editor.minimap") }
+    }
     /// Under 700 pt the left dock slides over the editor instead.
     var leftOverlay = false
     /// The panel being dragged, while the dock edges offer themselves as drop targets.
@@ -250,6 +254,10 @@ final class AppModel {
             Command(id: "view.utility", title: "Toggle right dock", menu: "View",
                     shortcut: Shortcut("3"), surfaces: .ide, keywords: ["utility pane", "inspector"]) { [weak self] in
                 self?.toggle(.right)
+            },
+            Command(id: "view.minimap", title: "Toggle minimap", menu: "View",
+                    surfaces: .ide, keywords: ["overview", "scroll map"]) { [weak self] in
+                self?.showsMinimap.toggle()
             },
             Command(id: "view.bottom", title: "Toggle bottom dock", menu: "View",
                     shortcut: Shortcut("j"), surfaces: .ide, keywords: ["panel", "terminal"]) { [weak self] in

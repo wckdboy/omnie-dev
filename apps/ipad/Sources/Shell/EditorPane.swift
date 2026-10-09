@@ -48,7 +48,14 @@ struct EditorPane: View {
             }
 
             if workspace.openFile != nil {
-                CodeEditor(controller: workspace.editor)
+                HStack(spacing: 0) {
+                    CodeEditor(controller: workspace.editor)
+                    // The whole file at a glance, marks included; tap or drag to scroll (PLAN.md §5.1).
+                    if model.showsMinimap && model.layout != .single {
+                        MinimapStrip(controller: workspace.editor)
+                            .frame(width: 72)
+                    }
+                }
             } else {
                 Text(workspace.root == nil ? "Open a folder to start" : "Pick a file in the navigator")
                     .font(.footnote)

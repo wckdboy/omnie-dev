@@ -31,6 +31,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
 
     public var theme: EditorTheme {
         didSet {
+            minimapView?.update(palette: theme.palette)
             textView.theme = theme
             textView.backgroundColor = theme.palette.surface.editor.uiColor
             // Recolor marks for the new palette; ranges come from the engine, which moved them with edits.
@@ -43,6 +44,30 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             }
         }
     }
+    /// The minimap, made when a view first shows it.
+    private var minimapView: MinimapView?
+    private var minimapRefresh: Task<Void, Never>?
+
+    public var minimap: MinimapView {
+        if let minimapView { return minimapView }
+        let view = MinimapView(textView: textView, palette: theme.palette)
+        minimapView = view
+        refreshMinimap()
+        return view
+    }
+
+    /// Redraws the minimap from the text and the marks' live ranges; `debounce` while typing.
+    func refreshMinimap(debounce: Bool = false) {
+        guard let minimapView else { return }
+        minimapRefresh?.cancel()
+        minimapRefresh = Task { [weak self] in
+            if debounce { try? await Task.sleep(for: .milliseconds(300)) }
+            guard let self, !Task.isCancelled else { return }
+            let live = Dictionary(self.textView.decorations.map { ($0.id, $0.range) }, uniquingKeysWith: { a, _ in a })
+            minimapView.update(text: self.textView.text, marks: self.marks.map { var m = $0; m.range = live[m.id] ?? m.range; return m })
+        }
+    }
+
     /// Marks as last set; their live ranges are in `textView.decorations`.
     var marks: [EditorMark] = []
     /// Bumped by every setMarks, so a load doesn't apply marks that were replaced while it ran.
@@ -115,6 +140,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                 self.textView.setState(state)
                 // Newer marks (set while this loaded) win over the ones passed in.
                 self.setMarks(self.marksVersion == marksAtStart ? marks : self.marks)
+                self.refreshMinimap()
                 self.onLoaded?()
                 guard let language else {
                     self.onHighlighted?()
@@ -169,6 +195,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
 
     public func textViewDidChange(_ textView: TextView) {
         clearGhostText()
+        refreshMinimap(debounce: true)
         onChange?()
     }
 
@@ -211,6 +238,14 @@ private struct SimplePair: CharacterPair {
 private final class UncheckedState: @unchecked Sendable {
     var theme: EditorTheme?
     var state: TextViewState?
+}
+
+/// The editor's minimap, for placing beside `CodeEditor`.
+public struct MinimapStrip: UIViewRepresentable {
+    public let controller: CodeEditorController
+    public init(controller: CodeEditorController) { self.controller = controller }
+    public func makeUIView(context: Context) -> MinimapView { controller.minimap }
+    public func updateUIView(_ uiView: MinimapView, context: Context) {}
 }
 
 /// SwiftUI wrapper. The controller owns the text; the app reads `controller.text` when saving.
