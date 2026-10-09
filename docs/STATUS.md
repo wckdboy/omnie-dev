@@ -38,11 +38,11 @@ Open: an agreed pass rate on a larger task set; API models (P4) for tasks the lo
 - **Preview:** a project's index.html live, TypeScript transpiled on the fly, reload on save, console with an error count.
 - **Offline package cache, first tier:** three.js bundled and import-mapped, so `import * as THREE from "three"` works offline in previews, runs and tests.
 - **Stage:** glTF/GLB, OBJ and STL from the project in three.js, with a native performance HUD. On the iPad: 60 fps (WKWebView caps animation frames at 60 Hz). Python starts and runs in under a second. See `spikes/runkit-p3.md`.
-- **Tools tab (ToolsKit):** HTTP client (`.http` files, secrets from the Keychain), API mock server (recorded responses, and routes generated from an `openapi.json` or `swagger.json` in the project, served to previews), SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
+- **Tools tab (ToolsKit):** HTTP client (`.http` files, secrets from the Keychain), API mock server (recorded responses, and routes generated from an OpenAPI or Swagger spec, JSON or YAML, in the project, served to previews), SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
 - **Markdown + Mermaid preview** in the Preview tab for the open `.md` file.
 - **Type checking:** TypeScript 5.9 runs offline over the whole project (tsconfig.json honoured) when it opens and after saves: underlines in the editor, an error count in the status strip, a Problems list (⇧⌘M). The agent has `check_types` in TypeScript projects.
 
-Open: WASI tools in RunKit, npm/PyPI packages beyond the bundled tier, YAML OpenAPI specs, the Stage inspector and shader hot reload, offline docs.
+Open: WASI tools in RunKit, npm/PyPI packages beyond the bundled tier, the Stage inspector and shader hot reload, offline docs.
 
 ## How to check things yourself
 

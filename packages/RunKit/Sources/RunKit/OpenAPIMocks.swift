@@ -6,7 +6,7 @@ import Foundation
 /// Mock routes from an OpenAPI 3 or Swagger 2 document in the project (PLAN.md §11.1), so a
 /// frontend runs against an API that only exists as a spec. Each operation answers with its first
 /// success response: the example if the spec has one, else a sample built from the schema.
-/// JSON documents only for now.
+/// JSON or YAML.
 public enum OpenAPIMocks {
     /// Where specs are looked for: the project root and `api/`, `docs/`, `spec/`.
     static let folders = ["", "api", "docs", "spec"]
@@ -17,18 +17,29 @@ public enum OpenAPIMocks {
             let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
             return names.filter { name in
                 let lower = name.lowercased()
-                return lower == "openapi.json" || lower == "swagger.json" || lower.hasSuffix(".openapi.json")
+                return ["openapi", "swagger"].contains((lower as NSString).deletingPathExtension) && ["json", "yaml", "yml"].contains((lower as NSString).pathExtension)
+                    || [".openapi.json", ".openapi.yaml", ".openapi.yml"].contains { lower.hasSuffix($0) }
             }.sorted().map { dir.appending(path: $0) }
         }
     }
 
     public static func load(root: URL) -> [MockRoute] {
-        specFiles(in: root).flatMap { url in (try? Data(contentsOf: url)).map(routes(from:)) ?? [] }
+        specFiles(in: root).flatMap { url -> [MockRoute] in
+            guard let data = try? Data(contentsOf: url) else { return [] }
+            return url.pathExtension.lowercased() == "json" ? routes(from: data) : routes(yaml: String(decoding: data, as: UTF8.self))
+        }
     }
 
     public static func routes(from data: Data) -> [MockRoute] {
-        guard let spec = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let paths = spec["paths"] as? [String: Any] else { return [] }
+        routes(spec: try? JSONSerialization.jsonObject(with: data))
+    }
+
+    public static func routes(yaml: String) -> [MockRoute] {
+        routes(spec: MiniYAML.parse(yaml))
+    }
+
+    static func routes(spec: Any?) -> [MockRoute] {
+        guard let spec = spec as? [String: Any], let paths = spec["paths"] as? [String: Any] else { return [] }
         let base = basePath(spec)
         var routes: [MockRoute] = []
         for (path, item) in paths.sorted(by: { $0.key < $1.key }) {
