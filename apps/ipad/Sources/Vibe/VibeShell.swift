@@ -65,6 +65,10 @@ struct VibeShell: View {
                 }
             }
         }
+        #if DEBUG
+        .task { if ProcessInfo.processInfo.arguments.contains("-OmniePreview") { tab = .preview } }
+        #endif
+
         .safeAreaInset(edge: .top, spacing: 0) {
             if model.networkUnavailable {
                 Label(model.policy.planeMode ? "Plane mode" : "Offline",
