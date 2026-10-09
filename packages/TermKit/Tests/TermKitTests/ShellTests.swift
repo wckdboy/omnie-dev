@@ -65,6 +65,9 @@ struct ShellTests {
         #expect(await shell.execute("pip install -r requirements.txt") == "packages pip install")
         #expect(await shell.execute("uv pip list") == "packages pip ls")
         #expect(await shell.execute("jq -r '.a b' x.json") == "wasm jq -r .a b x.json in /")
+        // `time` keeps the command's quoting.
+        #expect(await shell.execute("time jq -n '[range(3)] | add'")?.hasPrefix("wasm jq -n [range(3)] | add in /\nreal ") == true)
+        #expect((try? Shell.split(Shell.join(["a b", "it's", "", "|", "plain"]))) == ["a b", "it's", "", "|", "plain"])
         #expect(await shell.execute("rg x")?.contains("not a built-in") == true)
         _ = await shell.execute("open README.md")
         #expect(opened == "README.md")
@@ -85,6 +88,8 @@ struct ShellTests {
         #expect(await shell.execute("task") == "check  dev  ship  test")
         #expect(await shell.execute("npx vitest") == "tested all")
         #expect(await shell.execute("vite build")?.contains("remote host") == true)
+        #expect(await shell.execute("time npm test")?.hasSuffix(" ms") == true)
+        #expect(await shell.execute("time npm test")?.contains("> vitest run") == true)
         #expect(await shell.execute("npm publish")?.contains("offline cache") == true)
     }
 }

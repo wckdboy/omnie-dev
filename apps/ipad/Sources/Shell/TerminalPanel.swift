@@ -185,7 +185,10 @@ struct TerminalPanel: View {
                 do {
                     let result = await (try JSRunner(root: root)).runWasm(target, args: args, cwd: cwd)
                     if !result.changedFiles.isEmpty { workspace.reloadFromDisk() }
-                    return result.report == "(no output)" ? "" : result.report
+                    let report = result.report == "(no output)" ? "" : result.report
+                    // Under `time`, the run's fuel and memory too.
+                    if shell?.timing == true, let usage = result.resourceSummary { return report + (report.isEmpty ? "" : "\n") + usage }
+                    return report
                 } catch { return error.localizedDescription }
             },
             tools: { JSRunner.bundledTools() + JSRunner.projectTools(in: root).keys },

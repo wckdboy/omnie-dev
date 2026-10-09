@@ -87,7 +87,9 @@ struct WasiTests {
         #expect(budget.ms < 5_000)
         let big = try await run("alloc", "300", memory: 128)
         #expect(big.exitCode == 137 || big.output.contains { $0.text.contains("memory") }, "\(big.report)")
-        #expect(text(try await run("alloc", "16")) == ["16"])
+        let alloc = try await run("alloc", "16")
+        #expect(text(alloc) == ["16"])
+        #expect((alloc.memoryPeak ?? 0) >= 16 << 20 && (alloc.fuelUsed ?? 0) > 1_000_000, "\(alloc.resourceSummary ?? "none")")
     }
 }
 }

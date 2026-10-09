@@ -179,7 +179,12 @@ self.onmessage = async (event) => {
   const bytes = () => new Uint8Array(memory.buffer);
   const str = (ptr, len) => decoder.decode(bytes().slice(ptr, ptr + len));
   const limit = (memoryLimitMB ?? 1024) * 1024 * 1024;
-  const check = () => { if (memory && memory.buffer.byteLength > limit) throw new MemoryLimit(); };
+  let memoryPeak = 0;
+  const check = () => {
+    if (!memory) return;
+    memoryPeak = Math.max(memoryPeak, memory.buffer.byteLength);
+    if (memory.buffer.byteLength > limit) throw new MemoryLimit();
+  };
 
   function filestat(ptr, n) {
     const v = view();
@@ -525,8 +530,10 @@ self.onmessage = async (event) => {
   const writes = {};
   for (const [p, n] of finalFiles) if (n.dirty || originalFiles.get(p) !== n) writes[p] = toBase64(data(n));
   if (symlinks) postMessage({ type: "console", level: "error", text: `Note: ${symlinks} symlink${symlinks === 1 ? "" : "s"} the program made weren't saved.` });
+  if (memory) memoryPeak = Math.max(memoryPeak, memory.buffer.byteLength);
+  const left = instance?.exports.__omnie_fuel?.value;
   postMessage({
-    type: "wasiExit", code, writes,
+    type: "wasiExit", code, writes, memoryPeak, fuelUsed: typeof left === "bigint" ? Number(BigInt(fuel) - (left < 0n ? 0n : left)) : null,
     deletes: [...originalFiles.keys()].filter((p) => !finalFiles.has(p)),
     dirs: [...finalDirs].filter((d) => d && !originalDirs.has(d)),
     removedDirs: [...originalDirs].filter((d) => d && !finalDirs.has(d)),

@@ -57,6 +57,8 @@ extension JSRunner {
         result.ms = Int(Date().timeIntervalSince(start) * 1000)
         if let exit {
             result.exitCode = (exit["code"] as? NSNumber)?.int32Value
+            result.fuelUsed = (exit["fuelUsed"] as? NSNumber)?.int64Value
+            result.memoryPeak = (exit["memoryPeak"] as? NSNumber)?.intValue
             do { result.changedFiles = try Self.apply(exit, to: root) }
             catch { result.output.append(.init(stream: .err, text: "Couldn't save the program's changes: \(error.localizedDescription)")) }
         }

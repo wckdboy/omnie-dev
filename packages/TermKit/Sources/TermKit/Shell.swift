@@ -62,6 +62,8 @@ public final class Shell {
     }
 
     public let root: URL
+    /// True while a `time` command runs (hooks add resource use to their output).
+    public private(set) var timing = false
     /// The working directory, relative to the project root ("" is the root).
     public private(set) var cwd = ""
     public var hooks: Hooks
@@ -131,7 +133,7 @@ public final class Shell {
                 }
                 if command == "npx", !sub.isEmpty {
                     // npx vitest → vitest
-                    return await execute(args.joined(separator: " ")) ?? ""
+                    return await execute(Self.join(args)) ?? ""
                 }
                 if ["install", "i", "add", "ci"].contains(sub) {
                     return await hooks.packages(["npm", "install"] + args.dropFirst().filter { !$0.hasPrefix("-") })
@@ -150,6 +152,15 @@ public final class Shell {
                 }
                 if ["list", "freeze"].contains(sub) { return await hooks.packages(["pip", "ls"]) }
                 throw Failure("\(command): install and list work here. Packages go into the offline cache.")
+            case "time":
+                // Wall-clock time for any command; WASI runs add their fuel and memory.
+                guard !args.isEmpty else { throw Failure("time: name a command to time") }
+                let start = Date()
+                timing = true
+                defer { timing = false }
+                let output = await execute(Self.join(args)) ?? ""
+                let ms = Int(Date().timeIntervalSince(start) * 1000)
+                return (output.isEmpty ? "" : output + "\n") + "real \(ms) ms"
             case "task":
                 guard let name = args.first else {
                     let names = hooks.taskNames()
@@ -181,6 +192,15 @@ public final class Shell {
         } catch {
             return error.localizedDescription
         }
+    }
+
+    /// Words back into a command line that splits the same way: anything with spaces or quotes
+    /// is single-quoted.
+    static func join(_ words: [String]) -> String {
+        words.map { word in
+            guard word.isEmpty || word.contains(where: { " \t'\"\\|;&<>()$`*?[]{}".contains($0) }) else { return word }
+            return "'" + word.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        }.joined(separator: " ")
     }
 
     /// Runs a task's command line, part by part (`a && b` stops at the first failure).
@@ -221,6 +241,7 @@ public final class Shell {
           test [file]     run the project's tests (vitest/jest-style and pytest-style)
           npm run <script>, task [name]   the project's tasks (devcontainer.json run.tasks or package.json scripts)
           vite, tsc       the preview; the type check
+          time <command>  how long it took (and fuel and memory for WASI programs)
           npm install [name[@range]…]   fetch packages into the offline cache (asks first)
           npm ls          what the project gets from the cache
           pip install [-r requirements.txt | name…]   the same for Python (PyPI and Pyodide's builds)

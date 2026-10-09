@@ -33,6 +33,17 @@ public struct RunResult: Sendable, Equatable {
     public var exitCode: Int32?
     /// Project files a WASI program wrote or deleted.
     public var changedFiles: [String] = []
+    /// A WASI program's fuel spent (calls and loop iterations) and its largest memory, in bytes.
+    public var fuelUsed: Int64?
+    public var memoryPeak: Int?
+
+    /// "fuel 1,234,567 · memory 18 MB" for a WASI run, else nil.
+    public var resourceSummary: String? {
+        var parts: [String] = []
+        if let fuelUsed { parts.append("fuel \(fuelUsed.formatted())") }
+        if let memoryPeak { parts.append("memory \(ByteCountFormatter.string(fromByteCount: Int64(memoryPeak), countStyle: .memory))") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
 
     /// Uncaught errors count as failures, like a non-zero exit.
     public var passed: Bool {
