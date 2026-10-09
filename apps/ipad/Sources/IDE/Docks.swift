@@ -93,6 +93,7 @@ struct GroupView: View {
                         if let tab = UtilityTab(rawValue: id) { tabButton(tab, named: named) }
                     }
                     groupMenu
+                    hideDockButton
                 }
             }
             .frame(height: density.tab)
@@ -117,25 +118,41 @@ struct GroupView: View {
 
     private func tabButton(_ tab: UtilityTab, named: Bool) -> some View {
         let selected = group.selected == tab.rawValue
-        return Button {
-            withAnimation(Motion.pane) { model.panes.reveal(tab.rawValue) }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: tab.symbol)
-                if named { Text(tab.rawValue).font(.caption).lineLimit(1) }
+        return HStack(spacing: 0) {
+            Button {
+                withAnimation(Motion.pane) { model.panes.reveal(tab.rawValue) }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: tab.symbol)
+                    if named { Text(tab.rawValue).font(.caption).lineLimit(1) }
+                }
+                .frame(maxWidth: .infinity, minHeight: density.tab)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, minHeight: density.tab)
-            .foregroundStyle(selected ? palette.accent.ion.color : palette.text.secondary.color)
-            .overlay(alignment: .bottom) {
-                if selected { Rectangle().fill(palette.accent.ion.color).frame(height: Metrics.focusStroke) }
+            .buttonStyle(.plain)
+            .accessibilityLabel(tab.rawValue)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+            .accessibilityHint("Its menu moves it to another dock")
+            // The open panel closes from its tab, as an editor tab does (the others from their menus),
+            // icons-only tabs included.
+            if selected {
+                Button {
+                    withAnimation(Motion.pane) { model.panes.close(tab.rawValue) }
+                } label: {
+                    Image(systemName: "xmark").font(.caption2.weight(.semibold))
+                        .frame(width: 24, height: density.tab)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(palette.text.tertiary.color)
+                .accessibilityLabel("Close \(tab.rawValue)")
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(selected ? palette.accent.ion.color : palette.text.secondary.color)
+        .overlay(alignment: .bottom) {
+            if selected { Rectangle().fill(palette.accent.ion.color).frame(height: Metrics.focusStroke) }
+        }
         .hoverEffect(.highlight)
-        .accessibilityLabel(tab.rawValue)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityHint("Its menu moves it to another dock")
         .modifier(PanelDrag(tab: tab))
         .dropDestination(for: String.self) { items, _ in
             drop(items, at: group.panels.firstIndex(of: tab.rawValue))
@@ -157,11 +174,16 @@ struct GroupView: View {
                     }
                 }
             }
+            Section {
+                Button("Close this group", systemImage: "xmark.rectangle") {
+                    withAnimation(Motion.pane) { model.panes.closeGroup(group.id) }
+                }
+                Button("Hide the \(dock.rawValue) dock", systemImage: dock.hideSymbol) { model.toggle(dock) }
+            }
             Section("Layout") {
                 ForEach(LayoutPreset.allCases) { preset in
                     Button(preset.title) { model.applyLayout(preset) }
                 }
-                Button("Hide this dock") { model.toggle(dock) }
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -170,6 +192,22 @@ struct GroupView: View {
                 .contentShape(Rectangle())
         }
         .accessibilityLabel("Group options")
+    }
+
+    /// Hides the dock (the status strip's layout buttons and ⌘1/⌘3/⌘J bring it back). Only on the
+    /// dock's first group, where VS Code keeps its panel close button.
+    @ViewBuilder private var hideDockButton: some View {
+        if model.panes[dock].first?.id == group.id {
+            Button { model.toggle(dock) } label: {
+                Image(systemName: dock.hideSymbol)
+                    .frame(width: 32, height: density.tab)
+                    .foregroundStyle(palette.text.secondary.color)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.highlight)
+            .accessibilityLabel("Hide the \(dock.rawValue) dock")
+        }
     }
 
     private func drop(_ items: [String], at index: Int?) -> Bool {
@@ -323,6 +361,15 @@ struct DockDropZone: View {
 }
 
 extension PaneLayout.Dock {
+    /// The layout buttons' symbols (filled while the dock shows).
+    var hideSymbol: String {
+        switch self {
+        case .left: "sidebar.left"
+        case .right: "sidebar.right"
+        case .bottom: "rectangle.bottomthird.inset.filled"
+        }
+    }
+
     var symbol: String {
         switch self {
         case .left: "rectangle.lefthalf.inset.filled"
@@ -346,8 +393,17 @@ struct PanelWindow: View {
         let palette = Palette.resolve(colorScheme: colorScheme, contrast: contrast)
         Group {
             if let tab = UtilityTab(rawValue: panel) {
-                PanelContent(tab: tab)
-                    .navigationTitle(tab.rawValue)
+                NavigationStack {
+                    PanelContent(tab: tab)
+                        .navigationTitle(tab.rawValue)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            // Back where it came from; closing the window does the same.
+                            ToolbarItem(placement: .primaryAction) {
+                                Button("Back to dock", systemImage: "rectangle.portrait.and.arrow.forward") { dismissWindow() }
+                            }
+                        }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -32,6 +32,9 @@ struct WelcomeView: View {
                     Text("Start").font(.headline)
                     start("Try the sample project", detail: "A three.js scene with a failing test: run it, then ask the agent to fix it.",
                           symbol: "sparkles", busy: preparingSample) { Task { await openSample() } }
+                    start("New project", detail: "Empty, TypeScript, Python or a web page, ready to run.", symbol: "plus.rectangle.on.folder") {
+                        finish { model.newProjectOpen = true }
+                    }
                     start("Open a folder", detail: "Any folder in Files, iCloud Drive or another app.", symbol: "folder") {
                         finish { model.workspace.isPickingFolder = true }
                     }

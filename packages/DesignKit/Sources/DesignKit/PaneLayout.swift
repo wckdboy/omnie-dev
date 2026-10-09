@@ -138,6 +138,11 @@ public struct PaneLayout: Codable, Equatable, Sendable {
         }
     }
 
+    /// Closes a group and every panel in it (they wait in the closed list to come back).
+    public mutating func closeGroup(_ id: UUID) {
+        for dock in Dock.allCases { self[dock].removeAll { $0.id == id } }
+    }
+
     /// Moves a panel into an existing group (selected there), at `index` or the end.
     public mutating func move(_ panel: String, toGroup id: UUID, at index: Int? = nil) {
         guard location(of: panel) != nil, find(id) != nil else { return }

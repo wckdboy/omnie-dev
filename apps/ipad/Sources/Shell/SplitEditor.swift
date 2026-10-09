@@ -144,6 +144,7 @@ struct SplitEditorPanel: View {
         }
         .background(palette.surface.editor.color)
         .onChange(of: palette, initial: true) { applyTheme() }
+        .onAppear { model.workspace.onThemeChange = { [model] in model.split.editor.theme = model.workspace.editor.theme } }
         .onChange(of: density) { applyTheme() }
         // Another save (the main editor's, the agent's, a tool's): refresh unless edited here.
         .onChange(of: workspace.changeCount) { split.refreshFromDisk() }

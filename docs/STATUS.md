@@ -73,6 +73,17 @@ Open: an agreed pass rate on a larger task set (the router can already send what
 
 Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with compiled code that Pyodide doesn't build, a better local model for small structural edits.
 
+## Workbench, as VS Code users expect it (1.1)
+
+- **Nothing hides under the keyboard:** the workbench sits above the on-screen keyboard (editor, docks, terminal, status strip), and the bottom dock steps aside before the editor drops under 200 pt. Long lines wrap by default (⌥Z toggles word wrap).
+- **Everything closes and comes back.** The open panel has a ✕ on its tab (icon-only tabs too); each dock has a hide button; the status strip has VS Code's layout toggles for the left, bottom and right docks (an empty dock opens with Files, Agent or Terminal). There's also ⌘B for the sidebar, Close all panels, Reset layout, and Close <panel> for each panel in the palette. Group menus add "Close this group"; panel windows have "Back to dock"; the narrow-screen left dock closes with a tap beside it.
+- **Editor tabs:** Close, Close Others, Close to the Right, Close Saved, Close All (⌥⌘W), Reopen closed tab (⌥⌘T), Open in Split.
+- **Line commands:** toggle comment (⌘/, per language: `//`, `#`, `--`, `<!-- -->`, `/* */`), move line (⌥↑/⌥↓), copy line (⇧⌥↑/⇧⌥↓), delete line (⇧⌘K), indent/outdent (⌘]/⌘[, in the file's own indent), zoom the editor text (⌘= ⌘− ⌘0), Revert file. Each is one undo step. The editor claims ⌥↑/⌥↓ ahead of the text system's caret moves.
+- **Projects:** New project (⌃⌘N) from Empty, TypeScript (with a Vitest test), Python (pytest-style) or Web page templates, as a git repository; the project switcher (⌃R, or the project's name at the left of the status strip) with every way to start, filterable recent projects and Close folder; with no project, the editor area shows a start page (new, open, clone, sample, recent).
+- `WorkbenchUITests` covers closing and restoring panels and docks, the keyboard, the line commands, and new/switch/close project. `LayoutShotsUITests` captures each preset in both orientations (`TEST_RUNNER_OMNIE_SHOTS_DIR`).
+
+Still behind VS Code: language servers (go to definition, references, rename, completions beyond ghost text), code folding, multi-cursor editing beyond Runestone's, a debugger, extensions, and a formatter.
+
 ## P4 online power: HostKit started
 
 - **Pull requests (HostKit):** Git › Pull Requests… finds the forge behind the branch's remote (Forgejo/Gitea, GitLab, GitHub by host; any other host can be set by hand, remembered per host). It lists the open pull requests (merge requests on GitLab) with their checks folded to one badge (commit statuses, GitHub check runs, GitLab pipelines). It also opens a new one from the current branch: title and description come from the branch's commits, the branch is pushed first through Sync's approval, and a draft is possible. It uses the same per-host token as git over HTTPS, asked for over the sheet when missing or refused.

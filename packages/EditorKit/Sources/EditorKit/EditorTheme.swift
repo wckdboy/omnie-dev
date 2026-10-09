@@ -57,6 +57,8 @@ public enum SyntaxRole: String, CaseIterable, Sendable {
 public final class EditorTheme: Runestone.Theme {
     public let palette: Palette
     public let density: Density
+    /// The code size relative to the density's (⌘+ / ⌘−), 0.6 to 2.5.
+    public let scale: CGFloat
 
     // Built once: the engine reads these for every visible line on every layout pass, and building a
     // UIFont or UIColor per read showed up in device profiles of typing.
@@ -75,16 +77,18 @@ public final class EditorTheme: Runestone.Theme {
     public let markedTextBackgroundColor: UIColor
     private let roleColors: [SyntaxRole: UIColor]
 
-    public init(palette: Palette, density: Density) {
+    public init(palette: Palette, density: Density, scale: CGFloat = 1) {
         self.palette = palette
         self.density = density
+        self.scale = min(2.5, max(0.6, scale))
+        let size = (density.codeSize * self.scale).rounded()
         // Monaspace Neon isn't bundled yet; SF Mono stands in (PLAN §3.4 fallback).
-        font = .monospacedSystemFont(ofSize: density.codeSize, weight: .regular)
+        font = .monospacedSystemFont(ofSize: size, weight: .regular)
         textColor = palette.syntax.plain.uiColor
         gutterBackgroundColor = palette.surface.editor.uiColor
         gutterHairlineColor = palette.surface.hairline.uiColor
         lineNumberColor = palette.text.tertiary.uiColor
-        lineNumberFont = .monospacedDigitSystemFont(ofSize: max(density.codeSize - 2, 11), weight: .regular)
+        lineNumberFont = .monospacedDigitSystemFont(ofSize: max(size - 2, 11), weight: .regular)
         selectedLineBackgroundColor = palette.surface.pane.uiColor
         selectedLinesLineNumberColor = palette.text.secondary.uiColor
         selectedLinesGutterBackgroundColor = palette.surface.pane.uiColor

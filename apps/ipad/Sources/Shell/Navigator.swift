@@ -124,8 +124,10 @@ struct EmptyProject: View {
                 .foregroundStyle(palette.text.secondary.color)
                 .multilineTextAlignment(.center)
             HStack {
-                Button("Open folder") { model.workspace.isPickingFolder = true }
+                Button("New project") { model.newProjectOpen = true }
                     .buttonStyle(.borderedProminent)
+                Button("Open folder") { model.workspace.isPickingFolder = true }
+                    .buttonStyle(.bordered)
                 Button("Clone") { model.registry.run("git.clone") }
                     .buttonStyle(.bordered)
             }

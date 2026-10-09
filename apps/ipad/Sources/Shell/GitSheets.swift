@@ -197,6 +197,8 @@ extension View {
             .sheet(isPresented: $model.historySheetOpen) { HistorySheet() }
             .sheet(isPresented: $model.remotesSheetOpen) { RemotesSheet() }
             .sheet(isPresented: $model.pullRequestsOpen) { PullRequestsSheet() }
+            .sheet(isPresented: $model.projectsOpen) { ProjectsSheet() }
+            .sheet(isPresented: $model.newProjectOpen) { NewProjectSheet() }
             .fullScreenCover(isPresented: $model.editorSpikeOpen) { EditorSpikeView() }
             .fullScreenCover(isPresented: $model.modelSpikeOpen) { ModelSpikeView() }
             .fullScreenCover(isPresented: $model.webGPUSpikeOpen) { WebGPUSpikeView() }

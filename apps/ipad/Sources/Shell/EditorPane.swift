@@ -48,8 +48,10 @@ struct EditorPane: View {
                             .frame(width: 72)
                     }
                 }
+            } else if workspace.root == nil {
+                StartPage()
             } else {
-                Text(workspace.root == nil ? "Open a folder to start" : "Pick a file in the navigator")
+                Text("Pick a file in the navigator")
                     .font(.footnote)
                     .foregroundStyle(palette.text.tertiary.color)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -271,10 +273,77 @@ private struct TabButton: View {
         .onHover { hovering = $0 }
         .contextMenu {
             Button("Close") { workspace.closeTab(tab.url) }
-            Button("Close Others") { for other in workspace.tabs where other.url != tab.url { workspace.closeTab(other.url) } }
+            Button("Close Others") { workspace.closeTabs(except: tab.url) }
+            Button("Close to the Right") { workspace.closeTabs(after: tab.url) }
+            Button("Close Saved") { workspace.closeSavedTabs() }
+            Button("Close All") { workspace.closeTabs() }
+            Divider()
+            Button("Open in Split", systemImage: "rectangle.split.2x1") {
+                workspace.open(file: tab.url, preview: false)
+                model.registry.run("view.split")
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(tab.url.lastPathComponent + (tab.isPreview ? ", preview" : "") + (dirty ? ", unsaved" : ""))
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
+    }
+}
+
+/// No project open: VS Code's Welcome page, in the editor's place. Start something, or pick up a
+/// recent project.
+struct StartPage: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        let workspace = model.workspace
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Start").font(.title2.weight(.semibold))
+                VStack(alignment: .leading, spacing: 10) {
+                    entry("New project", "plus.rectangle.on.folder", "⌃⌘N") { model.newProjectOpen = true }
+                    entry("Open folder", "folder", "⌘O") { workspace.isPickingFolder = true }
+                    entry("Clone repository", "arrow.down.circle", nil) { model.cloneSheetOpen = true }
+                    entry("Try the sample project", "sparkles", nil) {
+                        Task { if let folder = try? await SampleProject.install() { workspace.open(folder: folder) } }
+                    }
+                }
+                if !workspace.recentProjects.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Recent").font(.headline)
+                        ForEach(workspace.recentProjects.prefix(8)) { ref in
+                            Button { workspace.open(recent: ref) } label: {
+                                Label(ref.name, systemImage: "folder").frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(palette.accent.ion.color)
+                            .contextMenu {
+                                Button("Remove from Recent", systemImage: "minus.circle", role: .destructive) { workspace.forget(ref) }
+                            }
+                        }
+                        Button("More…") { model.projectsOpen = true }
+                            .font(.footnote)
+                            .foregroundStyle(palette.text.secondary.color)
+                    }
+                }
+            }
+            .padding(32)
+            .frame(maxWidth: 520, alignment: .leading)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func entry(_ title: String, _ symbol: String, _ keys: String?, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
+            HStack {
+                Label(title, systemImage: symbol)
+                Spacer()
+                if let keys { Text(keys).font(.caption).foregroundStyle(palette.text.tertiary.color) }
+            }
+            .frame(maxWidth: 360)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(palette.accent.ion.color)
     }
 }

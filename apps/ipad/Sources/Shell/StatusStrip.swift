@@ -14,6 +14,7 @@ struct StatusStrip: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            ProjectButton()
             GitStatusLabel()
             if model.workspace.isDirty {
                 Text("Unsaved")
@@ -41,6 +42,9 @@ struct StatusStrip: View {
                 Text("Ln \(cursor.line), Col \(cursor.column)")
                     .monospacedDigit()
             }
+            if model.layout != .single || model.workspace.root != nil {
+                LayoutToggles()
+            }
         }
         .labelStyle(.titleAndIcon)
         .font(.caption2)
@@ -55,6 +59,62 @@ struct StatusStrip: View {
     }
 }
 
+/// The open project's name; a tap opens the switcher (new, open, recent, close), like the folder
+/// name in VS Code's title bar.
+struct ProjectButton: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Button { model.projectsOpen = true } label: {
+            HStack(spacing: 3) {
+                Label(model.workspace.rootURL?.lastPathComponent ?? "No project", systemImage: "folder")
+                Image(systemName: "chevron.up.chevron.down").imageScale(.small)
+            }
+            .frame(minHeight: 24)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        .accessibilityLabel("Project: \(model.workspace.rootURL?.lastPathComponent ?? "none")")
+        .accessibilityHint("Switch, open, start or close a project")
+        .accessibilityIdentifier("project-switcher")
+    }
+}
+
+/// The docks at a glance, as VS Code's layout controls: each shows or hides its dock (an empty one
+/// opens with its usual panel), filled while it shows.
+struct LayoutToggles: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach([PaneLayout.Dock.left, .bottom, .right], id: \.self) { dock in
+                let shown = isShown(dock)
+                Button { model.toggle(dock) } label: {
+                    Image(systemName: dock.hideSymbol)
+                        .symbolVariant(shown ? .fill : .none)
+                        .frame(width: 28, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(shown ? palette.accent.ion.color : palette.text.secondary.color)
+                .hoverEffect(.highlight)
+                .accessibilityLabel("Toggle \(dock.rawValue) dock")
+                .accessibilityValue(shown ? "Shown" : "Hidden")
+                .accessibilityIdentifier("layout-toggle-\(dock.rawValue)")
+            }
+        }
+        .padding(.leading, 4)
+    }
+
+    private func isShown(_ dock: PaneLayout.Dock) -> Bool {
+        if model.focusMode { return false }
+        if model.layout == .single && dock == .left { return model.leftOverlay && !model.panes.left.isEmpty }
+        return model.panes.isVisible(dock)
+    }
+}
+
 /// Plain-language git state (PLAN.md §9.9). Color only when something needs you.
 struct GitStatusLabel: View {
     @Environment(AppModel.self) private var model
@@ -62,10 +122,11 @@ struct GitStatusLabel: View {
 
     var body: some View {
         let git = model.workspace.git
+        // The project's name is ProjectButton's; this is its git state.
         if model.workspace.rootURL == nil {
-            Label("No project", systemImage: "folder")
+            EmptyView()
         } else if git.isNotARepo {
-            Label("\(model.workspace.rootURL!.lastPathComponent) · not a git repo", systemImage: "folder")
+            Text("not a git repo")
         } else if let status = git.status {
             Button {
                 model.registry.run("git.branches")
@@ -74,8 +135,6 @@ struct GitStatusLabel: View {
                     .foregroundStyle(color(status))
             }
             .buttonStyle(.plain)
-        } else {
-            Label(model.workspace.rootURL!.lastPathComponent, systemImage: "folder")
         }
     }
 

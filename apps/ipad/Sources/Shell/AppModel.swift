@@ -9,6 +9,7 @@ import Network
 import GameController
 import CommandKit
 import DesignKit
+import EditorKit
 import WorkspaceKit
 
 enum Experience {
@@ -64,6 +65,8 @@ final class AppModel {
     var branchSheetOpen = false
     var historySheetOpen = false
     var remotesSheetOpen = false
+    var projectsOpen = false
+    var newProjectOpen = false
     var pullRequestsOpen = false
     /// First run, or Help › Welcome.
     var welcomeOpen = false
@@ -118,6 +121,20 @@ final class AppModel {
     let launchFolderReady = true
     #endif
     /// The editor's minimap; kept between launches.
+    /// Long lines wrap at the editor's edge (⌥Z), so a narrow editor beside the docks hides
+    /// nothing. On by default; VS Code's is off, but an iPad's editor is narrower.
+    var wordWrap = UserDefaults.standard.object(forKey: "editor.wordWrap") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(wordWrap, forKey: "editor.wordWrap")
+            applyWordWrap()
+        }
+    }
+
+    func applyWordWrap() {
+        workspace.editor.textView.isLineWrappingEnabled = wordWrap
+        split.editor.textView.isLineWrappingEnabled = wordWrap
+    }
+
     var showsMinimap = UserDefaults.standard.object(forKey: "editor.minimap") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showsMinimap, forKey: "editor.minimap") }
     }
@@ -192,6 +209,17 @@ final class AppModel {
         }
         #endif
         if !opensFolderAtLaunch { workspace.reopenLast() }
+        applyWordWrap()
+        // The line moves: ⌥↑/⌥↓ would otherwise move the caret by paragraph before the menu sees them.
+        workspace.editor.keyCommands = [
+            EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: .alternate, id: "editor.moveLineUp"),
+            EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: .alternate, id: "editor.moveLineDown"),
+            EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: [.alternate, .shift], id: "editor.copyLineUp"),
+            EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: [.alternate, .shift], id: "editor.copyLineDown"),
+            // ⌃ shortcuts don't reach the menu while the editor has focus.
+            EditorKeyCommand(input: "r", modifiers: .control, id: "file.projects"),
+        ]
+        workspace.editor.onKeyCommand = { [weak self] id in self?.registry.run(CommandID(rawValue: id)) }
         startMonitors()
     }
 
@@ -217,7 +245,24 @@ final class AppModel {
     /// Whether a panel is on screen now.
     func isShowing(_ tab: UtilityTab) -> Bool { panes.isShowing(tab.rawValue) }
 
+    /// What an empty dock shows when it's asked for, as VS Code's sidebar opens on the explorer.
+    static func defaultPanel(for dock: PaneLayout.Dock) -> UtilityTab {
+        switch dock {
+        case .left: .files
+        case .right: .agent
+        case .bottom: .terminal
+        }
+    }
+
     func toggle(_ dock: PaneLayout.Dock) {
+        if panes[dock].isEmpty {
+            let panel = Self.defaultPanel(for: dock).rawValue
+            if !windowedPanels.contains(panel) {
+                withAnimation(Motion.pane) { panes.move(panel, toNewGroupIn: dock) }
+                if layout == .single && dock == .left { leftOverlay = true }
+            }
+            return
+        }
         withAnimation(Motion.pane) {
             if layout == .single && dock == .left {
                 leftOverlay.toggle()
@@ -338,13 +383,107 @@ final class AppModel {
             },
             Command(id: "view.bottom", title: "Toggle bottom dock", menu: "View",
                     shortcut: Shortcut("j"), surfaces: .ide, keywords: ["panel", "terminal"]) { [weak self] in
-                guard let self else { return }
                 // An empty bottom dock gets the terminal, the usual thing to want there.
-                if self.panes.bottom.isEmpty {
-                    withAnimation(Motion.pane) { self.panes.move(UtilityTab.terminal.rawValue, toNewGroupIn: .bottom) }
-                } else {
-                    self.toggle(.bottom)
-                }
+                self?.toggle(.bottom)
+            },
+            Command(id: "editor.toggleComment", title: "Toggle line comment", menu: "Edit",
+                    shortcut: Shortcut("/"), surfaces: .ide, keywords: ["comment out", "uncomment"]) { [weak self] in
+                self?.workspace.perform(.toggleComment)
+            },
+            Command(id: "editor.moveLineUp", title: "Move line up", menu: "Edit",
+                    shortcut: Shortcut("↑", [.option]), surfaces: .ide, keywords: ["swap lines"]) { [weak self] in
+                self?.workspace.perform(.moveUp)
+            },
+            Command(id: "editor.moveLineDown", title: "Move line down", menu: "Edit",
+                    shortcut: Shortcut("↓", [.option]), surfaces: .ide, keywords: ["swap lines"]) { [weak self] in
+                self?.workspace.perform(.moveDown)
+            },
+            Command(id: "editor.copyLineUp", title: "Copy line up", menu: "Edit",
+                    shortcut: Shortcut("↑", [.option, .shift]), surfaces: .ide, keywords: ["duplicate line"]) { [weak self] in
+                self?.workspace.perform(.copyUp)
+            },
+            Command(id: "editor.copyLineDown", title: "Copy line down", menu: "Edit",
+                    shortcut: Shortcut("↓", [.option, .shift]), surfaces: .ide, keywords: ["duplicate line"]) { [weak self] in
+                self?.workspace.perform(.copyDown)
+            },
+            Command(id: "editor.deleteLine", title: "Delete line", menu: "Edit",
+                    shortcut: Shortcut("k", [.command, .shift]), surfaces: .ide, keywords: ["remove line"]) { [weak self] in
+                self?.workspace.perform(.delete)
+            },
+            Command(id: "editor.indent", title: "Indent line", menu: "Edit",
+                    shortcut: Shortcut("]"), surfaces: .ide, keywords: ["tab", "shift right"]) { [weak self] in
+                self?.workspace.perform(.indent)
+            },
+            Command(id: "editor.outdent", title: "Outdent line", menu: "Edit",
+                    shortcut: Shortcut("["), surfaces: .ide, keywords: ["untab", "shift left", "dedent"]) { [weak self] in
+                self?.workspace.perform(.outdent)
+            },
+            Command(id: "view.zoomIn", title: "Zoom in (editor text)", menu: "View",
+                    shortcut: Shortcut("="), surfaces: .ide, keywords: ["font size", "bigger", "larger"]) { [weak self] in
+                self?.workspace.fontScale += 0.1
+            },
+            Command(id: "view.zoomOut", title: "Zoom out (editor text)", menu: "View",
+                    shortcut: Shortcut("-"), surfaces: .ide, keywords: ["font size", "smaller"]) { [weak self] in
+                self?.workspace.fontScale -= 0.1
+            },
+            Command(id: "view.zoomReset", title: "Reset zoom (editor text)", menu: "View",
+                    shortcut: Shortcut("0"), surfaces: .ide, keywords: ["font size", "actual size"]) { [weak self] in
+                self?.workspace.fontScale = 1
+            },
+            Command(id: "file.revert", title: "Revert file", menu: "File",
+                    surfaces: .ide, keywords: ["discard changes", "reload from disk"]) { [weak self] in
+                guard let self, self.workspace.openFile != nil else { return }
+                self.workspace.revertFile()
+            },
+            Command(id: "view.wordWrap", title: "Toggle word wrap", menu: "View",
+                    shortcut: Shortcut("z", [.option]), surfaces: .ide, keywords: ["wrap lines", "long lines", "soft wrap"]) { [weak self] in
+                self?.wordWrap.toggle()
+            },
+            Command(id: "view.sidebar", title: "Toggle sidebar", menu: "View",
+                    shortcut: Shortcut("b"), surfaces: .ide, keywords: ["left dock", "explorer", "files"]) { [weak self] in
+                self?.toggle(.left)
+            },
+            Command(id: "view.resetLayout", title: "Reset layout", menu: "View",
+                    surfaces: .ide, keywords: ["panes", "docks", "panels", "restore", "default"]) { [weak self] in
+                guard let self else { return }
+                self.focusMode = false
+                self.applyLayout(.standard)
+            },
+            Command(id: "view.closeAllPanels", title: "Close all panels", menu: "View",
+                    surfaces: .ide, keywords: ["docks", "hide", "editor only"]) { [weak self] in
+                guard let self else { return }
+                withAnimation(Motion.pane) { for dock in PaneLayout.Dock.allCases { self.panes.hidden.insert(dock) } }
+                self.leftOverlay = false
+            },
+            Command(id: "file.projects", title: "Open recent project…", menu: "File",
+                    shortcut: Shortcut("r", [.control]), keywords: ["switch project", "recent", "workspace", "folder"]) { [weak self] in
+                self?.projectsOpen = true
+            },
+            Command(id: "file.newProject", title: "New project…", menu: "File",
+                    shortcut: Shortcut("n", [.command, .control]), keywords: ["create project", "template", "start"]) { [weak self] in
+                self?.newProjectOpen = true
+            },
+            Command(id: "file.closeFolder", title: "Close folder", menu: "File",
+                    keywords: ["close project", "close workspace"]) { [weak self] in
+                guard let self, self.workspace.rootURL != nil else { return }
+                self.workspace.closeFolder()
+            },
+            Command(id: "editor.closeAll", title: "Close all tabs", menu: "File",
+                    shortcut: Shortcut("w", [.command, .option]), surfaces: .ide, keywords: ["close all editors"]) { [weak self] in
+                self?.workspace.closeTabs()
+            },
+            Command(id: "editor.closeOthers", title: "Close other tabs", menu: "File",
+                    surfaces: .ide, keywords: ["close other editors"]) { [weak self] in
+                guard let self, let file = self.workspace.openFile else { return }
+                self.workspace.closeTabs(except: file)
+            },
+            Command(id: "editor.closeSaved", title: "Close saved tabs", menu: "File",
+                    surfaces: .ide, keywords: ["close saved editors"]) { [weak self] in
+                self?.workspace.closeSavedTabs()
+            },
+            Command(id: "editor.reopenClosed", title: "Reopen closed tab", menu: "File",
+                    shortcut: Shortcut("t", [.command, .option]), surfaces: .ide, keywords: ["undo close", "reopen editor"]) { [weak self] in
+                self?.workspace.reopenClosedTab()
             },
             Command(id: "file.openFolder", title: "Open folder", menu: "File",
                     shortcut: Shortcut("o"), keywords: ["project", "workspace"]) { [weak self] in
@@ -558,6 +697,12 @@ final class AppModel {
                     menu: "View", surfaces: .ide) { [weak self] in
                 guard let self else { return }
                 self.show(tab)
+            }
+        } + UtilityTab.allCases.map { tab in
+            Command(id: CommandID(rawValue: "panel.close.\(tab.rawValue.lowercased().replacingOccurrences(of: " ", with: ""))"),
+                    title: "Close \(tab.rawValue.lowercased()) panel", menu: "View", surfaces: .ide, keywords: ["hide", "panel"]) { [weak self] in
+                guard let self else { return }
+                withAnimation(Motion.pane) { self.panes.close(tab.rawValue) }
             }
         } + LayoutPreset.allCases.map { preset in
             Command(id: CommandID(rawValue: "layout.\(preset.rawValue)"), title: "Layout: \(preset.title)",

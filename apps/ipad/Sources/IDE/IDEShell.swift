@@ -7,7 +7,8 @@ import DesignKit
 /// iPad: the editor in the middle with three docks around it (left, right, bottom), status strip
 /// below. Every panel is a tab you can move between docks and groups; docks and groups resize by
 /// their boundaries (PaneLayout). Side docks show when they fit beside a 480 pt editor, else the
-/// one used last; under 700 pt the left dock slides over the editor.
+/// one used last; under 700 pt the left dock slides over the editor. The whole shell sits above
+/// the on-screen keyboard, so nothing (code, terminal, status) is ever hidden under it.
 struct IDEShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
@@ -17,7 +18,11 @@ struct IDEShell: View {
             let layout = LayoutClass(width: geo.size.width)
             let width = Double(geo.size.width)
             let sides = (model.focusMode || layout == .single) ? [] : model.panes.fittingSides(width: width, minEditor: Metrics.minEditorWidth)
-            let showsBottom = !model.focusMode && model.panes.isVisible(.bottom)
+            // The bottom dock gives way before the editor does: the editor keeps at least
+            // `minEditorHeight`, and a dock squeezed under 100 pt (the keyboard is up) steps aside.
+            let bottomRoom = Double(geo.size.height) - Self.minEditorHeight - 40
+            let bottomHeight = min(model.panes.bottomHeight, bottomRoom)
+            let showsBottom = !model.focusMode && model.panes.isVisible(.bottom) && bottomHeight >= 100
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     if sides.contains(.left) {
@@ -30,9 +35,9 @@ struct IDEShell: View {
                         EditorPane()
                         if showsBottom {
                             ResizeHandle(axis: .vertical, label: "Bottom dock height") { delta in
-                                model.panes.setSize(.bottom, model.panes.bottomHeight - delta, maximum: Double(geo.size.height) * 0.7)
+                                model.panes.setSize(.bottom, bottomHeight - delta, maximum: max(100, bottomRoom))
                             } reset: { model.panes.resetSize(.bottom) }
-                            DockView(dock: .bottom).frame(height: model.panes.bottomHeight)
+                            DockView(dock: .bottom).frame(height: bottomHeight)
                         }
                     }
                     .frame(minWidth: layout == .single ? nil : Metrics.minEditorWidth)
@@ -56,8 +61,14 @@ struct IDEShell: View {
                 StatusStrip()
             }
             .overlay(alignment: .leading) {
-                // Under 700 pt the left dock slides over the editor.
+                // Under 700 pt the left dock slides over the editor; a tap beside it closes it.
                 if layout == .single && model.leftOverlay && !model.focusMode && !model.panes.left.isEmpty {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .onTapGesture { model.toggle(.left) }
+                        .accessibilityLabel("Close the left dock")
+                        .accessibilityAddTraits(.isButton)
+                        .transition(.opacity)
                     DockView(dock: .left)
                         .frame(width: min(model.panes.leftWidth, geo.size.width * 0.85))
                         .overlay(alignment: .trailing) { hairline }
@@ -84,7 +95,6 @@ struct IDEShell: View {
             }
             #endif
         }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         .folderPicker()
         .gitSheets(model)
         .fullScreenCover(isPresented: Binding(get: { model.welcomeOpen }, set: { model.welcomeOpen = $0 })) {
@@ -92,6 +102,8 @@ struct IDEShell: View {
         }
         .onAppear { applyInitialLayout() }
     }
+
+    static let minEditorHeight: Double = 200
 
     private var hairline: some View {
         Rectangle().fill(palette.surface.hairline.color).frame(width: Metrics.hairline)

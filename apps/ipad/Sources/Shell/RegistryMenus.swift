@@ -16,6 +16,8 @@ struct RegistryMenus: Commands {
         CommandGroup(replacing: .saveItem) {}
         CommandGroup(replacing: .newItem) {}
 
+        // Line commands join the system Edit menu, after its text editing items.
+        CommandGroup(after: .textEditing) { MenuItems(model: model, menu: "Edit") }
         CommandMenu("File") { MenuItems(model: model, menu: "File") }
         CommandMenu("View") { MenuItems(model: model, menu: "View") }
         CommandMenu("Git") { MenuItems(model: model, menu: "Git") }
@@ -49,6 +51,10 @@ extension Shortcut {
         case "\r": .return
         case "\t": .tab
         case "\u{1B}": .escape
+        case "↑": .upArrow
+        case "↓": .downArrow
+        case "←": .leftArrow
+        case "→": .rightArrow
         default: KeyEquivalent(ch)
         }
         return KeyboardShortcut(equivalent, modifiers: mods)

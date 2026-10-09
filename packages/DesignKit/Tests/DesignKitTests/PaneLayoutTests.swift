@@ -64,6 +64,17 @@ struct PaneLayoutTests {
         #expect(layout.isVisible(.right) && layout.isShowing("agent"))
     }
 
+    @Test func closesAWholeGroup() {
+        var layout = standard()
+        layout.move("terminal", toNewGroupIn: .bottom)
+        layout.move("preview", toGroup: layout.bottom[0].id)
+        layout.closeGroup(layout.bottom[0].id)
+        #expect(layout.bottom.isEmpty && !layout.isVisible(.bottom))
+        #expect(layout.closed(from: all) == ["terminal", "preview"])
+        layout.reveal("terminal")
+        #expect(layout.isShowing("terminal"))
+    }
+
     @Test func resizesWithinLimits() {
         var layout = standard()
         layout.move("terminal", toNewGroupIn: .right)

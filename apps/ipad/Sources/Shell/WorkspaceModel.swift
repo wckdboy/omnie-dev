@@ -407,9 +407,15 @@ final class WorkspaceModel {
         }
     }
 
+    /// Recently closed tabs, newest last (⌥⌘T reopens them).
+    @ObservationIgnored private var closedTabs: [URL] = []
+
     /// Closes a tab, moving to its neighbor if it was the open one.
     func closeTab(_ url: URL) {
         guard let i = tabs.firstIndex(where: { $0.url == url }) else { return }
+        closedTabs.removeAll { $0 == url }
+        closedTabs.append(url)
+        if closedTabs.count > 30 { closedTabs.removeFirst() }
         if openFile == url {
             if isDirty { saveCurrent() }
             tabs.remove(at: i)
@@ -417,6 +423,54 @@ final class WorkspaceModel {
         } else {
             tabs.remove(at: i)
         }
+    }
+
+    /// Closes every tab but `keep`'s (all of them when nil).
+    func closeTabs(except keep: URL? = nil) {
+        for tab in tabs where tab.url != keep { closeTab(tab.url) }
+    }
+
+    /// Closes the tabs after `url`'s, as VS Code's "Close to the Right".
+    func closeTabs(after url: URL) {
+        guard let i = tabs.firstIndex(where: { $0.url == url }) else { return }
+        for tab in tabs[(i + 1)...] { closeTab(tab.url) }
+    }
+
+    /// Closes the tabs with nothing unsaved (only the open file can be).
+    func closeSavedTabs() {
+        for tab in tabs where !(tab.url == openFile && isDirty) { closeTab(tab.url) }
+    }
+
+    /// Reopens the last closed tab that still exists.
+    func reopenClosedTab() {
+        while let url = closedTabs.popLast() {
+            if FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
+                open(file: url, preview: false)
+                return
+            }
+        }
+    }
+
+    /// Closes the project: saved first, then nothing open (the welcome and recent list show).
+    func closeFolder() {
+        if isDirty { saveCurrent() }
+        saveSession()
+        watcher?.stop()
+        watcher = nil
+        if isAccessingRoot { rootURL?.stopAccessingSecurityScopedResource() }
+        isAccessingRoot = false
+        savesSession = false
+        closeFile()
+        tabs = []
+        closedTabs = []
+        carets = [:]
+        savesSession = true
+        rootURL = nil
+        root = nil
+        policy.projectRoot = nil
+        recentFiles = []
+        problems.clear()
+        Task { await git.detach() }
     }
 
     /// ⌃Tab / ⌃⇧Tab.
@@ -489,6 +543,13 @@ final class WorkspaceModel {
         _ = await git.restore(checkpoint)
     }
 
+    /// Throws away unsaved edits: the file as it is on disk.
+    func revertFile() {
+        autosaveTask?.cancel()
+        isDirty = false
+        reloadFromDisk()
+    }
+
     /// Re-reads the navigator and the open file after something other than the editor changed files.
     func reloadFromDisk() {
         changeCount += 1
@@ -514,9 +575,56 @@ final class WorkspaceModel {
     }
 
     /// Re-themes the editor when the appearance or density changes.
+    /// The editor's text size relative to the density's (⌘+ / ⌘− / ⌘0), kept across launches.
+    var fontScale: CGFloat = UserDefaults.standard.object(forKey: "editor.fontScale") as? CGFloat ?? 1 {
+        didSet {
+            fontScale = min(2.5, max(0.6, fontScale))
+            UserDefaults.standard.set(fontScale, forKey: "editor.fontScale")
+            applyEditorTheme(palette: editor.theme.palette, density: editor.theme.density)
+            onThemeChange?()
+        }
+    }
+    /// Set by the split editor so it follows the main one's theme and size.
+    @ObservationIgnored var onThemeChange: (() -> Void)?
+
     func applyEditorTheme(palette: Palette, density: Density) {
-        guard editor.theme.palette != palette || editor.theme.density != density else { return }
-        editor.theme = EditorTheme(palette: palette, density: density)
+        guard editor.theme.palette != palette || editor.theme.density != density || editor.theme.scale != fontScale else { return }
+        editor.theme = EditorTheme(palette: palette, density: density, scale: fontScale)
+    }
+
+    // MARK: Line commands (VS Code's ⌘/, ⌥↑↓, ⇧⌥↑↓, ⇧⌘K, ⌘] ⌘[)
+
+    func perform(_ edit: LineEdit) {
+        guard openFile != nil else { return }
+        let indent = (try? String(contentsOf: rootURL?.appending(path: ".editorconfig") ?? URL(filePath: "/nonexistent"), encoding: .utf8))
+            .flatMap { $0.contains("indent_style = tab") ? "\t" : nil } ?? Self.indentUnit(in: editor.text)
+        editor.perform(edit, comment: Self.commentStyle(for: openFile!), indentUnit: indent)
+    }
+
+    /// How the file's language comments a line, from its extension (`//` when unknown).
+    nonisolated static func commentStyle(for url: URL) -> LineEdit.CommentStyle {
+        let name = url.lastPathComponent.lowercased()
+        switch url.pathExtension.lowercased() {
+        case "md", "markdown", "html", "htm", "xml", "svg", "vue", "svelte": return .block("<!--", "-->")
+        case "css", "scss", "less": return .block("/*", "*/")
+        case "py", "pyi", "sh", "bash", "zsh", "fish", "rb", "yaml", "yml", "toml", "r", "pl", "conf", "ini", "env", "gitignore":
+            return .line("#")
+        case "sql", "lua", "hs": return .line("--")
+        default:
+            if ["makefile", "dockerfile", ".gitignore", ".env", ".editorconfig"].contains(name) { return .line("#") }
+            return .line("//")
+        }
+    }
+
+    /// The file's own indent: a tab, or the smallest run of leading spaces (2 when there's none).
+    nonisolated static func indentUnit(in text: String) -> String {
+        var smallest = Int.max
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true).prefix(400) {
+            if line.hasPrefix("\t") { return "\t" }
+            let spaces = line.prefix { $0 == " " }.count
+            if spaces > 0, spaces < smallest { smallest = spaces }
+        }
+        return String(repeating: " ", count: smallest == Int.max ? 2 : min(smallest, 8))
     }
 
     /// The identifier at or just before the caret (for looking it up), or nil.

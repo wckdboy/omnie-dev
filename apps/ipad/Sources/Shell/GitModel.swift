@@ -80,6 +80,20 @@ final class GitModel {
         }
     }
 
+    /// No project: forget the last one's repository.
+    func detach() async {
+        repo = nil
+        status = nil
+        log = []
+        tags = [:]
+        checkpoints = []
+        branches = []
+        remotes = []
+        isNotARepo = false
+        syncMessage = nil
+        undoTitle = nil
+    }
+
     // MARK: Remote
 
     func createIdentity() {
