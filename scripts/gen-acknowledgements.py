@@ -74,6 +74,9 @@ def main() -> None:
     if not sucrase.exists():
         sys.exit(f"missing {sucrase}; run scripts/vendor-runkit.sh")
     items.append(entry("Sucrase", "3.35.1", [sucrase], "https://github.com/alangpierce/sucrase"))
+    pyodide = ROOT / "packages/RunKit/Sources/RunKit/JS/pyodide"
+    items.append(entry("Pyodide", "314.0.7", [pyodide / "MPL-2.0.txt"], "https://github.com/pyodide/pyodide"))
+    items.append(entry("CPython (in Pyodide)", "3.14", [pyodide / "PSF-2.0.txt"], "https://www.python.org"))
 
     # The WASI spike's runtime and tests, when vendored into this build.
     spike = ROOT / "apps/ipad/Resources/WASISpike"

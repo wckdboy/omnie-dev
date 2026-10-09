@@ -3,6 +3,7 @@
   "private": true,
   "description": "Pins the JavaScript RunKit bundles (scripts/vendor-runkit.sh).",
   "dependencies": {
+    "pyodide": "314.0.7",
     "sucrase": "3.35.1"
   }
 }

@@ -10,7 +10,7 @@ public struct RunTestsTool: AgentTool {
     let runner: @Sendable (_ file: String?) async -> String
     public init(runner: @escaping @Sendable (_ file: String?) async -> String) { self.runner = runner }
     public let name = "run_tests"
-    public let description = "Run the project's tests (files named *.test.ts, *.spec.js and so on), or one test file. Returns each test's result and any errors. Use it to check your change."
+    public let description = "Run the project's tests (*.test.ts, *.spec.js, test_*.py and so on), or one test file. Returns each test's result and any errors. Use it to check your change."
     public var parameters: [String: JSONValue] { schema(["path": ("string", "One test file to run. Default: all of them.")], required: []) }
     public func action(for call: ToolCall) throws -> Action {
         .runSandboxed(command: "run_tests" + (call.arguments["path"]?.string.map { " \($0)" } ?? ""), network: false)
@@ -23,7 +23,7 @@ public struct RunScriptTool: AgentTool {
     let runner: @Sendable (_ file: String) async -> String
     public init(runner: @escaping @Sendable (_ file: String) async -> String) { self.runner = runner }
     public let name = "run_script"
-    public let description = "Run a JavaScript or TypeScript file from the project (no network, 30 s limit) and return what it printed and any errors."
+    public let description = "Run a JavaScript, TypeScript or Python file from the project (no network, time-limited) and return what it printed and any errors."
     public var parameters: [String: JSONValue] { schema(["path": ("string", "The file to run.")], required: ["path"]) }
     public func action(for call: ToolCall) throws -> Action { .runSandboxed(command: "run_script \(try call.string("path"))", network: false) }
     public func run(_ call: ToolCall) async throws -> String { await runner(try call.string("path")) }

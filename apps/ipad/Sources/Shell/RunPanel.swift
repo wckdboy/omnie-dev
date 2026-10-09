@@ -39,7 +39,7 @@ struct RunPanel: View {
                                 .foregroundStyle(color(for: String(line)))
                         }
                     } else {
-                        Text("Runs the project's tests (*.test.ts, *.spec.js…) or the open file, on this device, with no network.")
+                        Text("Runs the project's tests (*.test.ts, *.spec.js, test_*.py…) or the open file (JavaScript, TypeScript or Python) on this device, with no network.")
                             .foregroundStyle(palette.text.secondary.color)
                     }
                 }
@@ -59,7 +59,7 @@ struct RunPanel: View {
 
     private var canRunOpenFile: Bool {
         guard let path = model.workspace.relativePath else { return false }
-        return [".ts", ".tsx", ".js", ".mjs", ".jsx"].contains { path.hasSuffix($0) }
+        return [".ts", ".tsx", ".js", ".mjs", ".jsx", ".py"].contains { path.hasSuffix($0) }
     }
 
     private func color(for line: String) -> Color {
@@ -74,14 +74,14 @@ struct RunPanel: View {
         error = nil
         do {
             let runner = try JSRunner(root: root)
-            if let file, !file.contains(".test.") && !file.contains(".spec.") {
+            if let file, !Self.isTest(file) {
                 running = "Running \(file)…"
-                result = await runner.runScript(file)
+                result = await runner.runFile(file)
             } else {
-                let files = file.map { [$0] } ?? JSRunner.testFiles(in: root)
-                guard !files.isEmpty else { error = "No test files found (*.test.ts, *.spec.js…)."; return }
-                running = "Running \(files.count) test \(files.count == 1 ? "file" : "files")…"
-                result = await runner.runTests(files)
+                let count = file == nil ? JSRunner.testFiles(in: root).count + JSRunner.pythonTestFiles(in: root).count : 1
+                guard count > 0 else { error = "No test files found (*.test.ts, *.spec.js, test_*.py…)."; running = nil; return }
+                running = "Running \(count) test \(count == 1 ? "file" : "files")…"
+                result = await runner.runAllTests(only: file)
             }
         } catch {
             self.error = error.localizedDescription
@@ -90,18 +90,24 @@ struct RunPanel: View {
     }
 }
 
+extension RunPanel {
+    static func isTest(_ path: String) -> Bool {
+        let name = (path as NSString).lastPathComponent
+        return name.contains(".test.") || name.contains(".spec.") || (name.hasSuffix(".py") && (name.hasPrefix("test_") || name.hasSuffix("_test.py")))
+    }
+}
+
 /// RunKit for the agent's run tools: same sandbox, plain-text reports.
 @MainActor
 enum AgentRuns {
     static func tests(root: URL, file: String?) async -> String {
-        do {
-            let files = file.map { [$0] } ?? JSRunner.testFiles(in: root)
-            guard !files.isEmpty else { return "No test files found (*.test.ts, *.spec.js…)." }
-            return await (try JSRunner(root: root)).runTests(files).report
-        } catch { return error.localizedDescription }
+        guard file != nil || !JSRunner.testFiles(in: root).isEmpty || !JSRunner.pythonTestFiles(in: root).isEmpty else {
+            return "No test files found (*.test.ts, *.spec.js, test_*.py…)."
+        }
+        do { return await (try JSRunner(root: root)).runAllTests(only: file).report } catch { return error.localizedDescription }
     }
 
     static func script(root: URL, file: String) async -> String {
-        do { return await (try JSRunner(root: root)).runScript(file).report } catch { return error.localizedDescription }
+        do { return await (try JSRunner(root: root)).runFile(file).report } catch { return error.localizedDescription }
     }
 }

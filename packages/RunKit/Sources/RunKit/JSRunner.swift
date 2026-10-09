@@ -87,6 +87,45 @@ public final class JSRunner {
         return await run(query: query, timeout: timeout)
     }
 
+    /// Python's test files: test_*.py and *_test.py.
+    public nonisolated static func pythonTestFiles(in root: URL) -> [String] {
+        SchemeHandler.projectFiles(ModuleResolver(root: root).root).filter {
+            let name = ($0 as NSString).lastPathComponent
+            return name.hasSuffix(".py") && (name.hasPrefix("test_") || name.hasSuffix("_test.py"))
+        }
+    }
+
+    /// Runs a Python file with Pyodide (CPython in WebAssembly). The first run in a web view
+    /// starts Python, which takes a few seconds.
+    public func runPython(_ entry: String, timeout: Double = 60) async -> RunResult {
+        await run(query: [URLQueryItem(name: "mode", value: "python"), URLQueryItem(name: "entry", value: entry)], timeout: timeout)
+    }
+
+    public func runPythonTests(_ files: [String], timeout: Double = 60) async -> RunResult {
+        await run(query: [URLQueryItem(name: "mode", value: "pytest")] + files.map { URLQueryItem(name: "file", value: $0) }, timeout: timeout)
+    }
+
+    /// Every test in the project: JS/TS files with the vitest subset, Python files with the pytest
+    /// subset, in one result. `only` limits it to one file.
+    public func runAllTests(only file: String? = nil) async -> RunResult {
+        let js = file.map { $0.hasSuffix(".py") ? [] : [$0] } ?? Self.testFiles(in: root)
+        let py = file.map { $0.hasSuffix(".py") ? [$0] : [] } ?? Self.pythonTestFiles(in: root)
+        var result = RunResult()
+        let start = Date()
+        for part in [js.isEmpty ? nil : await runTests(js), py.isEmpty ? nil : await runPythonTests(py)].compactMap({ $0 }) {
+            result.output += part.output
+            result.tests += part.tests
+            if part.ending != .finished { result.ending = part.ending }
+        }
+        result.ms = Int(Date().timeIntervalSince(start) * 1000)
+        return result
+    }
+
+    /// Runs a file by its kind: Python, or JavaScript/TypeScript.
+    public func runFile(_ path: String) async -> RunResult {
+        path.hasSuffix(".py") ? await runPython(path) : await runScript(path)
+    }
+
     public func runScript(_ entry: String, timeout: Double = 30) async -> RunResult {
         await run(query: [URLQueryItem(name: "entry", value: entry)], timeout: timeout)
     }
@@ -176,16 +215,38 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         self.transpiler = transpiler
     }
 
-    static let csp = "default-src omnie-run:; script-src omnie-run: 'unsafe-inline'; connect-src 'none'; img-src omnie-run: data:; style-src omnie-run: 'unsafe-inline'"
+    /// Only this scheme, never the network: fetch can read the project and RunKit's files (Pyodide
+    /// loads its runtime that way), and WebAssembly may compile.
+    static let csp = "default-src omnie-run:; script-src omnie-run: 'unsafe-inline' 'wasm-unsafe-eval'; connect-src omnie-run:; img-src omnie-run: data: blob:; style-src omnie-run: 'unsafe-inline'; worker-src omnie-run:"
+
+    /// The project's files for Pyodide's file system: under 2 MB each, at most 3,000, skipping
+    /// version control, dependencies and build output.
+    static func projectFiles(_ root: URL) -> [String] {
+        var files: [String] = []
+        let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
+        while let url = enumerator?.nextObject() as? URL, files.count < 3_000 {
+            if [".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", ".build"].contains(url.lastPathComponent) {
+                enumerator?.skipDescendants(); continue
+            }
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard values?.isRegularFile == true, (values?.fileSize ?? 0) < 2_000_000,
+                  ModuleResolver.realPath(url.path).hasPrefix(root.path + "/") else { continue }
+            files.append(String(url.path.dropFirst(root.path.count + 1)))
+        }
+        return files.sorted()
+    }
 
     func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
         guard let url = task.request.url else { return }
         // omnie-run://local/__omnie/runtime/<file> is RunKit's; everything else is the project, at the
         // origin root so a page's "/src/main.ts" works.
         let full = String(url.path.dropFirst())
-        let runtimePrefix = "__omnie/runtime/"
-        let area = full.hasPrefix(runtimePrefix) ? "runtime" : "project"
-        let path = area == "runtime" ? String(full.dropFirst(runtimePrefix.count)) : full
+        var area = "project", path = full
+        for bundled in ["runtime", "pyodide"] where full.hasPrefix("__omnie/\(bundled)/") {
+            area = bundled
+            path = String(full.dropFirst("__omnie/\(bundled)/".count))
+        }
+        if full == "__omnie/manifest.json" { area = "manifest" }
         do {
             let (data, mime) = try body(area: area, path: path)
             let headers = ["Content-Type": mime, "Content-Length": String(data.count), "Content-Security-Policy": Self.csp,
@@ -215,11 +276,15 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func body(area: String, path: String) throws -> (Data, String) {
-        if area == "runtime" {
+        if area == "runtime" || area == "pyodide" {
             guard let url = Bundle.module.url(forResource: (path as NSString).deletingPathExtension,
-                                              withExtension: (path as NSString).pathExtension, subdirectory: "JS/runtime"),
+                                              withExtension: (path as NSString).pathExtension, subdirectory: "JS/\(area)"),
                   let data = try? Data(contentsOf: url) else { throw NotFound(path: path) }
-            return (data, path.hasSuffix(".html") ? "text/html" : "text/javascript")
+            let ext = (path as NSString).pathExtension.lowercased()
+            return (data, Self.mimeTypes[ext] ?? (ext == "py" ? "text/plain" : "application/octet-stream"))
+        }
+        if area == "manifest" {
+            return (try JSONSerialization.data(withJSONObject: Self.projectFiles(resolver.root)), "application/json")
         }
         guard let file = resolver.resolve(path), let data = try? Data(contentsOf: file) else { throw NotFound(path: path) }
         let name = file.lastPathComponent

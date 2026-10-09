@@ -26,3 +26,4 @@ __pycache__/
 packages/RunKit/Sources/RunKit/JS/sucrase.js
 packages/RunKit/Sources/RunKit/JS/sucrase-LICENSE.txt
 scripts/runkit/node_modules/
+packages/RunKit/Sources/RunKit/JS/pyodide/
