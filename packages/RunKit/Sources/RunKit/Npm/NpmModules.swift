@@ -91,6 +91,31 @@ enum NpmModules {
         return nil
     }
 
+    /// For the type checker: each chosen package's package.json and declaration files, so the
+    /// compiler can lay them out as node_modules.
+    static func typeFiles(project: URL, cache: URL) -> [[String: Any]] {
+        resolve(project: project, cache: cache).map { pick in
+            let folder = NpmCache.folder(cache, pick.name, pick.version)
+            var files: [String] = []
+            let enumerator = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil)
+            while let url = enumerator?.nextObject() as? URL, files.count < 3_000 {
+                let name = url.lastPathComponent
+                guard name == "package.json" || name.hasSuffix(".d.ts") || name.hasSuffix(".d.mts") || name.hasSuffix(".d.cts") else { continue }
+                files.append(String(url.standardizedFileURL.path.dropFirst(folder.standardizedFileURL.path.count + 1)))
+            }
+            return ["name": pick.name, "version": pick.version, "files": files.sorted()]
+        }
+    }
+
+    /// A cached file's bytes untouched (declaration files and package.json for the type checker).
+    static func raw(path: String, cache: URL) -> Data? {
+        let parts = path.split(separator: "/").map(String.init)
+        let nameLength = parts.first?.hasPrefix("@") == true ? 2 : 1
+        guard parts.count > nameLength + 1, Semver(parts[nameLength]) != nil, !parts.contains("..") else { return nil }
+        let folder = NpmCache.folder(cache, parts[0..<nameLength].joined(separator: "/"), parts[nameLength])
+        return try? Data(contentsOf: folder.appending(path: parts[(nameLength + 1)...].joined(separator: "/")))
+    }
+
     // MARK: Serving
 
     /// A cached file as the browser should get it. `path` is "<name>/<version>/<file>".

@@ -49,5 +49,25 @@ struct TypeCheckTests {
         #expect(result.diagnostics.isEmpty, "\(result.report)")
         #expect(result.report.hasPrefix("No type errors in 1 file"))
     }
+
+    @Test func usesTypesFromCachedPackages() async throws {
+        var registry = FakeRegistry()
+        try registry.publish("typed-lib", versions: ["1.0.0": [
+            "package.json": #"{ "name": "typed-lib", "main": "index.js", "types": "index.d.ts" }"#,
+            "index.js": "export function greet(name) { return 'hi ' + name; }\n",
+            "index.d.ts": "export declare function greet(name: string): string;\n",
+        ]])
+        let cacheRoot = FileManager.default.temporaryDirectory.appendingPathComponent("typecheck-npm-\(UUID().uuidString)")
+        try await registry.cache(cacheRoot).install("typed-lib")
+        let root = try project([
+            "package.json": #"{ "dependencies": { "typed-lib": "^1.0.0", "not-cached": "^2" } }"#,
+            "src/main.ts": "import { greet } from \"typed-lib\";\nimport other from \"not-cached\";\nconst n: number = greet(\"a\");\nconsole.log(n, other);\n",
+        ])
+        NpmCache.sharedRoot = cacheRoot
+        defer { NpmCache.sharedRoot = nil }
+        let result = await (try JSRunner(root: root)).typeCheck()
+        #expect(result.diagnostics.map(\.code) == [2322], "\(result.report)")
+        #expect(result.diagnostics.first?.line == 3)
+    }
 }
 }

@@ -249,6 +249,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             path = String(full.dropFirst("__omnie/\(bundled)/".count))
         }
         if full == "__omnie/manifest.json" { area = "manifest" }
+        if full == "__omnie/npm-types.json" { area = "npm-types" }
+        if full.hasPrefix("__omnie/npm-raw/") { area = "npm-raw"; path = String(full.dropFirst("__omnie/npm-raw/".count)) }
         if full.hasPrefix("__omnie/source/") { area = "source"; path = String(full.dropFirst("__omnie/source/".count)) }
         do {
             let (data, mime) = try body(area: area, path: path)
@@ -295,6 +297,14 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func body(area: String, path: String) throws -> (Data, String) {
+        if area == "npm-types" {
+            let list = NpmCache.sharedRoot.map { NpmModules.typeFiles(project: resolver.root, cache: $0) } ?? []
+            return (try JSONSerialization.data(withJSONObject: list), "application/json")
+        }
+        if area == "npm-raw" {
+            guard let cache = NpmCache.sharedRoot, let data = NpmModules.raw(path: path, cache: cache) else { throw NotFound(path: path) }
+            return (data, "text/plain; charset=utf-8")
+        }
         if area == "npm" {
             guard let cache = NpmCache.sharedRoot, let found = NpmModules.body(path: path, cache: cache, project: resolver.root) else { throw NotFound(path: path) }
             return found

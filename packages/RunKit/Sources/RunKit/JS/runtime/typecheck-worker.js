@@ -17,6 +17,12 @@ self.onmessage = async () => {
     const manifest = JSON.parse(await text(base + "__omnie/manifest.json"));
     const wanted = manifest.filter((p) => /\.(ts|tsx|mts|cts)$/.test(p) || /(^|\/)(tsconfig|jsconfig)\.json$/.test(p) || p.endsWith(".json"));
     await Promise.all(wanted.map(async (p) => files.set("/project/" + p, await text(projectURL(p)))));
+    // Cached npm packages' declarations, laid out as node_modules so imports resolve as usual.
+    const packages = JSON.parse(await text(base + "__omnie/npm-types.json"));
+    await Promise.all(packages.flatMap((pkg) => pkg.files.map(async (f) => {
+      const url = base + "__omnie/npm-raw/" + [pkg.name, pkg.version, f].join("/").split("/").map(encodeURIComponent).join("/");
+      files.set("/project/node_modules/" + pkg.name + "/" + f, await text(url));
+    })));
 
     const exists = (n) => files.has(n);
     const entries = (dir) => {
@@ -71,7 +77,7 @@ self.onmessage = async () => {
       const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
       // No npm cache yet: a bare package with no types here isn't the project's fault.
       if ((d.code === 2307 || d.code === 7016) && /['"](?![./])[^'"]+['"]/.test(message)) continue;
-      if (d.file && !d.file.fileName.startsWith("/project/")) continue;
+      if (d.file && (!d.file.fileName.startsWith("/project/") || d.file.fileName.includes("/node_modules/"))) continue;
       const entry = { code: d.code, category: category(d.category), message };
       if (d.file && d.start !== undefined) {
         const { line, character } = d.file.getLineAndCharacterOfPosition(d.start);

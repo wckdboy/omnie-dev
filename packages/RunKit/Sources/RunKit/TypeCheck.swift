@@ -37,7 +37,7 @@ public struct TypeCheckResult: Sendable {
     public var report: String {
         if let failure { return "Type check failed: \(failure)" }
         if diagnostics.isEmpty { return "No type errors in \(files) \(files == 1 ? "file" : "files") (\(ms) ms)." }
-        return diagnostics.map(\.summary).joined(separator: "\n") + "\n\(errors) \(errors == 1 ? "error" : "errors") in \(files) files (\(ms) ms)."
+        return diagnostics.map(\.summary).joined(separator: "\n") + "\n\(errors) \(errors == 1 ? "error" : "errors") in \(files) \(files == 1 ? "file" : "files") (\(ms) ms)."
     }
 }
 

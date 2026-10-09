@@ -33,6 +33,18 @@ struct NpmRealTests {
         let result = await (try JSRunner(root: project)).runFile("main.js")
         print(result.report)
         #expect(result.output.map(\.text) == ["<p>n=2</p> function", "true 2026-01-02 21"])
+        // The type checker sees the cached packages' own declarations.
+        try """
+            import { z } from "zod";
+            import { format } from "date-fns";
+            const User = z.object({ name: z.string() });
+            const u: { name: number } = User.parse({ name: "a" });
+            const d: number = format(new Date(), "yyyy");
+            console.log(u, d);
+            """.write(to: project.appending(path: "types.ts"), atomically: true, encoding: .utf8)
+        let types = await (try JSRunner(root: project)).typeCheck()
+        print(types.report)
+        #expect(types.diagnostics.map(\.code) == [2322, 2322])
     }
 }
 }

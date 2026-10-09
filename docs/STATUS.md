@@ -41,9 +41,9 @@ Open: an agreed pass rate on a larger task set; API models (P4) for tasks the lo
 - **Stage:** glTF/GLB, OBJ and STL from the project in three.js, with a native performance HUD. On the iPad: 60 fps (WKWebView caps animation frames at 60 Hz). Python starts and runs in under a second. See `spikes/runkit-p3.md`.
 - **Tools tab (ToolsKit):** HTTP client (`.http` files, secrets from the Keychain), API mock server (recorded responses, and routes generated from an OpenAPI or Swagger spec, JSON or YAML, in the project, served to previews), SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
 - **Markdown + Mermaid preview** in the Preview tab for the open `.md` file.
-- **Type checking:** TypeScript 5.9 runs offline over the whole project (tsconfig.json honoured) when it opens and after saves: underlines in the editor, an error count in the status strip, a Problems list (⇧⌘M). The agent has `check_types` in TypeScript projects.
+- **Type checking:** TypeScript 5.9 runs offline over the whole project (tsconfig.json honoured, with the declarations of packages in the offline cache) when it opens and after saves: underlines in the editor, an error count in the status strip, a Problems list (⇧⌘M). The agent has `check_types` in TypeScript projects.
 
-Open: WASI tools in RunKit, PyPI packages beyond Pyodide's, types from cached packages for the type checker, the Stage inspector and shader hot reload, offline docs.
+Open: WASI tools in RunKit, PyPI packages beyond Pyodide's, the Stage inspector and shader hot reload, offline docs.
 
 ## How to check things yourself
 
