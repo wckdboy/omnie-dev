@@ -44,7 +44,7 @@ struct UtilityPane: View {
                 case .terminal: TerminalPanel()
                 case .preview: PreviewPanel()
                 case .stage: StagePanel()
-                case .tools: NotYet(title: "Tools", detail: "HTTP client, SQLite browser, Patterns and the rest arrive in P3.")
+                case .tools: ToolsPanel()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

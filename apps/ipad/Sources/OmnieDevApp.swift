@@ -79,6 +79,7 @@ struct OmnieDevApp: App {
                     // `-OmniePreview` opens the Preview tab.
                     if args.contains("-OmniePreview") { model.show(.preview) }
                     if args.contains("-OmnieStage") { model.show(.stage) }
+                    if args.contains("-OmnieTools") { model.show(.tools) }
                     // `-OmnieAgentDemo` runs a scripted agent task in the open project (UI checks).
                     if args.contains("-OmnieAgentDemo") {
                         try? await Task.sleep(for: .milliseconds(800))
