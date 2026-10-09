@@ -3,6 +3,7 @@
 
 import DesignKit
 import PolicyKit
+import RunKit
 import SecretsKit
 import SwiftUI
 import ToolsKit
@@ -250,6 +251,8 @@ private struct HTTPTool: View {
     @State private var error: String?
     @State private var sending = false
     @State private var showSecrets = false
+    @State private var lastRequest: URLRequest?
+    @State private var mocked: String?
 
     var body: some View {
         let root = model.workspace.rootURL
@@ -295,6 +298,8 @@ private struct HTTPTool: View {
                         Text("\(result.ms) ms · \(ByteCountFormatter.string(fromByteCount: Int64(result.bytes), countStyle: .file))")
                             .foregroundStyle(palette.text.secondary.color)
                         Spacer()
+                        Button(mocked ?? "Save as mock") { saveMock(result, root: root) }
+                            .help("Serves this response to previews at the same path, offline (.omnie/mocks.json)")
                         Button("Copy") { UIPasteboard.general.string = result.displayBody }
                     }
                     .font(.system(size: 12))
@@ -334,6 +339,18 @@ private struct HTTPTool: View {
         error = nil
     }
 
+    /// Records the response as a mock route for previews (RunKit serves it at the same path).
+    private func saveMock(_ result: HTTPResult, root: URL) {
+        guard let request = lastRequest, let url = request.url else { return }
+        let type = result.headers.first { $0.key.lowercased() == "content-type" }?.value ?? "application/json"
+        do {
+            try MockRoutes.record(MockRoute(method: request.httpMethod ?? "GET", path: url.path.isEmpty ? "/" : url.path,
+                                            status: result.status, contentType: type, body: result.body), root: root)
+            mocked = "Saved for \(url.path)"
+            model.workspace.reload()
+        } catch { self.error = error.localizedDescription }
+    }
+
     private func createSample(_ root: URL) {
         let sample = """
             # Requests for this project. Run them from Tools › HTTP.
@@ -369,6 +386,8 @@ private struct HTTPTool: View {
             sending = true
             defer { sending = false }
             result = try await HTTPClient.send(request)
+            lastRequest = request
+            mocked = nil
         } catch {
             self.error = error.localizedDescription
             result = nil

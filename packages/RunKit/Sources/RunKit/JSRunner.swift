@@ -255,6 +255,17 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             task.didReceive(data)
             task.didFinish()
         } catch let error as NotFound where area == "project" {
+            // Not a file: a recorded API response, if the project has one for this request.
+            let routes = MockRoutes.load(root: resolver.root)
+            if let route = MockRoutes.match(method: task.request.httpMethod ?? "GET", path: "/" + path, in: routes) {
+                let body = Data(route.body.utf8)
+                task.didReceive(HTTPURLResponse(url: url, statusCode: route.status, httpVersion: "HTTP/1.1",
+                                                headerFields: ["Content-Type": route.contentType, "Content-Length": String(body.count),
+                                                               "X-Omnie-Mock": "1"])!)
+                task.didReceive(body)
+                task.didFinish()
+                return
+            }
             missing.append(error.path)
             task.didReceive(HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: ["Content-Security-Policy": Self.csp])!)
             task.didFinish()

@@ -94,3 +94,32 @@ struct MarkdownPreviewTests {
     }
 }
 }
+
+extension WebKitSuites {
+@MainActor
+struct MockRouteTests {
+    @Test func previewsGetRecordedResponses() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("mock-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try MockRoutes.record(MockRoute(method: "GET", path: "/api/users", status: 200, contentType: "application/json",
+                                        body: "[{\"name\":\"Ada\"}]"), root: root)
+        try MockRoutes.record(MockRoute(method: "GET", path: "/api/users/:id", status: 404, contentType: "application/json",
+                                        body: "{\"error\":\"none\"}"), root: root)
+        #expect(MockRoutes.match(method: "get", path: "/api/users/7", in: MockRoutes.load(root: root))?.status == 404)
+        try """
+            <!doctype html><script type=module>
+            const users = await (await fetch("/api/users")).json();
+            const one = await fetch("/api/users/9");
+            console.log(users[0].name, one.status);
+            </script>
+            """.write(to: root.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
+        var logs: [String] = []
+        let config = try Preview.configuration(root: root) { level, text in logs.append("\(level): \(text)") }
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 300, height: 200), configuration: config)
+        webView.load(URLRequest(url: Preview.url(for: "index.html")))
+        for _ in 0..<200 where logs.isEmpty { try await Task.sleep(for: .milliseconds(25)) }
+        #expect(logs == ["log: Ada 404"])
+    }
+}
+}
+
