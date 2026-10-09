@@ -77,6 +77,8 @@ public struct ObjectID: Hashable, Sendable, CustomStringConvertible {
     }
 
     public var short: String { String(hex.prefix(7)) }
+    /// All zeros: "no commit" (blame of uncommitted lines).
+    public var isZero: Bool { hex.allSatisfy { $0 == "0" } }
     public var description: String { hex }
 
     /// The tree with no entries.

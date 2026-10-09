@@ -4,6 +4,7 @@
 import SwiftUI
 import DesignKit
 import EditorKit
+import GitKit
 import LangKit
 import WorkspaceKit
 
@@ -33,6 +34,10 @@ struct EditorPane: View {
             if workspace.openFile != nil {
                 Breadcrumbs(scopes: scopes)
                 HStack(spacing: 0) {
+                    if model.showsBlame && model.layout != .single {
+                        BlameStrip(controller: workspace.editor)
+                            .frame(width: 168)
+                    }
                     CodeEditor(controller: workspace.editor)
                         .overlay(alignment: .top) {
                             StickyScopes(scopes: Outline.enclosing(line: firstLine, in: scopes).filter { $0.startLine < firstLine && $0.endLine > firstLine })
@@ -53,8 +58,23 @@ struct EditorPane: View {
         .background(palette.surface.editor.color)
         .onChange(of: palette, initial: true) { workspace.applyEditorTheme(palette: palette, density: density) }
         .onChange(of: density) { workspace.applyEditorTheme(palette: palette, density: density) }
+        // Blame for the open file: on open, on save, and when it's turned on.
+        .task(id: "\(model.showsBlame) \(workspace.relativePath ?? "") \(workspace.changeCount)") {
+            guard model.showsBlame, let path = workspace.relativePath, let repo = workspace.git.repo else { return }
+            let text = workspace.editor.text
+            let hunks = (try? await repo.blame(path: path, contents: text)) ?? []
+            workspace.editor.setBlame(hunks.map { hunk in
+                let age = hunk.date.map { $0.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)) } ?? "not committed"
+                return BlameEntry(startLine: hunk.startLine, lineCount: hunk.lineCount, label: "\(hunk.assistedBy != nil ? "Agent" : hunk.author) · \(age)",
+                                  commit: hunk.commit?.hex, isAgent: hunk.assistedBy != nil)
+            })
+        }
         .onAppear {
             let editor = workspace.editor
+            editor.onBlameTap = { hex in
+                model.timelineFocus = hex
+                model.show(.timeline)
+            }
             editor.onStructureChange = { scopes = editor.scopes }
             editor.onFirstVisibleLine = { firstLine = $0 }
             scopes = editor.scopes

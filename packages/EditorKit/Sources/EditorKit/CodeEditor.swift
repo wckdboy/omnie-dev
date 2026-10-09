@@ -32,6 +32,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     public var theme: EditorTheme {
         didSet {
             minimapView?.update(palette: theme.palette)
+            blameView?.update(palette: theme.palette, font: theme.font)
             textView.theme = theme
             textView.backgroundColor = theme.palette.surface.editor.uiColor
             // Recolor marks for the new palette; ranges come from the engine, which moved them with edits.
@@ -44,6 +45,29 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             }
         }
     }
+    /// The blame column, made when a view first shows it.
+    private var blameView: BlameView?
+    /// Tapping a run in the blame column: its commit id.
+    public var onBlameTap: ((String) -> Void)?
+
+    public var blame: BlameView {
+        if let blameView { return blameView }
+        let view = BlameView(textView: textView, palette: theme.palette, font: theme.font)
+        view.lineY = { [weak self] line in self?.contentY(ofLine: line) }
+        view.onTap = { [weak self] in self?.onBlameTap?($0) }
+        blameView = view
+        return view
+    }
+
+    public func setBlame(_ entries: [BlameEntry]) { blame.update(entries: entries) }
+
+    /// The y of a 1-based line's top in the text view's content.
+    func contentY(ofLine line: Int) -> CGFloat? {
+        guard line >= 1, line <= lineStarts.count,
+              let position = textView.position(from: textView.beginningOfDocument, offset: lineStarts[line - 1]) else { return nil }
+        return textView.caretRect(for: position).minY
+    }
+
     /// The minimap, made when a view first shows it.
     private var minimapView: MinimapView?
     private var minimapRefresh: Task<Void, Never>?
@@ -99,6 +123,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             self.lineStarts = starts
             self.scopes = scopes
             self.scopeHeaders = headers
+            self.blameView?.setNeedsDisplay()
             self.onStructureChange?()
             self.updateFirstVisibleLine()
         }
@@ -336,6 +361,13 @@ private final class UncheckedState: @unchecked Sendable {
 }
 
 /// The editor's minimap, for placing beside `CodeEditor`.
+public struct BlameStrip: UIViewRepresentable {
+    public let controller: CodeEditorController
+    public init(controller: CodeEditorController) { self.controller = controller }
+    public func makeUIView(context: Context) -> BlameView { controller.blame }
+    public func updateUIView(_ uiView: BlameView, context: Context) {}
+}
+
 public struct MinimapStrip: UIViewRepresentable {
     public let controller: CodeEditorController
     public init(controller: CodeEditorController) { self.controller = controller }

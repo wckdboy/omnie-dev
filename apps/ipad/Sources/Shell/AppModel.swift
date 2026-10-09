@@ -91,6 +91,10 @@ final class AppModel {
     }
     /// Panels open in windows of their own (out of the docks meanwhile).
     var windowedPanels: Set<String> = []
+    /// The blame column beside the code (PLAN.md §9.10).
+    var showsBlame = false
+    /// A commit the timeline scrolls to and marks (tapped in blame).
+    var timelineFocus: String?
     /// The editor's minimap; kept between launches.
     var showsMinimap = UserDefaults.standard.object(forKey: "editor.minimap") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showsMinimap, forKey: "editor.minimap") }
@@ -371,6 +375,11 @@ final class AppModel {
                 guard let self else { return }
                 self.workspace.saveCurrent()
                 Task { await self.workspace.git.sync(isOffline: self.networkUnavailable) }
+            },
+            Command(id: "git.blame", title: "Toggle blame", menu: "Git",
+                    shortcut: Shortcut("b", [.command, .option]), surfaces: .ide, keywords: ["annotate", "who changed", "author"]) { [weak self] in
+                guard let self, self.workspace.git.repo != nil else { return }
+                self.showsBlame.toggle()
             },
             Command(id: "git.editHistory", title: "Edit history…", menu: "Git",
                     keywords: ["interactive rebase", "squash", "reorder commits", "reword", "fixup"]) { [weak self] in

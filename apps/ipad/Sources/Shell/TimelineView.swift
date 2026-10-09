@@ -33,6 +33,7 @@ struct TimelineView: View {
     }
 
     private func list(_ git: GitModel) -> some View {
+        ScrollViewReader { proxy in
         List {
             Section {
                 Button {
@@ -106,7 +107,9 @@ struct TimelineView: View {
                 }
                 ForEach(git.log) { commit in
                     CommitRow(commit: commit)
-                        .listRowBackground(Color.clear)
+                        .id(commit.id)
+                        // A commit opened from blame is marked.
+                        .listRowBackground(model.timelineFocus == commit.id.hex ? palette.accent.ion.color.opacity(0.15) : Color.clear)
                         .contextMenu {
                             Button("Revert", systemImage: "arrow.uturn.backward") {
                                 Task { await git.revert(commit) }
@@ -123,6 +126,11 @@ struct TimelineView: View {
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, density.row)
         .refreshable { await git.refresh() }
+        .onChange(of: model.timelineFocus, initial: true) {
+            guard let hex = model.timelineFocus, let id = ObjectID(hex: hex) else { return }
+            withAnimation { proxy.scrollTo(id, anchor: .center) }
+        }
+        }
     }
 
     private func syncLabel(_ git: GitModel) -> String {
