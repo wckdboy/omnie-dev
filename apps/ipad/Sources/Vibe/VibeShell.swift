@@ -61,8 +61,9 @@ struct VibeShell: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if model.isOffline {
-                Label("Offline", systemImage: "airplane")
+            if model.networkUnavailable {
+                Label(model.policy.planeMode ? "Plane mode" : "Offline",
+                      systemImage: model.policy.planeMode ? "airplane" : "wifi.slash")
                     .font(.system(size: 12))
                     .foregroundStyle(palette.text.secondary.color)
                     .frame(maxWidth: .infinity)

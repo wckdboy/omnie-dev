@@ -57,6 +57,7 @@ final class AppModel {
     var webGPUSpikeOpen = false
     var wasiSpikeOpen = false
     var auditLogOpen = false
+    var settingsOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -66,6 +67,8 @@ final class AppModel {
 
     // Environment signals
     private(set) var isOffline = false
+    /// Offline, or plane mode on: Sync queues the push instead of connecting.
+    var networkUnavailable: Bool { isOffline || policy.planeMode }
     private(set) var hasHardwareKeyboard = GCKeyboard.coalesced != nil
     /// nil means density follows the hands.
     var densityOverride: Density?
@@ -106,7 +109,7 @@ final class AppModel {
                 let cameOnline = self.isOffline && !offline
                 self.isOffline = offline
                 // Queued pushes were authorized when queued; send them without asking again.
-                if cameOnline { await self.workspace.git.flushQueue() }
+                if cameOnline && !self.policy.planeMode { await self.workspace.git.flushQueue() }
             }
         }
         pathMonitor.start(queue: DispatchQueue(label: "ai.wckd.omniedev.network"))
@@ -164,7 +167,7 @@ final class AppModel {
                     keywords: ["push", "pull", "fetch"]) { [weak self] in
                 guard let self else { return }
                 self.workspace.saveCurrent()
-                Task { await self.workspace.git.sync(isOffline: self.isOffline) }
+                Task { await self.workspace.git.sync(isOffline: self.networkUnavailable) }
             },
             Command(id: "git.branches", title: "Switch branch", menu: "Git",
                     shortcut: Shortcut("b", [.command, .shift]), keywords: ["checkout", "new branch"]) { [weak self] in
@@ -200,6 +203,16 @@ final class AppModel {
             Command(id: "spike.editor", title: "Run editor spike (P0)", menu: "View",
                     keywords: ["benchmark", "performance", "runestone", "textkit"]) { [weak self] in
                 self?.editorSpikeOpen = true
+            },
+            Command(id: "app.settings", title: "Settings", menu: "Settings",
+                    shortcut: Shortcut(","), keywords: ["preferences", "author", "ssh", "plane mode", "licenses"]) { [weak self] in
+                self?.settingsOpen = true
+            },
+            Command(id: "policy.planeMode", title: "Toggle plane mode", menu: "View",
+                    keywords: ["offline", "airplane", "network", "local only"]) { [weak self] in
+                guard let self else { return }
+                policy.planeMode.toggle()
+                if !policy.planeMode && !isOffline { Task { await self.workspace.git.flushQueue() } }
             },
             Command(id: "policy.auditLog", title: "Show audit log", menu: "View",
                     keywords: ["policy", "approvals", "security", "history"]) { [weak self] in

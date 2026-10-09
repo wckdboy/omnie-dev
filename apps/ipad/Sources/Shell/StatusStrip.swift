@@ -21,8 +21,11 @@ struct StatusStrip: View {
             SyncLabel()
             Spacer()
             AgentPill(state: .idle)
-            if model.isOffline {
-                Label("Offline", systemImage: "airplane")
+            if model.policy.planeMode {
+                Label("Plane mode", systemImage: "airplane")
+                    .accessibilityLabel("Plane mode: network actions are blocked")
+            } else if model.isOffline {
+                Label("Offline", systemImage: "wifi.slash")
                     .accessibilityLabel("Offline")
             }
             if let language = model.workspace.language {

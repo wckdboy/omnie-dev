@@ -12,6 +12,7 @@ struct RegistryMenus: Commands {
     /// (`Commands` builders don't support ForEach, so the menus are listed one by one.)
     var body: some Commands {
         // ⌘S, ⌘O and the like belong to our commands, not the system's default document items.
+        CommandGroup(replacing: .appSettings) { MenuItems(model: model, menu: "Settings") }
         CommandGroup(replacing: .saveItem) {}
         CommandGroup(replacing: .newItem) {}
 

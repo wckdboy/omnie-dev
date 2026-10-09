@@ -119,6 +119,7 @@ struct TimelineView: View {
     }
 
     private func syncLabel(_ git: GitModel) -> String {
+        if model.policy.planeMode { return "Queue push for after plane mode" }
         if model.isOffline { return "Queue push for when online" }
         guard let status = git.status else { return "Sync" }
         var parts: [String] = []

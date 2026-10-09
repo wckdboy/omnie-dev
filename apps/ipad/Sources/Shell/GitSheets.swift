@@ -199,6 +199,7 @@ extension View {
             .fullScreenCover(isPresented: $model.webGPUSpikeOpen) { WebGPUSpikeView() }
             .fullScreenCover(isPresented: $model.wasiSpikeOpen) { WASISpikeView() }
             .sheet(isPresented: $model.auditLogOpen) { AuditLogView() }
+            .sheet(isPresented: $model.settingsOpen) { SettingsView() }
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }

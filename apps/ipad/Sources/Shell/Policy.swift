@@ -14,8 +14,10 @@ final class PolicyModel {
     @ObservationIgnored private var gate: Gate?
     /// The open project, whose `.omnie/policy.json` tightens agent actions.
     @ObservationIgnored var projectRoot: URL?
-    /// Deny-all networking (PLAN.md §12). Not switchable yet; the agent (P2) brings the toggle.
-    var planeMode = false
+    /// Deny-all networking, local models only (PLAN.md §12). Remembered across launches.
+    var planeMode = UserDefaults.standard.bool(forKey: "policy.planeMode") {
+        didSet { UserDefaults.standard.set(planeMode, forKey: "policy.planeMode") }
+    }
     /// Why the last authorization was refused, for a banner.
     private(set) var lastRefusal: String?
 
@@ -154,15 +156,25 @@ struct ApprovalSheet: View {
     }
 }
 
-/// Every policy decision, newest first, and whether the hash chain checks out.
+/// The audit log as its own sheet (the "Show audit log" command).
 struct AuditLogView: View {
-    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            AuditLogList()
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+    }
+}
+
+/// Every policy decision, newest first, and whether the hash chain checks out.
+struct AuditLogList: View {
+    @Environment(AppModel.self) private var model
     @State private var entries: [AuditEntry] = []
     @State private var verification: AuditLog.Verification?
 
     var body: some View {
-        NavigationStack {
             List {
                 Section {
                     switch verification {
@@ -191,12 +203,10 @@ struct AuditLogView: View {
                 }
             }
             .navigationTitle("Audit log")
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task {
                 entries = await model.policy.audit.entries(last: 500)
                 verification = await model.policy.audit.verify()
             }
-        }
     }
 
     static func label(_ outcome: AuditEntry.Outcome) -> String {

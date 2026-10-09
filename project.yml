@@ -45,6 +45,7 @@ targets:
     sources:
       - apps/ipad/Sources
       - apps/ipad/Resources/Assets.xcassets
+      - apps/ipad/Resources/Acknowledgements.json
       - path: apps/ipad/Resources/WASISpikeApp
         type: folder
       # Vendored by scripts/vendor-wasi-spike.py (gitignored).
