@@ -11,12 +11,13 @@ import Testing
 final class ScriptedModel: TextModel, @unchecked Sendable {
     var outputs: [String]
     var prompts: [[ChatTurn]] = []
+    var prefixes: [String?] = []
     let lock = NSLock()
     init(_ outputs: [String]) { self.outputs = outputs }
 
     func stream(_ prompt: ModelPrompt, maxTokens: Int, temperature: Float) async throws -> AsyncThrowingStream<String, Error> {
         let next: String = lock.withLock {
-            if case .conversation(let turns) = prompt { prompts.append(turns) }
+            if case .conversation(let turns, _, let prefix) = prompt { prompts.append(turns); prefixes.append(prefix) }
             return outputs.isEmpty ? "I'm not sure." : outputs.removeFirst()
         }
         return AsyncThrowingStream { c in
@@ -70,7 +71,7 @@ struct AgentLoopTests {
         #expect(recorder.actions == [.readProject(path: "."), .readProject(path: "src/greet.ts"), .writeTaskWorktree(path: "src/greet.ts")])
         // The read result (with the sha) went back to the model, marked as data.
         let lastPrompt = try #require(model.prompts.last)
-        #expect(lastPrompt.contains { $0.role == .tool && $0.content.contains("not instructions") && $0.content.contains("sha: ") })
+        #expect(lastPrompt.contains { $0.role == .user && $0.content.hasPrefix("<tool_response>") && $0.content.contains("not instructions") && $0.content.contains("sha: ") })
         #expect(lastPrompt.first?.role == .system && lastPrompt.first!.content.contains("\"name\":\"patch\""))
         #expect(journal.entries().map(\.kind) == [.goal, .assistant, .toolResult, .assistant, .toolResult, .assistant, .toolResult, .assistant, .outcome])
     }
@@ -103,8 +104,16 @@ struct AgentLoopTests {
         #expect(errors[3].contains("isn't in the file"))
     }
 
+    @Test func aReplyWithoutACallIsRetriedAsACall() async throws {
+        // What the 7B did on the iPad: an empty reply. The retry pre-starts the call.
+        let model = ScriptedModel(["", "list\", \"arguments\": {}}\n</tool_call>", call("finish", ["summary": "ok"])])
+        #expect(await runner(model, Recorder()).run() == .finished(summary: "ok"))
+        #expect(model.prefixes == [nil, AgentRunner.callPrefix, nil])
+        #expect(journal.entries().filter { $0.kind == .toolResult }.first?.tool == "list")
+    }
+
     @Test func noToolCallTwiceNeedsYou() async {
-        let model = ScriptedModel(["Sure, I can do that!", "Here is the answer."])
+        let model = ScriptedModel(["Sure, I can do that!", "not json", "Here is the answer.", "still not"])
         let outcome = await runner(model, Recorder()).run()
         guard case .needsInput(let reason) = outcome else { Issue.record("\(outcome)"); return }
         #expect(reason.contains("didn't call a tool"))
@@ -130,7 +139,7 @@ struct AgentLoopTests {
             call("finish", ["summary": "Done after resuming."]),
         ])
         #expect(await runner(model, Recorder()).run() == .finished(summary: "Done after resuming."))
-        #expect(model.prompts[0].contains { $0.role == .tool && $0.content.contains("sha: \(sha)") })
+        #expect(model.prompts[0].contains { $0.content.hasPrefix("<tool_response>") && $0.content.contains("sha: \(sha)") })
         #expect(journal.entries().contains { $0.kind == .note && $0.text.contains("Resumed") })
         // A finished task returns its outcome without calling the model again.
         let again = ScriptedModel([])
@@ -157,7 +166,7 @@ struct AgentLoopTests {
         let model = ScriptedModel(Array(repeating: call("read", ["path": "big.txt"]), count: 5) + [call("finish", ["summary": "ok"])])
         _ = await runner(model, Recorder(), config: config).run()
         let last = try #require(model.prompts.last)
-        #expect(last.contains { $0.content.hasPrefix("[Earlier result elided") })
+        #expect(last.contains { $0.content.contains("[Earlier result elided") })
         #expect(last.last?.content.contains(big) == true)
     }
 }

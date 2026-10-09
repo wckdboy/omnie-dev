@@ -57,3 +57,61 @@ extension Repository {
         return collector.lines
     }
 }
+
+/// One file's change between two commits, for reviewing an agent's changeset.
+public struct FileDiff: Sendable, Hashable, Identifiable {
+    public enum Kind: String, Sendable { case added, modified, deleted, renamed }
+    public var id: String { path }
+    public let path: String
+    public let kind: Kind
+    public let additions: Int
+    public let deletions: Int
+    public let isBinary: Bool
+    /// The unified diff for this file (`diff --git` header and hunks).
+    public let patch: String
+}
+
+extension Repository {
+    /// What changed from `old` (nil: an empty tree) to `new`, file by file.
+    public func diff(from old: ObjectID?, to new: ObjectID) throws -> [FileDiff] {
+        func tree(_ commit: ObjectID?) throws -> OpaquePointer? {
+            guard let commit else { return nil }
+            var oid = try treeOf(commit).oid
+            var tree: OpaquePointer?
+            try check(git_tree_lookup(&tree, pointer, &oid), "read tree")
+            return tree
+        }
+        let oldTree = try tree(old), newTree = try tree(new)
+        defer { git_tree_free(oldTree); git_tree_free(newTree) }
+        var diff: OpaquePointer?
+        try check(git_diff_tree_to_tree(&diff, pointer, oldTree, newTree, nil), "diff")
+        defer { git_diff_free(diff) }
+        var findOptions = git_diff_find_options()
+        git_diff_find_options_init(&findOptions, UInt32(GIT_DIFF_FIND_OPTIONS_VERSION))
+        try check(git_diff_find_similar(diff, &findOptions), "find renames")
+
+        var files: [FileDiff] = []
+        for i in 0..<git_diff_num_deltas(diff) {
+            guard let delta = git_diff_get_delta(diff, i) else { continue }
+            let path = (delta.pointee.new_file.path ?? delta.pointee.old_file.path).map { String(cString: $0) } ?? ""
+            let kind: FileDiff.Kind = switch delta.pointee.status {
+            case GIT_DELTA_ADDED: .added
+            case GIT_DELTA_DELETED: .deleted
+            case GIT_DELTA_RENAMED: .renamed
+            default: .modified
+            }
+            var patch: OpaquePointer?
+            try check(git_patch_from_diff(&patch, diff, i), "read patch")
+            defer { git_patch_free(patch) }
+            var additions = 0, deletions = 0
+            git_patch_line_stats(nil, &additions, &deletions, patch)
+            var buf = git_buf()
+            try check(git_patch_to_buf(&buf, patch), "print patch")
+            defer { git_buf_dispose(&buf) }
+            let text = buf.ptr.map { String(decoding: UnsafeRawBufferPointer(start: $0, count: buf.size), as: UTF8.self) } ?? ""
+            files.append(FileDiff(path: path, kind: kind, additions: additions, deletions: deletions,
+                                  isBinary: delta.pointee.flags & GIT_DIFF_FLAG_BINARY.rawValue != 0, patch: text))
+        }
+        return files
+    }
+}

@@ -65,6 +65,16 @@ struct OmnieDevApp: App {
                         let author = await git.author() ?? Signature(name: "Omnie Debug", email: "debug@omnie.invalid")
                         _ = await git.commit(message: args[i + 1], author: author)
                     }
+                    // `-OmnieAdoptModel <folder in Documents>` installs the Standard pack from a local copy
+                    // (the model spike's), verified file by file like a download.
+                    if let i = args.firstIndex(of: "-OmnieAdoptModel"), args.indices.contains(i + 1) {
+                        await ModelSmoke.adopt(model, from: URL.documentsDirectory.appending(path: args[i + 1]))
+                    }
+                    // `-OmnieAgentTask <goal>` starts an agent task in the open project.
+                    if let i = args.firstIndex(of: "-OmnieAgentTask"), args.indices.contains(i + 1) {
+                        try? await Task.sleep(for: .milliseconds(800))
+                        await model.agent.start(args[i + 1])
+                    }
                     // `-OmnieModelSmoke` installs the Tiny pack (if needed), then times load, FIM and a commit draft.
                     if args.contains("-OmnieModelSmoke") {
                         await ModelSmoke.run(model)

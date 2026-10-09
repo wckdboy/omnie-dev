@@ -271,4 +271,23 @@ struct GitKitTests {
                                AddedLine(path: "new/b.txt", line: 1, text: "bee")])
         #expect(try await repo.pendingAddedLines(limit: 1).count == 1)
     }
+
+    @Test func diffBetweenCommitsMatchesCLI() async throws {
+        let repo = try Repository.create(at: dir)
+        try write("a.txt", "one\ntwo\nthree\n")
+        try write("gone.txt", "bye\n")
+        let first = try await repo.commitAll(message: "Start", author: me)
+        try write("a.txt", "one\nTWO\nthree\nfour\n")
+        try FileManager.default.removeItem(at: dir.appendingPathComponent("gone.txt"))
+        try write("new/b.txt", "bee\n")
+        let second = try await repo.commitAll(message: "Change", author: me)
+
+        let files = try await repo.diff(from: first.id, to: second.id)
+        #expect(files.map(\.path) == ["a.txt", "gone.txt", "new/b.txt"])
+        #expect(files.map(\.kind) == [.modified, .deleted, .added])
+        let numstat = try git("diff", "--numstat", first.id.hex, second.id.hex)
+        #expect(files.map { "\($0.additions)\t\($0.deletions)\t\($0.path)" }.joined(separator: "\n") == numstat)
+        #expect(files[0].patch == (try git("diff", "--no-color", first.id.hex, second.id.hex, "--", "a.txt")) + "\n")
+        #expect(try await repo.diff(from: nil, to: first.id).map(\.kind) == [.added, .added])
+    }
 }

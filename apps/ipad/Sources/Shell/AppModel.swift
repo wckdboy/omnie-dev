@@ -76,6 +76,7 @@ final class AppModel {
     let policy = PolicyModel()
     let workspace: WorkspaceModel
     let models: ModelsModel
+    let agent: AgentModel
 
     var density: Density {
         if let densityOverride { return densityOverride }
@@ -88,6 +89,8 @@ final class AppModel {
     init() {
         workspace = WorkspaceModel(policy: policy)
         models = ModelsModel(policy: policy)
+        agent = AgentModel(workspace: workspace, models: models, policy: policy)
+        workspace.onProjectOpened = { [agent] root in agent.attach(root) }
         workspace.completionModel = { [models] in
             guard models.inlineSuggestions else { return nil }
             return await models.tinyModel()

@@ -24,7 +24,11 @@ public enum ModelPrompt: Sendable, Hashable {
     /// A chat turn, formatted with the model's own chat template.
     case chat(system: String?, user: String)
     /// A whole conversation (the agent loop), formatted with the model's chat template.
-    case conversation([ChatTurn])
+    /// `toolsJSON` is a JSON array of function schemas, for backends that parse tool calls
+    /// themselves; they hand calls back as `<tool_call>{"name": …, "arguments": …}</tool_call>` text.
+    /// `assistantPrefix` pre-starts the model's reply (light constrained decoding); the stream holds
+    /// only what comes after it.
+    case conversation([ChatTurn], toolsJSON: String? = nil, assistantPrefix: String? = nil)
     /// Text passed to the model as-is (fill-in-the-middle, base-model completion).
     case raw(String)
 }

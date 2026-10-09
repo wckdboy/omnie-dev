@@ -20,7 +20,8 @@ struct StatusStrip: View {
             }
             SyncLabel()
             Spacer()
-            AgentPill(state: .idle)
+            AgentPill(state: model.agent.pillState)
+                .id(model.agent.pillState)
             if model.policy.planeMode {
                 Label("Plane mode", systemImage: "airplane")
                     .accessibilityLabel("Plane mode: network actions are blocked")
@@ -98,7 +99,7 @@ struct SyncLabel: View {
 }
 
 /// The agent's canonical states (PLAN.md §3.8). Only `thinking` animates.
-enum AgentState: Equatable {
+enum AgentState: Hashable {
     case idle, thinking, editing(files: Int), needsReview(changes: Int), blocked, offline, queued, failed(String)
 }
 

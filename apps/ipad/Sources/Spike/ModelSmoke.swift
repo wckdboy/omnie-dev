@@ -49,6 +49,25 @@ enum ModelSmoke {
         print("[smoke] done")
     }
 
+    /// Installs the Standard pack from a folder on the device instead of downloading 4.3 GB again.
+    static func adopt(_ app: AppModel, from folder: URL) async {
+        struct LocalFetcher: ModelFetcher {
+            let folder: URL
+            func fetch(_ url: URL, to destination: URL, progress: @escaping @Sendable (Int64) -> Void) async throws {
+                try FileManager.default.copyItem(at: folder.appending(path: url.lastPathComponent), to: destination)
+            }
+        }
+        let store = ModelStore(root: app.models.store.root, fetcher: LocalFetcher(folder: folder))
+        let t0 = Date()
+        do {
+            try await store.install(.standard)
+            print("[smoke] adopted \(ModelPack.standard.displayName) from \(folder.lastPathComponent), verified in \(String(format: "%.1f", Date().timeIntervalSince(t0))) s")
+        } catch {
+            print("[smoke] adopt failed: \(error)")
+        }
+        await app.models.refresh()
+    }
+
     /// Types "return " at the end of a line, the way you would, and times the ghost text.
     static func ghost(_ app: AppModel) async {
         let folder = URL.documentsDirectory.appending(path: "ghost-demo")

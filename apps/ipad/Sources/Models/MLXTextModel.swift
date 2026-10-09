@@ -21,14 +21,21 @@ final class MLXTextModel: TextModel, @unchecked Sendable {
     }
 
     func stream(_ prompt: ModelPrompt, maxTokens: Int, temperature: Float) async throws -> AsyncThrowingStream<String, Error> {
-        let input: LMInput
+        var input: LMInput
+        var tools: [[String: any Sendable]]?
         switch prompt {
         case .chat(let system, let user):
             var messages: [Chat.Message] = []
             if let system { messages.append(.system(system)) }
             messages.append(.user(user))
             input = try await container.prepare(input: UserInput(chat: messages))
-        case .conversation(let turns):
+        case .conversation(let turns, let toolsJSON, let prefix):
+            // Given to the generator only, so it recognizes the calls; the agent's system prompt
+            // already describes the tools, so the chat template doesn't render them again.
+            if let data = toolsJSON?.data(using: .utf8),
+               let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                tools = array.map { Self.sendable($0) }
+            }
             let messages: [Chat.Message] = turns.map { turn in
                 switch turn.role {
                 case .system: .system(turn.content)
@@ -38,20 +45,73 @@ final class MLXTextModel: TextModel, @unchecked Sendable {
                 }
             }
             input = try await container.prepare(input: UserInput(chat: messages))
+            if let prefix, !prefix.isEmpty {
+                // Append the pre-started reply to the rendered prompt. MLX's tool parser then sees only
+                // the continuation, so it streams as text.
+                let tokens = input.text.tokens.asArray(Int.self) + (await container.encode(prefix))
+                input = LMInput(tokens: MLXArray(tokens))
+                tools = nil
+            }
         case .raw(let text):
             input = LMInput(tokens: MLXArray(await container.encode(text)))
         }
+        #if DEBUG
+        let trace = ProcessInfo.processInfo.arguments.contains("-OmnieModelTrace")
+        if trace {
+            let tokens = input.text.tokens.asArray(Int.self)
+            let rendered = await container.decode(tokenIds: tokens)
+            print("[trace] prompt \(tokens.count) tokens, ends with:\n\(rendered.suffix(700))\n[trace] ---")
+        }
+        #else
+        let trace = false
+        #endif
         let generation = try await container.generate(
-            input: input, parameters: GenerateParameters(maxTokens: maxTokens, temperature: temperature))
+            input: input, parameters: GenerateParameters(maxTokens: maxTokens, temperature: temperature), tools: tools)
         return AsyncThrowingStream { continuation in
             let task = Task {
                 for await event in generation {
                     if Task.isCancelled { break }
-                    if case .chunk(let text) = event { continuation.yield(text) }
+                    if trace { print("[trace] event \(String(describing: event).prefix(300))") }
+                    switch event {
+                    case .chunk(let text): continuation.yield(text)
+                    case .toolCall(let call): continuation.yield(Self.text(for: call))
+                    // Tool-call-shaped output MLX couldn't parse: pass it on so the agent can say what went wrong.
+                    case .rejectedToolCall(let rejected): continuation.yield(rejected.rawTextPreview)
+                    case .info: break
+                    }
                 }
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+
+extension MLXTextModel {
+    /// A parsed call, back in Qwen's text form.
+    static func text(for call: MLXLMCommon.ToolCall) -> String {
+        // Name first, as Qwen's template writes calls (and as the model was trained to read them).
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let name = (try? encoder.encode(call.function.name)).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
+        let arguments = (try? encoder.encode(call.function.arguments)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+        return "<tool_call>\n{\"name\": \(name), \"arguments\": \(arguments)}\n</tool_call>"
+    }
+
+    /// JSONSerialization output as the Sendable dictionaries MLX's tool API takes.
+    static func sendable(_ value: [String: Any]) -> [String: any Sendable] {
+        value.mapValues(convert)
+    }
+
+    private static func convert(_ value: Any) -> any Sendable {
+        switch value {
+        case let dict as [String: Any]: return sendable(dict)
+        case let array as [Any]: return array.map(convert)
+        case let string as String: return string
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() { return number.boolValue }
+            return number.doubleValue == number.doubleValue.rounded() ? number.intValue as any Sendable : number.doubleValue
+        default: return String(describing: value)
         }
     }
 }

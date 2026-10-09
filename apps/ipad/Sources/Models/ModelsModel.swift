@@ -115,15 +115,38 @@ final class ModelsModel {
         }
     }
 
-    /// The Tiny model, loaded on first use if it's installed and fits in memory now.
+    /// The Tiny model, loaded on first use if it's installed and fits in memory now. Paused (nil)
+    /// while the 7B is loaded for an agent task: one large model resident at a time (PLAN.md §16).
     func tinyModel() async -> TextModel? {
         let pack = ModelPack.tiny
-        if let loaded, loaded.pack == pack { return loaded.model }
+        if let loaded { return loaded.pack == pack ? loaded.model : nil }
         guard isInstalled(pack), !isLoading else { return nil }
         isLoading = true
         defer { isLoading = false }
         guard MemoryBudget.canLoad(pack, available: Int64(os_proc_available_memory())) else {
             error = "Not enough free memory to load \(pack.displayName) right now."
+            return nil
+        }
+        do {
+            let model = try await MLXTextModel.load(from: store.folder(for: pack))
+            loaded = (pack, model)
+            return model
+        } catch {
+            self.error = "Couldn't load \(pack.displayName): \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    /// The 7B for the agent. Loading it drops Tiny first.
+    func standardModel() async -> TextModel? {
+        let pack = ModelPack.standard
+        if let loaded, loaded.pack == pack { return loaded.model }
+        guard isInstalled(pack), !isLoading else { return nil }
+        loaded = nil
+        isLoading = true
+        defer { isLoading = false }
+        guard MemoryBudget.canLoad(pack, available: Int64(os_proc_available_memory())) else {
+            error = "Not enough free memory to load \(pack.displayName) right now. Close other apps and try again."
             return nil
         }
         do {

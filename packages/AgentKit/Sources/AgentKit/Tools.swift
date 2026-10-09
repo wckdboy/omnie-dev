@@ -184,7 +184,7 @@ public struct PatchTool: AgentTool {
     let sandbox: Sandbox
     public init(sandbox: Sandbox) { self.sandbox = sandbox }
     public let name = "patch"
-    public let description = "Replace text in a file. find must appear exactly once in the file, copied exactly from read; sha is the file's sha from read."
+    public let description = "Replace text in a file. find must appear exactly once in the file, copied exactly from read; sha is the file's sha from read. To add code without removing any, put existing text in find and that same text plus your addition in replace."
     public var parameters: [String: JSONValue] {
         schema(["path": ("string", "File to change."), "sha": ("string", "The sha read returned for this file."),
                 "find": ("string", "Exact existing text to replace, including indentation."), "replace": ("string", "The new text.")],

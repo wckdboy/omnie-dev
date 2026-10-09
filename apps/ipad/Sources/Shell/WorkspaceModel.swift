@@ -29,6 +29,8 @@ final class WorkspaceModel {
     @ObservationIgnored private var watcher: ProjectWatcher?
     /// The model for ghost text, when one is installed and suggestions are on. Set by AppModel.
     @ObservationIgnored var completionModel: (() async -> TextModel?)?
+    /// Called after a project opens (the agent shows that project's tasks).
+    @ObservationIgnored var onProjectOpened: ((URL) -> Void)?
     @ObservationIgnored private var suggestionTask: Task<Void, Never>?
     @ObservationIgnored private var editGeneration = 0
 
@@ -85,7 +87,10 @@ final class WorkspaceModel {
         _ = try? recents.remember(url)
         recentProjects = recents.load()
         startWatching(url)
-        Task { await git.attach(url) }
+        Task {
+            await git.attach(url)
+            onProjectOpened?(url)
+        }
     }
 
     /// Reopens a remembered project. When you pick one that's gone, it leaves the list.
