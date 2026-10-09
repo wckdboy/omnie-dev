@@ -32,4 +32,30 @@ struct PreviewTests {
         let text = try await webView.evaluateJavaScript("document.getElementById('title').textContent") as? String
         #expect(text == "Hello Omnie")
     }
+
+    @Test func bareThreeImportsResolveOffline() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("three-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("src"), withIntermediateDirectories: true)
+        try "<!doctype html><html><head><title>t</title></head><body><script type=module src=\"/src/main.ts\"></script></body></html>"
+            .write(to: root.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
+        try """
+            import * as THREE from "three";
+            import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+            const scene: THREE.Scene = new THREE.Scene();
+            scene.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshNormalMaterial()));
+            console.log("three", THREE.REVISION, scene.children.length, typeof OrbitControls);
+            """.write(to: root.appendingPathComponent("src/main.ts"), atomically: true, encoding: .utf8)
+        var logs: [String] = []
+        let config = try Preview.configuration(root: root) { level, text in logs.append("\(level): \(text)") }
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), configuration: config)
+        webView.load(URLRequest(url: Preview.url(for: "index.html")))
+        for _ in 0..<400 where logs.isEmpty { try await Task.sleep(for: .milliseconds(25)) }
+        #expect(logs == ["log: three 186 1 function"])
+    }
+
+    @Test func injectsTheImportMapOnlyWhenThePageHasNone() {
+        #expect(PackageCache.inject(into: "<html><head></head></html>").contains("\"three\":"))
+        let own = "<html><head><script type=\"importmap\">{\"imports\":{}}</script></head></html>"
+        #expect(PackageCache.inject(into: own) == own)
+    }
 }

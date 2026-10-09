@@ -242,7 +242,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         // origin root so a page's "/src/main.ts" works.
         let full = String(url.path.dropFirst())
         var area = "project", path = full
-        for bundled in ["runtime", "pyodide"] where full.hasPrefix("__omnie/\(bundled)/") {
+        for bundled in ["runtime", "pyodide", "packages"] where full.hasPrefix("__omnie/\(bundled)/") {
             area = bundled
             path = String(full.dropFirst("__omnie/\(bundled)/".count))
         }
@@ -276,11 +276,17 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func body(area: String, path: String) throws -> (Data, String) {
-        if area == "runtime" || area == "pyodide" {
-            guard let url = Bundle.module.url(forResource: (path as NSString).deletingPathExtension,
-                                              withExtension: (path as NSString).pathExtension, subdirectory: "JS/\(area)"),
-                  let data = try? Data(contentsOf: url) else { throw NotFound(path: path) }
+        if area == "runtime" || area == "pyodide" || area == "packages" {
+            let directory = ("JS/\(area)/" + path as NSString).deletingLastPathComponent
+            guard let url = Bundle.module.url(forResource: ((path as NSString).lastPathComponent as NSString).deletingPathExtension,
+                                              withExtension: (path as NSString).pathExtension, subdirectory: directory),
+                  var data = try? Data(contentsOf: url) else { throw NotFound(path: path) }
             let ext = (path as NSString).pathExtension.lowercased()
+            if area == "runtime", ext == "html" {
+                data = Data(String(decoding: data, as: UTF8.self)
+                    .replacingOccurrences(of: "<!--omnie:importmap-->",
+                                          with: PackageCache.importMapTag(adding: ["vitest": "omnie-run://local/__omnie/runtime/vitest.js"])).utf8)
+            }
             return (data, Self.mimeTypes[ext] ?? (ext == "py" ? "text/plain" : "application/octet-stream"))
         }
         if area == "manifest" {
@@ -288,6 +294,9 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         }
         guard let file = resolver.resolve(path), let data = try? Data(contentsOf: file) else { throw NotFound(path: path) }
         let name = file.lastPathComponent
+        if name.hasSuffix(".html") || name.hasSuffix(".htm") {
+            return (Data(PackageCache.inject(into: String(decoding: data, as: UTF8.self)).utf8), "text/html")
+        }
         if name.hasSuffix(".json") {
             return (Data("export default \(String(decoding: data, as: UTF8.self));".utf8), "text/javascript")
         }

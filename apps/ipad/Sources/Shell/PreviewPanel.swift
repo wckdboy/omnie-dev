@@ -36,6 +36,9 @@ struct PreviewPanel: View {
                 .padding(.vertical, 8)
                 Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
                 PreviewWebView(root: root, entry: entry, reloadToken: reloadToken + workspace.changeCount) { level, text in
+                    #if DEBUG
+                    print("[preview] \(level): \(text)")
+                    #endif
                     console.append((level, text))
                     if console.count > 500 { console.removeFirst(console.count - 500) }
                 } onReload: { console.removeAll() }
@@ -73,27 +76,52 @@ private struct PreviewWebView: UIViewRepresentable {
     let onConsole: @MainActor (String, String) -> Void
     let onReload: () -> Void
 
-    final class Coordinator {
+    /// Holds the web view and loads the page only once it has a real size: pages often read
+    /// innerWidth/innerHeight once at load (a three.js canvas, for one), and a zero-sized web view
+    /// gives them the wrong numbers.
+    final class Container: UIView {
+        let webView: WKWebView
+        var url: URL?
         var token = 0
-        var root: URL?
+        private var loaded = false
+
+        init(webView: WKWebView) {
+            self.webView = webView
+            super.init(frame: .zero)
+            addSubview(webView)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            webView.frame = bounds
+            if !loaded, bounds.width > 0, bounds.height > 0, let url {
+                loaded = true
+                webView.load(URLRequest(url: url))
+            }
+        }
+
+        func reload() {
+            guard let url, loaded else { return }
+            webView.load(URLRequest(url: url))
+        }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeUIView(context: Context) -> WKWebView {
+    func makeUIView(context: Context) -> Container {
         let config = (try? Preview.configuration(root: root, onConsole: onConsole)) ?? WKWebViewConfiguration()
-        let view = WKWebView(frame: .zero, configuration: config)
-        view.isInspectable = true
-        view.load(URLRequest(url: Preview.url(for: entry)))
-        context.coordinator.token = reloadToken
-        context.coordinator.root = root
-        return view
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.isInspectable = true
+        let container = Container(webView: webView)
+        container.url = Preview.url(for: entry)
+        container.token = reloadToken
+        return container
     }
 
-    func updateUIView(_ view: WKWebView, context: Context) {
-        guard context.coordinator.token != reloadToken else { return }
-        context.coordinator.token = reloadToken
+    func updateUIView(_ container: Container, context: Context) {
+        guard container.token != reloadToken else { return }
+        container.token = reloadToken
         onReload()
-        view.load(URLRequest(url: Preview.url(for: entry)))
+        container.reload()
     }
 }
