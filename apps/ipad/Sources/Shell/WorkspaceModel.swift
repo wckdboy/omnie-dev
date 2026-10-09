@@ -70,6 +70,7 @@ final class WorkspaceModel {
             let loaded = try TextFile.load(url)
             language = Language(url: url)
             editor.load(loaded, language: language)
+            editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
             isDirty = false
             openFile = url
             cursor = (1, 1)

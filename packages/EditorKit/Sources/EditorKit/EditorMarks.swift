@@ -22,11 +22,29 @@ public struct EditorMark: Hashable, Sendable {
     public var id: String
     public var range: NSRange
     public var kind: Kind
+    /// The diagnostic text, read by VoiceOver ("Cannot find 'beta' in scope").
+    public var message: String?
 
-    public init(id: String = UUID().uuidString, range: NSRange, kind: Kind) {
+    public init(id: String = UUID().uuidString, range: NSRange, kind: Kind, message: String? = nil) {
         self.id = id
         self.range = range
         self.kind = kind
+        self.message = message
+    }
+
+    /// What VoiceOver says: color is never the only signal (PLAN §19).
+    var spokenLabel: String? {
+        func with(_ prefix: String) -> String { message.map { "\(prefix): \($0)" } ?? prefix }
+        return switch kind {
+        case .error: with("Error")
+        case .warning: with("Warning")
+        case .info: with("Note")
+        case .agentLines: "Written by agent"
+        case .added: "Added lines"
+        case .modified: "Modified lines"
+        case .removed: "Lines removed here"
+        case .addedText, .removedText: nil  // the gutter mark already says it
+        }
     }
 
     func decoration(in palette: Palette) -> Decoration {
@@ -41,7 +59,7 @@ public struct EditorMark: Hashable, Sendable {
         case .addedText: .background(palette.diff.addedBg.uiColor)
         case .removedText: .background(palette.diff.removedBg.uiColor)
         }
-        return Decoration(id: id, range: range, style: style)
+        return Decoration(id: id, range: range, style: style, accessibilityLabel: spokenLabel)
     }
 }
 

@@ -53,3 +53,12 @@ struct EditorMarkTests {
         #expect(amber == Palette.light.status.warn.uiColor)
     }
 }
+
+struct EditorMarkSpeechTests {
+    @Test func marksSpeakTheirMeaning() {
+        let error = EditorMark(range: NSRange(location: 0, length: 1), kind: .error, message: "Cannot find 'beta' in scope")
+        #expect(error.decoration(in: .dark).accessibilityLabel == "Error: Cannot find 'beta' in scope")
+        #expect(EditorMark(range: NSRange(location: 0, length: 1), kind: .agentLines).decoration(in: .dark).accessibilityLabel == "Written by agent")
+        #expect(EditorMark(range: NSRange(location: 0, length: 1), kind: .addedText).decoration(in: .dark).accessibilityLabel == nil)
+    }
+}
