@@ -125,8 +125,23 @@ final class EditorSpike {
         await nextFrame()
         let firstPaint = (CACurrentMediaTime() - start) * 1000
         let memory = Self.footprintMB() - before
-        record(engine, "1 open 100k lines", ["firstPaintMs": firstPaint, "memoryMB": memory],
-               pass: firstPaint <= 300 && memory <= 150)
+        // The engine paints plain text first and highlights when the background parse lands;
+        // memory is also measured after that, and the larger figure is the one judged.
+        var metrics = ["firstPaintMs": firstPaint, "memoryMB": memory]
+        var judgedMemory = memory
+        if engine == .omnie, let controller = objc_getAssociatedObject(view, &Self.controllerKey) as? CodeEditorController {
+            if !Self.highlighted(controller) {
+                await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+                    controller.onHighlighted = { done.resume() }
+                }
+            }
+            let highlightedMs = (CACurrentMediaTime() - start) * 1000
+            let memoryHighlighted = Self.footprintMB() - before
+            metrics["highlightedMs"] = highlightedMs
+            metrics["memoryHighlightedMB"] = memoryHighlighted
+            judgedMemory = max(memory, memoryHighlighted)
+        }
+        record(engine, "1 open 100k lines", metrics, pass: firstPaint <= 300 && judgedMemory <= 150)
         view.removeFromSuperview()
     }
 
@@ -228,6 +243,7 @@ final class EditorSpike {
             host.addSubview(controller.textView)
             await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
                 controller.onLoaded = { done.resume() }
+                controller.onHighlighted = { Self.markHighlighted(controller) }
                 controller.load(text, language: engine == .omnie ? language : nil)
             }
             controller.textView.layoutIfNeeded()
@@ -247,6 +263,9 @@ final class EditorSpike {
     }
 
     private static var controllerKey: UInt8 = 0
+    private static var highlightedKey: UInt8 = 0
+    private static func markHighlighted(_ c: CodeEditorController) { objc_setAssociatedObject(c, &highlightedKey, true, .OBJC_ASSOCIATION_RETAIN) }
+    private static func highlighted(_ c: CodeEditorController) -> Bool { objc_getAssociatedObject(c, &highlightedKey) as? Bool ?? false }
 
     private func setCaret(_ view: UIView, at location: Int) {
         if let tv = view as? Runestone.TextView { tv.selectedRange = NSRange(location: location, length: 0) }

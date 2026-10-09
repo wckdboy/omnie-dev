@@ -61,26 +61,34 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         set { textView.selectedRange = newValue }
     }
 
-    /// Parses and builds line data off the main thread, then swaps it in (Runestone's recommended path
-    /// for large files). Later loads cancel earlier ones.
+    /// Called on the main thread when highlighting for the loaded text is ready.
+    public var onHighlighted: (() -> Void)?
+
+    /// Shows text first, highlighting second: line data is built off the main thread and shown as plain
+    /// text (first paint), then the tree-sitter language mode is attached and parses on its own
+    /// background queue, coloring the visible lines when it finishes. Later loads cancel earlier ones.
     public func load(_ text: String, language: Language?) {
         self.language = language
         loadGeneration += 1
         let generation = loadGeneration
         let box = UncheckedState()
         box.theme = theme
-        box.language = language.map(Self.treeSitterLanguage)
         Task.detached(priority: .userInitiated) {
             guard let theme = box.theme else { return }
-            box.state = if let treeSitterLanguage = box.language {
-                TextViewState(text: text, theme: theme, language: treeSitterLanguage)
-            } else {
-                TextViewState(text: text, theme: theme)
-            }
+            box.state = TextViewState(text: text, theme: theme)
             await MainActor.run {
                 guard generation == self.loadGeneration, let state = box.state else { return }
                 self.textView.setState(state)
                 self.onLoaded?()
+                guard let language else {
+                    self.onHighlighted?()
+                    return
+                }
+                let mode = TreeSitterLanguageMode(language: Self.treeSitterLanguage(language))
+                self.textView.setLanguageMode(mode) { [weak self] _ in
+                    guard let self, generation == self.loadGeneration else { return }
+                    self.onHighlighted?()
+                }
             }
         }
     }
@@ -109,11 +117,10 @@ private struct SimplePair: CharacterPair {
     let trailing: String
 }
 
-/// Runestone's types aren't Sendable. The theme and language are immutable once built, and the
+/// Runestone's types aren't Sendable. The theme is immutable once built, and the
 /// state is built on one task and handed to the main actor once, so a single handoff box is safe.
 private final class UncheckedState: @unchecked Sendable {
     var theme: EditorTheme?
-    var language: TreeSitterLanguage?
     var state: TextViewState?
 }
 

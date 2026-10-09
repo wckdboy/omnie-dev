@@ -1,0 +1,247 @@
+{
+  "build" : "release",
+  "date" : "2026-10-09T00:02:07Z",
+  "device" : "iPad iPad17,4",
+  "results" : [
+    {
+      "engine" : "Omnie engine, TypeScript highlighting",
+      "metrics" : {
+        "firstPaintMs" : 302.1614583333303,
+        "memoryMB" : 136.32826232910156
+      },
+      "pass" : false,
+      "test" : "1 open 100k lines"
+    },
+    {
+      "engine" : "Omnie engine, TypeScript highlighting",
+      "metrics" : {
+        "contentHeightChanges" : 0,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333339965
+      },
+      "pass" : true,
+      "test" : "2 scroll fling (wrap off)"
+    },
+    {
+      "engine" : "Omnie engine, TypeScript highlighting",
+      "metrics" : {
+        "contentHeightChanges" : 0,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333339965
+      },
+      "test" : "2 scroll indicator drag (wrap off)"
+    },
+    {
+      "engine" : "Omnie engine, TypeScript highlighting",
+      "metrics" : {
+        "contentHeightChanges" : 0,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333339965
+      },
+      "pass" : true,
+      "test" : "2 scroll fling (wrap on)"
+    },
+    {
+      "engine" : "Omnie engine, TypeScript highlighting",
+      "metrics" : {
+        "contentHeightChanges" : 0,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333339965
+      },
+      "test" : "2 scroll indicator drag (wrap on)"
+    },
+    {
+      "engine" : "Omnie engine, TypeScript highlighting",
+      "metrics" : {
+        "maxMs" : 11.62266666666767,
+        "p50Ms" : 3.095583333333707,
+        "p95Ms" : 5.652083333330893
+      },
+      "pass" : false,
+      "test" : "3 type 200 chars mid-file (no on-screen keyboard)"
+    },
+    {
+      "engine" : "Omnie engine, TypeScript highlighting",
+      "metrics" : {
+        "maxMs" : 9.54662500001291,
+        "p50Ms" : 4.67358333334289,
+        "p95Ms" : 8.424291666671024
+      },
+      "test" : "3 type 200 chars mid-file (on-screen keyboard)"
+    },
+    {
+      "engine" : "Omnie engine, TypeScript highlighting",
+      "metrics" : {
+        "openMs" : 66.85633333333385,
+        "worstStallMs" : 0.9377083333248493
+      },
+      "pass" : true,
+      "test" : "4 one 20k-char line"
+    },
+    {
+      "engine" : "Omnie engine, plain text",
+      "metrics" : {
+        "firstPaintMs" : 101.49866666667151,
+        "memoryMB" : 25.437522888183594
+      },
+      "pass" : true,
+      "test" : "1 open 100k lines"
+    },
+    {
+      "engine" : "Omnie engine, plain text",
+      "metrics" : {
+        "contentHeightChanges" : 0,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333339965
+      },
+      "pass" : true,
+      "test" : "2 scroll fling (wrap off)"
+    },
+    {
+      "engine" : "Omnie engine, plain text",
+      "metrics" : {
+        "contentHeightChanges" : 0,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333339965
+      },
+      "test" : "2 scroll indicator drag (wrap off)"
+    },
+    {
+      "engine" : "Omnie engine, plain text",
+      "metrics" : {
+        "contentHeightChanges" : 0,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333339965
+      },
+      "pass" : true,
+      "test" : "2 scroll fling (wrap on)"
+    },
+    {
+      "engine" : "Omnie engine, plain text",
+      "metrics" : {
+        "contentHeightChanges" : 0,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333339965
+      },
+      "test" : "2 scroll indicator drag (wrap on)"
+    },
+    {
+      "engine" : "Omnie engine, plain text",
+      "metrics" : {
+        "maxMs" : 7.523958333337077,
+        "p50Ms" : 3.572375000004513,
+        "p95Ms" : 6.238125000010086
+      },
+      "pass" : false,
+      "test" : "3 type 200 chars mid-file (no on-screen keyboard)"
+    },
+    {
+      "engine" : "Omnie engine, plain text",
+      "metrics" : {
+        "maxMs" : 10.00237499999912,
+        "p50Ms" : 4.3316249999918455,
+        "p95Ms" : 8.326499999981252
+      },
+      "test" : "3 type 200 chars mid-file (on-screen keyboard)"
+    },
+    {
+      "engine" : "Omnie engine, plain text",
+      "metrics" : {
+        "openMs" : 38.32333333335214,
+        "worstStallMs" : 1.2632916666746041
+      },
+      "pass" : true,
+      "test" : "4 one 20k-char line"
+    },
+    {
+      "engine" : "UITextView (TextKit 2)",
+      "metrics" : {
+        "firstPaintMs" : 61.15108333335684,
+        "memoryMB" : 5.6875
+      },
+      "pass" : true,
+      "test" : "1 open 100k lines"
+    },
+    {
+      "engine" : "UITextView (TextKit 2)",
+      "metrics" : {
+        "contentHeightChanges" : 353,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333333333354176
+      },
+      "pass" : true,
+      "test" : "2 scroll fling (wrap off)"
+    },
+    {
+      "engine" : "UITextView (TextKit 2)",
+      "metrics" : {
+        "contentHeightChanges" : 230,
+        "hitchMsPerS" : 10.416645833323912,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 33.25079166668843
+      },
+      "note" : "long frames (s, ms, y): 2.05\/21\/1491737 2.08\/33\/1476215 2.09\/13\/1451102",
+      "test" : "2 scroll indicator drag (wrap off)"
+    },
+    {
+      "engine" : "UITextView (TextKit 2)",
+      "metrics" : {
+        "contentHeightChanges" : 353,
+        "hitchMsPerS" : 0,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 8.333416666687299
+      },
+      "pass" : true,
+      "test" : "2 scroll fling (wrap on)"
+    },
+    {
+      "engine" : "UITextView (TextKit 2)",
+      "metrics" : {
+        "contentHeightChanges" : 234,
+        "hitchMsPerS" : 15.818746571471147,
+        "scrollerJumps" : 0,
+        "worstFrameMs" : 39.85079166668015
+      },
+      "note" : "long frames (s, ms, y): 0.01\/13\/-32 2.04\/16\/1494233 2.06\/22\/1482322 2.10\/40\/1466015 2.11\/14\/1435946",
+      "test" : "2 scroll indicator drag (wrap on)"
+    },
+    {
+      "engine" : "UITextView (TextKit 2)",
+      "metrics" : {
+        "maxMs" : 77.9405833333442,
+        "p50Ms" : 1.697000000007165,
+        "p95Ms" : 1.9842083333401206
+      },
+      "pass" : true,
+      "test" : "3 type 200 chars mid-file (no on-screen keyboard)"
+    },
+    {
+      "engine" : "UITextView (TextKit 2)",
+      "metrics" : {
+        "maxMs" : 50.50937499999009,
+        "p50Ms" : 2.964750000018057,
+        "p95Ms" : 3.3329583333454593
+      },
+      "test" : "3 type 200 chars mid-file (on-screen keyboard)"
+    },
+    {
+      "engine" : "UITextView (TextKit 2)",
+      "metrics" : {
+        "openMs" : 47.85254166665709,
+        "worstStallMs" : 21.778416666649036
+      },
+      "pass" : true,
+      "test" : "4 one 20k-char line"
+    }
+  ],
+  "system" : "iPadOS 27.0"
+}
