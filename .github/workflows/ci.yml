@@ -1,0 +1,145 @@
+# SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every package's tests on each push and pull request; the app's UI tests on main, nightly and on
+# demand. Standard GitHub-hosted runners (macos-26, ubuntu) are free for this public repository.
+# The vendored inputs (libgit2, tree-sitter grammars, RunKit's bundles) are built by the same
+# scripts as on a Mac and cached on the hash of what produces them.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  reuse:
+    name: Licences (REUSE)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fsfe/reuse-action@v5
+
+  packages:
+    name: Package tests
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode
+        run: xcodebuild -version
+      - name: Tools
+        run: brew install ninja xcodegen
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+
+      - name: Cache libgit2
+        id: libgit2
+        uses: actions/cache@v4
+        with:
+          path: packages/GitKit/Vendor
+          key: libgit2-${{ hashFiles('scripts/build-git-deps.sh', 'scripts/patches/**') }}
+      - name: Build libgit2
+        if: steps.libgit2.outputs.cache-hit != 'true'
+        run: scripts/build-git-deps.sh
+
+      - name: Cache grammars
+        id: grammars
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/LangKit/Sources/TreeSitterGrammars
+            packages/LangKit/Sources/LangKit/Resources/queries
+            packages/LangKit/REUSE.toml
+          key: grammars-${{ hashFiles('scripts/vendor-grammars.py') }}
+      - name: Vendor grammars
+        if: steps.grammars.outputs.cache-hit != 'true'
+        run: python3 scripts/vendor-grammars.py
+
+      - name: Cache RunKit bundles
+        id: runkit
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/RunKit/Sources/RunKit/JS/sucrase.js
+            packages/RunKit/Sources/RunKit/JS/sucrase-LICENSE.txt
+            packages/RunKit/Sources/RunKit/JS/pyodide
+            packages/RunKit/Sources/RunKit/JS/packages
+          key: runkit-${{ hashFiles('scripts/vendor-runkit.sh', 'scripts/runkit/**', 'tools/wasi/**', 'scripts/collect-cargo-licenses.py') }}
+      - name: Vendor RunKit
+        if: steps.runkit.outputs.cache-hit != 'true'
+        run: scripts/vendor-runkit.sh
+
+      - name: Test every package
+        env:
+          XCODEBUILD_FLAGS: CODE_SIGNING_ALLOWED=NO
+        run: scripts/test-all.sh
+
+  ui:
+    name: UI tests
+    if: github.event_name != 'pull_request'
+    needs: packages
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: brew install ninja xcodegen
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - name: Restore libgit2
+        uses: actions/cache@v4
+        with:
+          path: packages/GitKit/Vendor
+          key: libgit2-${{ hashFiles('scripts/build-git-deps.sh', 'scripts/patches/**') }}
+      - name: Restore grammars
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/LangKit/Sources/TreeSitterGrammars
+            packages/LangKit/Sources/LangKit/Resources/queries
+            packages/LangKit/REUSE.toml
+          key: grammars-${{ hashFiles('scripts/vendor-grammars.py') }}
+      - name: Restore RunKit bundles
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/RunKit/Sources/RunKit/JS/sucrase.js
+            packages/RunKit/Sources/RunKit/JS/sucrase-LICENSE.txt
+            packages/RunKit/Sources/RunKit/JS/pyodide
+            packages/RunKit/Sources/RunKit/JS/packages
+          key: runkit-${{ hashFiles('scripts/vendor-runkit.sh', 'scripts/runkit/**', 'tools/wasi/**', 'scripts/collect-cargo-licenses.py') }}
+      - name: App project
+        run: xcodegen generate -q
+      - name: UI tests
+        env:
+          XCODEBUILD_FLAGS: CODE_SIGNING_ALLOWED=NO
+        run: scripts/test-all.sh --ui 2>&1 | tail -3
+      - name: Results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: .build/test-all/app/Logs/Test
+          retention-days: 7

@@ -76,5 +76,6 @@ Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with com
 
 - Debug launch arguments (debug builds): `-OmniePlaneTest <bare repo in Documents>`, `-OmnieWasiConformance`, `-OmnieOpenFolder <path in Documents>`, `-OmnieRunTests`, `-OmniePreview`, `-OmnieAgentDemo`, `-OmnieAgentTask "<goal>"`, `-OmnieAgentEval <label>`, `-OmnieModelSmoke`.
 - Packages: `swift test` in each `packages/*` (EditorKit runs on the simulator: `xcodebuild test -scheme EditorKit`).
+- CI (`.github/workflows/ci.yml`): REUSE lint on Linux; every package's tests on `macos-26` for each push and pull request; the UI tests on main, nightly and by hand. Standard GitHub-hosted runners are free for this public repository; the vendored inputs are cached on their scripts' hashes.
 - `scripts/test-all.sh [--ui]` runs every package's tests (EditorKit on an iPad simulator) and, with `--ui`, the app's UI tests; one line per suite, non-zero exit on any failure. 13 suites, 274 tests, about 1.5 minutes.
 - Vendored inputs (gitignored): `scripts/build-git-deps.sh`, `scripts/vendor-grammars.py`, `scripts/vendor-runkit.sh`, `scripts/vendor-wasi-spike.py`.

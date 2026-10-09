@@ -5,7 +5,9 @@
 # app's UI tests with --ui. Needs the vendored inputs (scripts/build-git-deps.sh,
 # scripts/vendor-runkit.sh). Prints one line per suite and exits non-zero if any failed.
 #   scripts/test-all.sh [--ui] [simulator id]
+# XCODEBUILD_FLAGS adds flags to the xcodebuild runs (CI: CODE_SIGNING_ALLOWED=NO).
 set -uo pipefail
+EXTRA=(${XCODEBUILD_FLAGS:-})
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 UI=0
@@ -33,7 +35,7 @@ report() { # name status detail
 for dir in "$ROOT"/packages/*/; do
   name=$(basename "$dir")
   if [ "$name" = "EditorKit" ]; then
-    out=$(cd "$dir" && xcodebuild test -scheme EditorKit -destination "id=$SIM" -derivedDataPath "$ROOT/.build/test-all/EditorKit" 2>&1)
+    out=$(cd "$dir" && xcodebuild test -scheme EditorKit -destination "id=$SIM" -derivedDataPath "$ROOT/.build/test-all/EditorKit" ${EXTRA[@]+"${EXTRA[@]}"} 2>&1)
   else
     out=$(cd "$dir" && swift test 2>&1)
   fi
@@ -48,7 +50,7 @@ done
 
 if [ "$UI" = 1 ]; then
   out=$(cd "$ROOT" && xcodebuild test -project OmnieDev.xcodeproj -scheme OmnieDev -destination "id=$SIM" \
-        -derivedDataPath "$ROOT/.build/test-all/app" -only-testing:OmnieDevUITests 2>&1)
+        -derivedDataPath "$ROOT/.build/test-all/app" -only-testing:OmnieDevUITests ${EXTRA[@]+"${EXTRA[@]}"} 2>&1)
   summary=$(echo "$out" | grep -aE "Executed [0-9]+ tests" | tail -1 | sed 's/^[[:space:]]*//')
   if echo "$out" | grep -aq "TEST SUCCEEDED"; then report "UI tests" ok "$summary"; else
     report "UI tests" FAILED "$summary"
