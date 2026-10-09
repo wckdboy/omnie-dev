@@ -63,9 +63,12 @@ def fetch(repo: str, tag: str, sha: str) -> tarfile.TarFile:
 
 
 def main() -> None:
-    shutil.rmtree(C_DIR, ignore_errors=True)
+    # Each grammar's folder goes; include/ (the umbrella header, committed) stays.
+    C_DIR.mkdir(parents=True, exist_ok=True)
+    for child in C_DIR.iterdir():
+        if child.name != "include":
+            shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink()
     shutil.rmtree(QUERY_DIR, ignore_errors=True)
-    C_DIR.mkdir(parents=True)
     QUERY_DIR.mkdir(parents=True)
     raw_queries: dict[tuple[str, str], str] = {}
 

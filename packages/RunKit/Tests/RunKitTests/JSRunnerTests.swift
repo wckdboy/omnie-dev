@@ -134,6 +134,8 @@ struct PythonRunnerTests {
     @Test func runsPytestStyleTests() async throws {
         #expect(JSRunner.pythonTestFiles(in: root) == ["tests/test_calc.py"])
         let result = await (try JSRunner(root: root)).runPythonTests(["tests/test_calc.py"])
+        // Say why when nothing came back (a slow CI runner timing out), and never index past the end.
+        try #require(result.tests.count == 6, "\(result.report)")
         #expect(result.tests.map(\.name) == ["test_total", "test_wrong", "test_raises", "test_cases[1, 1]", "test_cases[2, 3]", "TestApprox.test_float"])
         #expect(result.tests.map(\.passed) == [true, false, true, true, true, true])
         #expect(result.tests[1].error == "assert failed: assert total_up_to(3) == 7\n    assert 6 == 7\n    total_up_to(3) = 6")
