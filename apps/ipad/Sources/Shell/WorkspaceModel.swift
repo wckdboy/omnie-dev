@@ -5,6 +5,7 @@ import DesignKit
 import EditorKit
 import GitKit
 import LangKit
+import PolicyKit
 import SwiftUI
 import WorkspaceKit
 
@@ -14,7 +15,8 @@ import WorkspaceKit
 @Observable
 final class WorkspaceModel {
     var isPickingFolder = false
-    let git = GitModel()
+    let git: GitModel
+    @ObservationIgnored let policy: PolicyModel
     /// The code editor. It owns the text of the open file; read `editor.text` only to save (O(n)).
     @ObservationIgnored let editor = CodeEditorController(theme: EditorTheme(palette: .dark, density: .regular))
     @ObservationIgnored private var autosaveTask: Task<Void, Never>?
@@ -31,7 +33,9 @@ final class WorkspaceModel {
     /// One-line inline banner, per the brand rule: what happened and the one next action.
     var banner: String?
 
-    init() {
+    init(policy: PolicyModel) {
+        self.policy = policy
+        git = GitModel(policy: policy)
         // Git operations that rewrite files (sync, branch switch, merge, restore) save the editor
         // first and reload it after, so a stale buffer never overwrites what git just wrote.
         git.beforeWorktreeChange = { [weak self] in self?.saveCurrent() }
@@ -53,6 +57,7 @@ final class WorkspaceModel {
         // reload() reports if the folder really can't be read.
         isAccessingRoot = url.startAccessingSecurityScopedResource()
         rootURL = url
+        policy.projectRoot = url
         closeFile()
         reload()
         Task { await git.attach(url) }

@@ -4,11 +4,17 @@
 import CryptoKit
 import SwiftUI
 import GitKit
+import PolicyKit
+import SecretsKit
 
 /// UI-facing git state for the open project. All git work happens on the Repository actor.
 @MainActor
 @Observable
 final class GitModel {
+    /// Push and commit-with-secrets decisions go through here (PLAN.md §12).
+    @ObservationIgnored let policy: PolicyModel
+    init(policy: PolicyModel) { self.policy = policy }
+
     private(set) var repo: Repository?
     private(set) var status: RepoStatus?
     private(set) var log: [CommitInfo] = []
@@ -169,8 +175,11 @@ final class GitModel {
             error = "Set your name and email (Commit asks for them) before syncing."
             return
         }
+        guard await policy.authorize(await pushAction()) else {
+            if let reason = policy.lastRefusal, reason != "Not approved" { error = reason }
+            return
+        }
         if isOffline {
-            guard await HumanCheck.confirm("Queue a push for when you're back online") else { return }
             do {
                 let intent = try await repo.makePushIntent()
                 queuedPushes.removeAll { $0.branch == intent.branch }
@@ -182,7 +191,6 @@ final class GitModel {
             }
             return
         }
-        guard await HumanCheck.confirm("Sync and push to the remote") else { return }
         isSyncing = true
         defer { isSyncing = false }
         let auth = remoteAuth
@@ -440,6 +448,17 @@ final class GitModel {
         guard let repo else { return false }
         isBusy = true
         defer { isBusy = false }
+        // Secret scan before commit (PLAN.md §12). A finding needs your explicit OK, which is audited.
+        if let lines = try? await repo.pendingAddedLines() {
+            let findings = SecretScanner().scan(lines.map { (path: $0.path, line: $0.line, text: $0.text) })
+            if !findings.isEmpty {
+                let described = findings.map { "\($0.path):\($0.line)  \($0.rule)  \($0.redacted)" }
+                guard await policy.authorize(.commitWithSuspectedSecrets(findings: described),
+                                             artifact: described.joined(separator: "\n")
+                                                + "\n\nRemove them, or add omnie:allow-secret on the line if it's a test value.")
+                else { return false }
+            }
+        }
         do {
             try await repo.commitAll(message: message, author: author)
             await refresh()
@@ -463,6 +482,14 @@ final class GitModel {
         else { verb = "Update" }
         let list = names.count <= 3 ? names.joined(separator: ", ") : "\(names.prefix(2).joined(separator: ", ")) and \(names.count - 2) more"
         return "\(verb) \(list)"
+    }
+
+    /// The push a Sync would make, for the policy decision and the audit log.
+    private func pushAction() async -> Action {
+        let branch = (try? await repo?.head().branch) ?? nil
+        let upstream = (try? await repo?.upstreamName()) ?? nil
+        let remote = upstream.flatMap { $0.split(separator: "/").first.map(String.init) } ?? "origin"
+        return .gitPush(remote: remote, branch: branch ?? "HEAD", force: false)
     }
 
     private func describe(_ error: Error) -> String {

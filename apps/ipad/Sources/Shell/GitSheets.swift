@@ -4,6 +4,7 @@
 import SwiftUI
 import DesignKit
 import GitKit
+import SecretsKit
 
 /// Shows (or creates) this device's SSH key, ready to paste into a forge.
 struct SSHKeySheet: View {
@@ -197,6 +198,7 @@ extension View {
             .fullScreenCover(isPresented: $model.modelSpikeOpen) { ModelSpikeView() }
             .fullScreenCover(isPresented: $model.webGPUSpikeOpen) { WebGPUSpikeView() }
             .fullScreenCover(isPresented: $model.wasiSpikeOpen) { WASISpikeView() }
+            .sheet(isPresented: $model.auditLogOpen) { AuditLogView() }
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }

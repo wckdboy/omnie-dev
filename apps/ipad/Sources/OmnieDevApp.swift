@@ -5,6 +5,7 @@ import SwiftUI
 import CommandKit
 import DesignKit
 import EditorKit
+import GitKit
 
 @main
 struct OmnieDevApp: App {
@@ -54,6 +55,13 @@ struct OmnieDevApp: App {
                         if let line = git.identity?.signer.authorizedKeysLine(comment: "omnie-dev-sim") {
                             try? line.write(to: AppPaths.support.appendingPathComponent("debug-ssh-public-key.txt"), atomically: true, encoding: .utf8)
                         }
+                    }
+                    // `-OmnieCommit <message>` commits everything in the open folder, through the secret scan.
+                    if let i = args.firstIndex(of: "-OmnieCommit"), args.indices.contains(i + 1) {
+                        let git = model.workspace.git
+                        try? await Task.sleep(for: .milliseconds(500))
+                        let author = await git.author() ?? Signature(name: "Omnie Debug", email: "debug@omnie.invalid")
+                        _ = await git.commit(message: args[i + 1], author: author)
                     }
                     // `-OmnieClone <url>` clones and opens the result.
                     if let i = args.firstIndex(of: "-OmnieClone"), args.indices.contains(i + 1),

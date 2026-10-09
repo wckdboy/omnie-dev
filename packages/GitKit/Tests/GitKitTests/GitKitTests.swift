@@ -255,4 +255,20 @@ struct GitKitTests {
         #expect(log[1].date == Date(timeIntervalSince1970: 1_577_934_245))
         #expect(try git("log", "--format=%H").split(separator: "\n").map(String.init) == log.map(\.id.hex))
     }
+
+    @Test func pendingAddedLinesCoversModifiedAndUntrackedButNotIgnored() async throws {
+        let repo = try Repository.create(at: dir)
+        #expect(try await repo.pendingAddedLines().isEmpty)
+        try write("a.txt", "one\ntwo\n")
+        try write(".gitignore", "secret.env\n")
+        try await repo.commitAll(message: "Start", author: me)
+        try write("a.txt", "one\nTWO\nthree\n")
+        try write("new/b.txt", "bee\n")
+        try write("secret.env", "KEY=hidden\n")
+        let lines = try await repo.pendingAddedLines()
+        #expect(Set(lines) == [AddedLine(path: "a.txt", line: 2, text: "TWO"),
+                               AddedLine(path: "a.txt", line: 3, text: "three"),
+                               AddedLine(path: "new/b.txt", line: 1, text: "bee")])
+        #expect(try await repo.pendingAddedLines(limit: 1).count == 1)
+    }
 }

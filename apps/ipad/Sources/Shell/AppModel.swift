@@ -56,6 +56,7 @@ final class AppModel {
     var modelSpikeOpen = false
     var webGPUSpikeOpen = false
     var wasiSpikeOpen = false
+    var auditLogOpen = false
     var focusMode = false
     var navigatorVisible = true
     var utilityVisible = true
@@ -69,7 +70,8 @@ final class AppModel {
     /// nil means density follows the hands.
     var densityOverride: Density?
 
-    let workspace = WorkspaceModel()
+    let policy = PolicyModel()
+    let workspace: WorkspaceModel
 
     var density: Density {
         if let densityOverride { return densityOverride }
@@ -80,6 +82,7 @@ final class AppModel {
     private let pathMonitor = NWPathMonitor()
 
     init() {
+        workspace = WorkspaceModel(policy: policy)
         registerCommands()
         startMonitors()
     }
@@ -194,6 +197,10 @@ final class AppModel {
             Command(id: "spike.editor", title: "Run editor spike (P0)", menu: "View",
                     keywords: ["benchmark", "performance", "runestone", "textkit"]) { [weak self] in
                 self?.editorSpikeOpen = true
+            },
+            Command(id: "policy.auditLog", title: "Show audit log", menu: "View",
+                    keywords: ["policy", "approvals", "security", "history"]) { [weak self] in
+                self?.auditLogOpen = true
             },
             Command(id: "spike.wasi", title: "Run WASI spike (P0)", menu: "View",
                     keywords: ["wasm", "sandbox", "runkit"]) { [weak self] in
