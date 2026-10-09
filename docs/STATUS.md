@@ -17,12 +17,15 @@ What's built, measured and open, by roadmap phase (PLAN.md §22). Updated 9 Oct 
 
 Shell, command palette and menus; editor with tree-sitter highlighting, marks, multi-cursor and VoiceOver; theme from the brand tokens and density modes; GitKit (clone over SSH or HTTPS, checkpoints, commit composer with secret scan, timeline, Sync, offline push queue, branches, conflicts, Undo); WorkspaceKit (recent projects, reopen at launch, live file watching); SecretsKit (Keychain, Secure Enclave SSH key, tokens, secret scanner); PolicyKit (approval tiers, tighten-only project rules, capability tokens, hash-chained audit log); Settings; plane mode; Acknowledgements.
 
+Editor navigation: tabs (preview tabs, overflow past 8, ⌃Tab), quick open (⌘P), find in project (⇧⌘F), go to line (⌘L), go to symbol (⇧⌘O and `@` in the palette; `?` sends a task to the agent), and file operations in the navigator (new, rename, duplicate, delete after a checkpoint).
+
 Open from the P1 bar: your hands-on editor checks; cloning from forges other than GitHub (GitLab, Forgejo, Origin) isn't tested.
 
 ## P2 plane-ready agent: mostly built
 
 - **Models (ModelKit):** pinned, checksum-verified downloads (Tiny 0.5B, Standard 7B). Tiny drafts commit messages (0.19 s) and ghost text (~0.45 s after you stop typing).
-- **Agent (AgentKit):** typed tools, policy on every call, journal and resume, a task branch and worktree per task, changeset review, squash merge with an `Assisted-by` trailer. Agent pane on iPad, Agent and Changes tabs on iPhone.
+- **Agent (AgentKit):** typed tools, policy on every call, journal and resume, a task branch and worktree per task, changeset review hunk by hunk, squash merge with an `Assisted-by` trailer. Agent pane on iPad, Agent and Changes tabs on iPhone.
+- **Online models (start of P4):** Anthropic or any OpenAI-compatible API for agent tasks (Settings › Models), keys in the Keychain, consent per project with Face ID, routing Local / Online / Auto with plane mode forcing local. Tested against a local mock; **add a key to measure a frontier model on the golden set** (`-OmnieEvalOnline`).
 - **Quality:** golden task set, 25 tasks, run on the device with `-OmnieAgentEval`: **18/25 (72%)**, about 40 s a task, plateaued for the 4-bit 7B; what's left is the model's judgment. See `spikes/agent-p2.md`.
 - **Security:** red-team corpus v1 (7 attack cases, real PolicyKit, approvals denied); it found and closed a symlink escape.
 
@@ -35,9 +38,10 @@ Open: an agreed pass rate on a larger task set; API models (P4) for tasks the lo
 - **Preview:** a project's index.html live, TypeScript transpiled on the fly, reload on save, console with an error count.
 - **Offline package cache, first tier:** three.js bundled and import-mapped, so `import * as THREE from "three"` works offline in previews, runs and tests.
 - **Stage:** glTF/GLB, OBJ and STL from the project in three.js, with a native performance HUD. On the iPad: 60 fps (WKWebView caps animation frames at 60 Hz). Python starts and runs in under a second. See `spikes/runkit-p3.md`.
-- **Tools tab (ToolsKit):** SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
+- **Tools tab (ToolsKit):** HTTP client (`.http` files, secrets from the Keychain), API mock server (recorded responses served to previews), SQLite browser (read-only by default) and the Patterns lab (JSON, regex in JS and Swift flavors).
+- **Markdown + Mermaid preview** in the Preview tab for the open `.md` file.
 
-Open: WASI tools in RunKit, npm/PyPI packages beyond the bundled tier, the HTTP client and mock server, Markdown/Mermaid preview, the Stage inspector and shader hot reload, "Prepare for offline".
+Open: WASI tools in RunKit, npm/PyPI packages beyond the bundled tier, OpenAPI mock routes, the Stage inspector and shader hot reload, "Prepare for offline", offline docs.
 
 ## How to check things yourself
 
