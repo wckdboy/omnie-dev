@@ -76,6 +76,11 @@ struct OmnieDevApp: App {
                             print("[staging] committed \(ok) in \(Int(Date().timeIntervalSince(started) * 1000)) ms; HEAD a.txt \(head.map { $0.replacingOccurrences(of: "\n", with: "⏎") } ?? "?"); still changed: \(git.staging.map(\.path))")
                         }
                     }
+                    // `-OmnieSoak <rounds>`: the memory soak (SoakTest.swift).
+                    if let i = args.firstIndex(of: "-OmnieSoak"), args.indices.contains(i + 1), let rounds = Int(args[i + 1]) {
+                        // Beside the launch helpers below, not before them: they open the folder it soaks.
+                        Task { await SoakTest.run(model, rounds: rounds) }
+                    }
                     // `-OmnieSampleDemo`: what "Try the sample project" does, logged.
                     if args.contains("-OmnieSampleDemo") {
                         do {

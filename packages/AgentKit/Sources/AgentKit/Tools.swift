@@ -25,6 +25,7 @@ public enum ToolError: Error, Equatable, LocalizedError {
     case missingArgument(String)
     case outsideProject(String)
     case notFound(String)
+    case wrongCase(asked: String, actual: String)
     case staleFile(path: String, current: String)
     case findNotUnique(count: Int)
     case alreadyExists(String)
@@ -37,6 +38,7 @@ public enum ToolError: Error, Equatable, LocalizedError {
         case .missingArgument(let k): "Missing argument \"\(k)\"."
         case .outsideProject(let p): "\(p) is outside the project."
         case .notFound(let p): "\(p) doesn't exist."
+        case .wrongCase(let asked, let actual): "\(asked) doesn't exist, but \(actual) does (names are case-sensitive). Use \(actual)."
         case .staleFile(let p, let sha): "That sha isn't \(p)'s (its current sha is \(sha)). Read \(p) and use the sha read returns."
         case .findNotUnique(let n): n == 0 ? "The find text isn't in the file. Copy it exactly from read." : "The find text appears \(n) times; include more surrounding lines so it's unique."
         case .alreadyExists(let p): "\(p) already exists. Use patch to change it."
@@ -90,6 +92,31 @@ public struct Sandbox: Sendable {
         guard let resolved = realpath(existing, nil) else { return path }
         defer { free(resolved) }
         return ([String(cString: resolved)] + missing).joined(separator: "/").replacingOccurrences(of: "//", with: "/")
+    }
+
+    /// The path as it is on disk when `path` names an existing file or folder only by ignoring case
+    /// (`src/Orbit.ts` for `src/orbit.ts`); nil when it matches exactly or not at all.
+    public func caseVariant(of path: String) -> String? {
+        let parts = path.split(separator: "/").map(String.init).filter { $0 != "." }
+        var dir = root, actual: [String] = [], differs = false
+        for part in parts {
+            guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return nil }
+            if names.contains(part) {
+                actual.append(part)
+            } else if let match = names.first(where: { $0.caseInsensitiveCompare(part) == .orderedSame }) {
+                actual.append(match)
+                differs = true
+            } else {
+                return nil
+            }
+            dir = dir.appendingPathComponent(actual.last!)
+        }
+        return differs ? actual.joined(separator: "/") : nil
+    }
+
+    /// The error for a file that isn't at `path`: naming the one that is, when only the case differs.
+    func missing(_ path: String) -> ToolError {
+        caseVariant(of: path).map { .wrongCase(asked: path, actual: $0) } ?? .notFound(path)
     }
 
     public func relative(_ url: URL) -> String {
@@ -191,7 +218,7 @@ public struct ReadTool: AgentTool {
     public func run(_ call: ToolCall) async throws -> String {
         let path = try call.string("path")
         let url = try sandbox.resolve(path)
-        guard let data = try? Data(contentsOf: url) else { throw ToolError.notFound(path) }
+        guard sandbox.caseVariant(of: path) == nil, let data = try? Data(contentsOf: url) else { throw sandbox.missing(path) }
         let text = String(decoding: data, as: UTF8.self)
         var lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         // A final newline ends the last line; it doesn't start an empty one.
@@ -257,7 +284,7 @@ public struct PatchTool: AgentTool {
     public func run(_ call: ToolCall) async throws -> String {
         let path = try call.string("path")
         let url = try sandbox.resolve(path)
-        guard let data = try? Data(contentsOf: url) else { throw ToolError.notFound(path) }
+        guard sandbox.caseVariant(of: path) == nil, let data = try? Data(contentsOf: url) else { throw sandbox.missing(path) }
         let current = Sandbox.blobSHA(data)
         guard try call.string("sha") == current else { throw ToolError.staleFile(path: path, current: current) }
         let text = String(decoding: data, as: UTF8.self)
@@ -384,7 +411,7 @@ public struct AppendTool: AgentTool {
     public func run(_ call: ToolCall) async throws -> String {
         let path = try call.string("path")
         let url = try sandbox.resolve(path)
-        guard let data = try? Data(contentsOf: url) else { throw ToolError.notFound(path) }
+        guard sandbox.caseVariant(of: path) == nil, let data = try? Data(contentsOf: url) else { throw sandbox.missing(path) }
         let current = Sandbox.blobSHA(data)
         guard try call.string("sha") == current else { throw ToolError.staleFile(path: path, current: current) }
         var text = String(decoding: data, as: UTF8.self)
@@ -414,6 +441,9 @@ public struct CreateFileTool: AgentTool {
     public func run(_ call: ToolCall) async throws -> String {
         let path = try call.string("path")
         let url = try sandbox.resolve(path)
+        // src/Orbit.ts beside src/orbit.ts is a model's typo, not a new file (and the same file on
+        // a case-insensitive disk).
+        if let actual = sandbox.caseVariant(of: path) { throw ToolError.wrongCase(asked: path, actual: actual) }
         guard !FileManager.default.fileExists(atPath: url.path) else { throw ToolError.alreadyExists(path) }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let data = Data(try call.string("content").utf8)

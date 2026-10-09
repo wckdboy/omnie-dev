@@ -73,9 +73,17 @@ Open: an agreed pass rate on a larger task set (the router can already send what
 
 Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with compiled code that Pyodide doesn't build, a better local model for small structural edits.
 
+## v1.0 bar: memory soak passes
+
+`-OmnieSoak <rounds>` (debug) runs the local 7B agent on the sample with the preview, Stage and the terminal all on screen, `npm test` every 4 s and a file switch every 3 s, logging the footprint jetsam counts. On the iPad (M5, 16 GB), 8 rounds in 7 minutes: peak 5.9 GB with the model loaded, never less than 6.4 GB left, and after-round footprints of 4.3–4.7 GB that follow the goal (each third goal is the longest task) with no growth (round 8 ended 35 MB under round 1). The soak found two bugs, both fixed:
+- **An editor crash:** reloading a file that had shrunk under the caret left the selection past the end, and the keyboard asked Runestone for a line that wasn't there. The caret is now clamped on every load; `ReloadTests` covers it.
+- **The agent wrote to a wrong-case path:** it created `src/Orbit.ts` beside `src/orbit.ts`. A path that matches only when case is ignored is now an error that names the real file, and `create_file` won't make the twin.
+
+Still open for v1.0: App Store Connect metadata, which uses the drafts in `docs/release/app-review.md`.
+
 ## How to check things yourself
 
-- Debug launch arguments (debug builds): `-OmniePlaneTest <bare repo in Documents>`, `-OmnieWasiConformance`, `-OmnieOpenFolder <path in Documents>`, `-OmnieRunTests`, `-OmniePreview`, `-OmnieAgentDemo`, `-OmnieAgentTask "<goal>"`, `-OmnieAgentEval <label>`, `-OmnieModelSmoke`.
+- Debug launch arguments (debug builds): `-OmniePlaneTest <bare repo in Documents>`, `-OmnieWasiConformance`, `-OmnieOpenFolder <path in Documents>`, `-OmnieRunTests`, `-OmniePreview`, `-OmnieAgentDemo`, `-OmnieAgentTask "<goal>"`, `-OmnieAgentEval <label>`, `-OmnieModelSmoke`, `-OmnieSoak <rounds>`.
 - Packages: `swift test` in each `packages/*` (EditorKit runs on the simulator: `xcodebuild test -scheme EditorKit`).
 - CI (`.github/workflows/ci.yml`): REUSE lint on Linux; every package's tests on `macos-26` for each push and pull request; the UI tests on main, nightly and by hand. Standard GitHub-hosted runners are free for this public repository; the vendored inputs are cached on their scripts' hashes.
 - `scripts/test-all.sh [--ui]` runs every package's tests (EditorKit on an iPad simulator) and, with `--ui`, the app's UI tests; one line per suite, non-zero exit on any failure. 13 suites, 274 tests, about 1.5 minutes.

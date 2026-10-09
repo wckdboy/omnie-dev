@@ -229,7 +229,15 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             box.state = TextViewState(text: text, theme: theme)
             await MainActor.run {
                 guard generation == self.loadGeneration, let state = box.state else { return }
+                // A selection past the new text's end (the file shrank on disk, say an agent rewrote
+                // it) makes the keyboard ask Runestone for a line that no longer exists, a crash.
+                // Park the caret at the start while the text swaps, then put it back, clamped.
+                let caret = self.textView.selectedRange
+                self.textView.selectedRange = NSRange(location: 0, length: 0)
                 self.textView.setState(state)
+                let length = (self.textView.text as NSString).length
+                let location = min(caret.location, length)
+                self.textView.selectedRange = NSRange(location: location, length: min(caret.length, length - location))
                 // The state carries the theme from when the load began; if the appearance changed
                 // since (a file opened at launch, before the pane applied light mode), use today's.
                 if box.theme !== self.theme {

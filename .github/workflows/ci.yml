@@ -15,9 +15,10 @@ on:
     - cron: "17 3 * * *"
   workflow_dispatch:
 
+# A newer push to a pull request replaces its run; every push to main runs to the end (its UI tests too).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

@@ -168,6 +168,29 @@ struct AgentLoopTests {
         #expect(again.prompts.isEmpty)
     }
 
+    /// What the 7B did in the memory soak: src/Orbit.ts for src/orbit.ts. It hears the real name,
+    /// and doesn't get a second file beside the first.
+    @Test func aPathInTheWrongCaseNamesTheRealOne() async throws {
+        let sandbox = Sandbox(root: root)
+        #expect(sandbox.caseVariant(of: "SRC/Greet.ts") == "src/greet.ts")
+        #expect(sandbox.caseVariant(of: "src/greet.ts") == nil)
+        #expect(sandbox.caseVariant(of: "src/nope.ts") == nil)
+        let expected = ToolError.wrongCase(asked: "src/Greet.ts", actual: "src/greet.ts")
+        await #expect(throws: expected) {
+            try await ReadTool(sandbox: sandbox).run(ToolCall(name: "read", arguments: ["path": .string("src/Greet.ts")]))
+        }
+        await #expect(throws: expected) {
+            try await CreateFileTool(sandbox: sandbox).run(ToolCall(name: "create_file", arguments: [
+                "path": .string("src/Greet.ts"), "content": .string("// hi\n")]))
+        }
+        await #expect(throws: expected) {
+            try await PatchTool(sandbox: sandbox).run(ToolCall(name: "patch", arguments: [
+                "path": .string("src/Greet.ts"), "sha": .string(sha), "find": .string("hi"), "replace": .string("hello")]))
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("src").path) == ["greet.ts"])
+        #expect(expected.localizedDescription.contains("Use src/greet.ts."))
+    }
+
     @Test func patchToleratesBlankLinesAtTheEdgesOfFind() async throws {
         // What the 7B did on the README task: find with an extra trailing blank line.
         try "# shop\n\nA tiny shop backend.\n".write(to: root.appendingPathComponent("README.md"), atomically: true, encoding: .utf8)
