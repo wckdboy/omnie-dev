@@ -198,6 +198,19 @@ struct AgentLoopTests {
                 == "import { greet } from \"./greet\";\n\nconsole.log(greet(\"world\"));\n")
     }
 
+    @Test func looseMatchingNeverIgnoresIndentation() async throws {
+        // The 7B's swift-enum patch: find without the indentation, replace without the header.
+        // Matching around indentation replaced the enum's first two lines; now it's an error.
+        let swift = "enum Tint: String {\n    case cyan = \"3DD6F5\"\n    case amber = \"F5B83D\"\n}\n"
+        try swift.write(to: root.appendingPathComponent("Tint.swift"), atomically: true, encoding: .utf8)
+        await #expect(throws: ToolError.findNotUnique(count: 0)) {
+            _ = try await PatchTool(sandbox: Sandbox(root: root)).run(ToolCall(name: "patch", arguments: [
+                "path": .string("Tint.swift"), "sha": .string(Sandbox.blobSHA(Data(swift.utf8))),
+                "find": .string("enum Tint: String {\ncase cyan = \"3DD6F5\"\n"), "replace": .string("    case purple = \"8E5CF7\"\n}")]))
+        }
+        #expect(try String(contentsOf: root.appendingPathComponent("Tint.swift"), encoding: .utf8) == swift)
+    }
+
     @Test func grepTakesTextOrARegex() async throws {
         try "console.log(total([1, 2, 3]));\n".write(to: root.appendingPathComponent("index.ts"), atomically: true, encoding: .utf8)
         let grep = GrepTool(sandbox: Sandbox(root: root))

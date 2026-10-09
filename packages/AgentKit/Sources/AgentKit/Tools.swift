@@ -256,7 +256,7 @@ public struct PatchTool: AgentTool {
         }
         var updated: String?
         if count == 0, let span = Self.looseMatch(find, in: text) {
-            // Last resort: the same lines, ignoring blank lines and indentation. Unique matches only.
+            // Last resort: the same lines, ignoring blank lines (and trailing spaces). Unique matches only.
             updated = text.replacingCharacters(in: span, with: replace.trimmingCharacters(in: .newlines))
             count = 1
         }
@@ -265,7 +265,7 @@ public struct PatchTool: AgentTool {
             let out = Data(updated.utf8)
             try Sandbox.validate(out, path: path)
             try out.write(to: url, options: .atomic)
-            return "Patched \(path) (matched ignoring blank lines and indentation). New sha: \(Sandbox.blobSHA(out))"
+            return "Patched \(path) (matched ignoring blank lines). New sha: \(Sandbox.blobSHA(out))"
         }
         if let repeated = Self.repeatedTail(text: text, find: find, replace: replace) {
             throw ToolError.duplicatesFollowingLines(repeated)
@@ -290,17 +290,24 @@ public struct PatchTool: AgentTool {
     }
 
     /// Where `find`'s non-blank lines appear as consecutive non-blank lines of `text`, compared
-    /// without surrounding whitespace. nil unless there's exactly one such place.
+    /// without trailing spaces. Indentation must match: matching around it let a bad patch replace
+    /// the wrong lines (seen on the device), and a failed patch is better than a wrong one.
+    /// nil unless there's exactly one such place.
     static func looseMatch(_ find: String, in text: String) -> Range<String.Index>? {
-        let wanted = find.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        func trailingTrimmed(_ s: Substring) -> String {
+            var t = String(s)
+            while let last = t.last, last == " " || last == "\t" || last == "\r" { t.removeLast() }
+            return t
+        }
+        let wanted = find.split(separator: "\n").map(trailingTrimmed).filter { !$0.allSatisfy(\.isWhitespace) }
         guard !wanted.isEmpty else { return nil }
         // Non-blank lines of the file with their ranges.
         var lines: [(text: String, range: Range<String.Index>)] = []
         var start = text.startIndex
         while start < text.endIndex {
             let end = text[start...].firstIndex(of: "\n") ?? text.endIndex
-            let trimmed = text[start..<end].trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty { lines.append((trimmed, start..<end)) }
+            let trimmed = trailingTrimmed(text[start..<end])
+            if !trimmed.allSatisfy(\.isWhitespace) { lines.append((trimmed, start..<end)) }
             start = end < text.endIndex ? text.index(after: end) : end
         }
         var matches: [Range<String.Index>] = []
