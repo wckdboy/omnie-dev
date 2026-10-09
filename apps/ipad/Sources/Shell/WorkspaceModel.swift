@@ -451,6 +451,19 @@ final class WorkspaceModel {
         }
     }
 
+    /// The second editor saved the open file: show its text, unless there are unsaved edits here.
+    func reloadOpenFileIfClean() {
+        guard let openFile, !isDirty, let loaded = try? TextFile.load(openFile, presenter: watcher), loaded != editor.text else { return }
+        let selection = editor.selectedRange
+        editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
+        changeCount += 1
+        editor.onLoaded = { [weak self] in
+            guard let self else { return }
+            editor.selectedRange = NSRange(location: min(selection.location, (loaded as NSString).length), length: 0)
+            editor.onLoaded = nil
+        }
+    }
+
     /// Re-themes the editor when the appearance or density changes.
     func applyEditorTheme(palette: Palette, density: Density) {
         guard editor.theme.palette != palette || editor.theme.density != density else { return }

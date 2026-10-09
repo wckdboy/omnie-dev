@@ -24,6 +24,7 @@ enum Experience {
 enum UtilityTab: String, CaseIterable, Identifiable {
     case files = "Files"
     case agent = "Agent"
+    case editor2 = "Editor 2"
     case timeline = "Timeline"
     case terminal = "Terminal"
     case preview = "Preview"
@@ -35,6 +36,7 @@ enum UtilityTab: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .files: "folder"
+        case .editor2: "rectangle.split.2x1"
         case .agent: "text.bubble"
         case .timeline: "clock.arrow.trianglehead.counterclockwise.rotate.90"
         case .terminal: "terminal"
@@ -119,6 +121,8 @@ final class AppModel {
     let models: ModelsModel
     let docs: DocsModel
     let agent: AgentModel
+    /// The second editor (the Editor 2 panel).
+    let split = SplitEditorModel()
 
     var density: Density {
         if let densityOverride { return densityOverride }
@@ -145,6 +149,7 @@ final class AppModel {
             guard models.inlineSuggestions else { return nil }
             return await models.tinyModel()
         }
+        split.workspace = workspace
         registerCommands()
         #if DEBUG
         // `-OmnieLayout terminalBelow` starts from a preset (screenshots, UI tests), before any
@@ -259,6 +264,16 @@ final class AppModel {
             Command(id: "view.utility", title: "Toggle right dock", menu: "View",
                     shortcut: Shortcut("3"), surfaces: .ide, keywords: ["utility pane", "inspector"]) { [weak self] in
                 self?.toggle(.right)
+            },
+            Command(id: "view.split", title: "Open in split", menu: "View",
+                    shortcut: Shortcut("\\"), surfaces: .ide, keywords: ["split editor", "side by side", "editor 2"]) { [weak self] in
+                guard let self else { return }
+                if let file = self.workspace.openFile { self.split.open(file) }
+                // Its first time: a group of its own on the right, beside whatever's there.
+                if self.panes.location(of: UtilityTab.editor2.rawValue) == nil {
+                    withAnimation(Motion.pane) { self.panes.move(UtilityTab.editor2.rawValue, toNewGroupIn: .right, at: 0) }
+                }
+                self.show(.editor2)
             },
             Command(id: "view.minimap", title: "Toggle minimap", menu: "View",
                     surfaces: .ide, keywords: ["overview", "scroll map"]) { [weak self] in

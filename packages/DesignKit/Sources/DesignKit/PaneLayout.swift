@@ -159,9 +159,9 @@ public struct PaneLayout: Codable, Equatable, Sendable {
         hidden.remove(dock)
     }
 
-    /// Moves a panel into a new group of its own in `dock`, at `position` or the end.
+    /// Moves a panel (or brings a closed one) into a new group of its own in `dock`, at
+    /// `position` or the end.
     public mutating func move(_ panel: String, toNewGroupIn dock: Dock, at position: Int? = nil) {
-        guard location(of: panel) != nil else { return }
         // Splitting a panel off its own one-panel group in the same dock changes nothing.
         if let (d, g) = location(of: panel), d == dock, self[d][g].panels.count == 1, position == nil { return }
         close(panel)

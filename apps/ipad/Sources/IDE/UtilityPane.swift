@@ -17,6 +17,7 @@ struct PanelContent: View {
                 if model.layout == .single { withAnimation(Motion.pane) { model.leftOverlay = false } }
             })
         case .agent: AgentPanel()
+        case .editor2: SplitEditorPanel()
         case .timeline: TimelineView()
         case .terminal: TerminalPanel()
         case .preview: PreviewPanel()

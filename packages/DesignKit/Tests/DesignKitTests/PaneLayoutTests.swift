@@ -47,6 +47,11 @@ struct PaneLayoutTests {
         layout.close("preview")
         #expect(layout.right[0].selected == "terminal")
         #expect(layout.closed(from: all) == ["preview"])
+        // A closed panel can come back as a group of its own, the others' selection untouched.
+        let selected = layout.right[0].selected
+        layout.move("preview", toNewGroupIn: .right, at: 0)
+        #expect(layout.right.map(\.panels.first) == ["preview", "agent"] && layout.right[1].selected == selected)
+        layout.close("preview")
         layout.close("files")
         #expect(layout.left.isEmpty)
         // A closed panel comes back in the right dock.
