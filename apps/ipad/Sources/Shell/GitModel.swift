@@ -337,6 +337,92 @@ final class GitModel {
         await refresh()
     }
 
+    // MARK: Remotes and moving a repo (PLAN.md §9.10, §9.11)
+
+    private(set) var remotes: [RemoteInfo] = []
+
+    func refreshRemotes() async {
+        remotes = (try? await repo?.remotes()) ?? []
+    }
+
+    /// Runs a local remote change, reporting what went wrong.
+    func editRemotes(_ change: @escaping (Repository) async throws -> Void) async {
+        guard let repo else { return }
+        do { try await change(repo) } catch { self.error = (error as? LocalizedError)?.errorDescription ?? describe(error) }
+        await refreshRemotes()
+        await refresh()
+    }
+
+    func migrationPlan(from old: String, to name: String, url: String) async -> Result<MigrationPlan, Error> {
+        guard let repo else { return .failure(MigrationError.noSuchRemote(old)) }
+        do { return .success(try await repo.migrationPlan(from: old, to: name, url: url)) } catch { return .failure(error) }
+    }
+
+    /// Moves the repo to another forge. A push, so it's approved like one; it needs the network.
+    func migrate(_ plan: MigrationPlan, isOffline: Bool) async -> Bool {
+        guard let repo else { return false }
+        if isOffline {
+            error = "Moving a repo needs the network: it pushes everything to \(RemoteInfo.host(of: plan.url) ?? plan.url)."
+            return false
+        }
+        let what = "\(plan.branches.count) branches, \(plan.tags.count) tags"
+        guard await policy.authorize(.gitPush(remote: plan.to, branch: what, force: false)) else {
+            if let reason = policy.lastRefusal, reason != "Not approved" { error = reason }
+            return false
+        }
+        isSyncing = true
+        defer { isSyncing = false }
+        let auth = remoteAuth
+        var done = false
+        await network({ [weak self] in _ = await self?.migrate(plan, isOffline: false) }) {
+            try await repo.migrate(plan, auth: auth)
+            done = true
+            syncMessage = "Moved to \(plan.to): \(what); \(plan.from) is read-only now"
+        }
+        await refreshRemotes()
+        await refresh()
+        return done
+    }
+
+    // MARK: Staging (PLAN.md §9.10: hunks and lines, then commit the index)
+
+    private(set) var staging: [StagingFile] = []
+
+    func refreshStaging() async {
+        guard let repo else { staging = []; return }
+        staging = (try? await repo.stagingStatus()) ?? []
+    }
+
+    /// Stages lines (or the whole file) of the not-staged diff.
+    func stage(_ path: String, lines: Set<Staging.LineRef>? = nil) async {
+        guard let repo else { return }
+        do { try await repo.stage(path, lines: lines) } catch { self.error = (error as? LocalizedError)?.errorDescription ?? describe(error) }
+        await refreshStaging()
+    }
+
+    func unstage(_ path: String, lines: Set<Staging.LineRef>? = nil) async {
+        guard let repo else { return }
+        do { try await repo.unstage(path, lines: lines) } catch { self.error = (error as? LocalizedError)?.errorDescription ?? describe(error) }
+        await refreshStaging()
+    }
+
+    /// Commits only what's staged.
+    func commitStaged(message: String, author: Signature) async -> Bool {
+        guard let repo else { return false }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let commit = try await repo.commitIndex(message: message, author: author)
+            syncMessage = "Committed “\(commit.summary)”"
+            await refresh()
+            await refreshStaging()
+            return true
+        } catch {
+            self.error = (error as? LocalizedError)?.errorDescription ?? describe(error)
+            return false
+        }
+    }
+
     // MARK: Tags, reset, reflog (PLAN.md §9.10)
 
     func tag(_ name: String, at commit: CommitInfo, message: String) async {

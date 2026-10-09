@@ -63,6 +63,9 @@ final class AppModel {
     var cloneSheetOpen = false
     var branchSheetOpen = false
     var historySheetOpen = false
+    var remotesSheetOpen = false
+    /// First run, or Help › Welcome.
+    var welcomeOpen = false
     var editorSpikeOpen = false
     var modelSpikeOpen = false
     var webGPUSpikeOpen = false
@@ -89,14 +92,30 @@ final class AppModel {
     var focusMode = false
     /// Where the panels are (docks, groups, sizes); yours to rearrange, kept between launches.
     var panes: PaneLayout = AppModel.loadPanes() {
-        didSet { if panes != oldValue { AppModel.savePanes(panes) } }
+        didSet {
+            guard panes != oldValue else { return }
+            AppModel.savePanes(panes)
+            if let projectLayoutKey { AppModel.savePanes(panes, key: projectLayoutKey) }
+        }
     }
+    /// The open project's layout key (PLAN.md §13: layout is saved per project).
+    @ObservationIgnored private var projectLayoutKey: String?
     /// Panels open in windows of their own (out of the docks meanwhile).
     var windowedPanels: Set<String> = []
+    /// A debug launch argument opens a folder itself, a moment after launch.
+    private(set) var opensFolderAtLaunch = false
+    /// Panel windows opened in this run (restored ones aren't in it).
+    var openedPanelWindows: Set<String> = []
     /// The blame column beside the code (PLAN.md §9.10).
     var showsBlame = false
     /// A commit the timeline scrolls to and marks (tapped in blame).
     var timelineFocus: String?
+    #if DEBUG
+    /// Set once the debug launch fixtures have opened their folder; launch commands wait for it.
+    var launchFolderReady = false
+    #else
+    let launchFolderReady = true
+    #endif
     /// The editor's minimap; kept between launches.
     var showsMinimap = UserDefaults.standard.object(forKey: "editor.minimap") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showsMinimap, forKey: "editor.minimap") }
@@ -144,7 +163,10 @@ final class AppModel {
         agent = AgentModel(workspace: workspace, models: models, policy: policy)
         agent.snippets = snippets
         agent.isOffline = { [weak self] in self?.isOffline ?? false }
-        workspace.onProjectOpened = { [agent] root in agent.attach(root) }
+        workspace.onProjectOpened = { [weak self, agent] root in
+            agent.attach(root)
+            self?.restoreLayout(for: root)
+        }
         workspace.completionModel = { [models] in
             guard models.inlineSuggestions else { return nil }
             return await models.tinyModel()
@@ -159,9 +181,10 @@ final class AppModel {
             panes = preset.layout
         }
         #endif
-        // Debug launch arguments open their own folder.
         let args = ProcessInfo.processInfo.arguments
-        if !args.contains("-OmnieOpenFolder") && !args.contains("-OmnieClone") { workspace.reopenLast() }
+        // Debug launch arguments open their own folder (fixtures rebuild theirs, so don't reopen it).
+        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture"].contains { args.contains($0) }
+        if !opensFolderAtLaunch { workspace.reopenLast() }
         startMonitors()
     }
 
@@ -211,8 +234,33 @@ final class AppModel {
         return layout
     }
 
-    static func savePanes(_ layout: PaneLayout) {
-        if let data = try? JSONEncoder().encode(layout) { UserDefaults.standard.set(data, forKey: panesKey) }
+    static func savePanes(_ layout: PaneLayout, key: String = panesKey) {
+        if let data = try? JSONEncoder().encode(layout) { UserDefaults.standard.set(data, forKey: key) }
+    }
+
+    /// The key a project's layout is kept under: its path from the app's home, which survives
+    /// reinstalls (the container's own path doesn't).
+    nonisolated static func layoutKey(for root: URL) -> String {
+        let path = root.standardizedFileURL.path(percentEncoded: false)
+        let home = URL(filePath: NSHomeDirectory()).standardizedFileURL.path(percentEncoded: false)
+        return panesKey + "@" + (path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path)
+    }
+
+    /// Opening a project brings back the layout it had; a new one keeps the current layout.
+    private func restoreLayout(for root: URL) {
+        let key = Self.layoutKey(for: root)
+        projectLayoutKey = key
+        #if DEBUG
+        // A preset from the launch arguments wins (UI tests, screenshots).
+        if ProcessInfo.processInfo.arguments.contains("-OmnieLayout") { return }
+        #endif
+        guard let data = UserDefaults.standard.data(forKey: key),
+              var layout = try? JSONDecoder().decode(PaneLayout.self, from: data) else {
+            Self.savePanes(panes, key: key)
+            return
+        }
+        layout.repair(known: UtilityTab.allCases.map(\.rawValue))
+        if layout != panes { withAnimation(Motion.pane) { panes = layout } }
     }
 
     private func startMonitors() {
@@ -395,6 +443,14 @@ final class AppModel {
                     shortcut: Shortcut("b", [.command, .option]), surfaces: .ide, keywords: ["annotate", "who changed", "author"]) { [weak self] in
                 guard let self, self.workspace.git.repo != nil else { return }
                 self.showsBlame.toggle()
+            },
+            Command(id: "help.welcome", title: "Welcome", menu: "Help", keywords: ["onboarding", "sample project", "get started"]) { [weak self] in
+                self?.welcomeOpen = true
+            },
+            Command(id: "git.remotes", title: "Remotes…", menu: "Git",
+                    keywords: ["move repo", "migrate", "mirror", "forge", "upstream", "add remote"]) { [weak self] in
+                guard let self, self.workspace.git.repo != nil else { return }
+                self.remotesSheetOpen = true
             },
             Command(id: "git.editHistory", title: "Edit history…", menu: "Git",
                     keywords: ["interactive rebase", "squash", "reorder commits", "reword", "fixup"]) { [weak self] in

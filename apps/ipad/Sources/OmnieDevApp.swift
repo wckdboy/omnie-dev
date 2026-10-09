@@ -47,10 +47,70 @@ struct OmnieDevApp: App {
                                 _ = try? await repo.commitAll(message: message + "\n", author: me)
                             }
                         }
+                        // `-OmnieUIStagingFixture` too: uncommitted edits on top, for the Stage view.
+                        if args.contains("-OmnieUIStagingFixture") {
+                            try? "a2\nfour\n".write(to: folder.appending(path: "a.txt"), atomically: true, encoding: .utf8)
+                            try? "notes\n".write(to: folder.appending(path: "notes.txt"), atomically: true, encoding: .utf8)
+                        }
                         // An author for the rewritten commits, unless one is set.
                         if model.workspace.git.fallbackName.isEmpty { model.workspace.git.fallbackName = "UI Test" }
                         if model.workspace.git.fallbackEmail.isEmpty { model.workspace.git.fallbackEmail = "ui@omnie.invalid" }
                         model.workspace.open(folder: folder)
+                    }
+                    // `-OmnieStagingDemo` (with both fixtures): stage one line, commit the index, log the result.
+                    if args.contains("-OmnieStagingDemo") {
+                        // The last project reopens at launch: wait for the fixture's repository, not that one.
+                        for _ in 0..<50 where model.workspace.git.repo?.workdir.lastPathComponent != "uitest-history" {
+                            try? await Task.sleep(for: .milliseconds(100))
+                        }
+                        let git = model.workspace.git
+                        let started = Date()
+                        await git.refreshStaging()
+                        print("[staging] files: \(git.staging.map { "\($0.path) staged \($0.staged != nil) unstaged \($0.unstaged != nil)" })")
+                        if let diff = git.staging.first(where: { $0.path == "a.txt" })?.unstaged {
+                            let four = Staging.allChanges(diff).filter { diff.hunks[$0.hunk].lines[$0.line] == "+four" }
+                            await git.stage("a.txt", lines: four)
+                            let ok = await git.commitStaged(message: "Add four\n", author: Signature(name: "UI Test", email: "ui@omnie.invalid"))
+                            let head = try? await git.repo?.text(of: "a.txt", in: .head)
+                            await git.refreshStaging()
+                            print("[staging] committed \(ok) in \(Int(Date().timeIntervalSince(started) * 1000)) ms; HEAD a.txt \(head.map { $0.replacingOccurrences(of: "\n", with: "⏎") } ?? "?"); still changed: \(git.staging.map(\.path))")
+                        }
+                    }
+                    // `-OmnieSampleDemo`: what "Try the sample project" does, logged.
+                    if args.contains("-OmnieSampleDemo") {
+                        do {
+                            let folder = try await SampleProject.install()
+                            let log = try await Repository.open(at: folder).log(limit: 5).map(\.summary)
+                            print("[sample] \(folder.lastPathComponent): \(log)")
+                        } catch { print("[sample] failed: \(error)") }
+                    }
+                    // `-OmnieMigrationDemo`: two local bare repos as forges; clone from one, move to the other, log it.
+                    if args.contains("-OmnieMigrationDemo") {
+                        let base = URL.documentsDirectory.appending(path: "migration-demo")
+                        try? FileManager.default.removeItem(at: base)
+                        let auth = RemoteAuth(credential: { _ in nil }, checkHostKey: { _ in .trusted })
+                        let me = Signature(name: "Demo", email: "demo@omnie.invalid")
+                        do {
+                            _ = try Repository.create(at: base.appending(path: "old.git"), bare: true)
+                            _ = try Repository.create(at: base.appending(path: "new.git"), bare: true)
+                            let repo = try await Repository.clone(from: base.appending(path: "old.git").path(percentEncoded: false), to: base.appending(path: "work"), auth: auth)
+                            try "one\n".write(to: base.appending(path: "work/a.txt"), atomically: true, encoding: .utf8)
+                            let first = try await repo.commitAll(message: "First\n", author: me)
+                            try await repo.push(remote: "origin", refspecs: ["refs/heads/main:refs/heads/main"], auth: auth)
+                            try await repo.setUpstream("main", to: "origin/main")
+                            _ = try await repo.createBranch("feature")
+                            try await repo.tag("v1", at: first.id, tagger: me)
+                            let started = Date()
+                            let plan = try await repo.migrationPlan(from: "origin", to: "forgejo", url: base.appending(path: "new.git").path(percentEncoded: false))
+                            try await repo.migrate(plan, auth: auth)
+                            let moved = try Repository.open(at: base.appending(path: "new.git"))
+                            let branches = try await moved.branches().map(\.name)
+                            let tags = try await moved.tags().values.flatMap { $0 }
+                            let remotes = try await repo.remotes().map { "\($0.name)\($0.isReadOnly ? " (fetch only)" : "")" }
+                            print("[migrate] \(plan.steps.count) steps in \(Int(Date().timeIntervalSince(started) * 1000)) ms; new forge has \(branches) + tags \(tags); remotes \(remotes); upstream \(try await repo.upstreamName() ?? "none")")
+                        } catch {
+                            print("[migrate] failed: \(error)")
+                        }
                     }
                     // `-OmnieHistoryDemo` (with the fixture): drop one commit, fix up another, then undo; logs each history.
                     if args.contains("-OmnieHistoryDemo") {
@@ -94,6 +154,8 @@ struct OmnieDevApp: App {
                             }
                         }
                     }
+                    // Fixtures and folders are in place: launch commands can run now.
+                    model.launchFolderReady = true
                     // `-OmnieDocs <query>` opens the docs sheet searching for it.
                     if let i = args.firstIndex(of: "-OmnieDocs"), args.indices.contains(i + 1) { model.docsQuery = args[i + 1] }
                     // `-OmnieDemoMarks` puts sample diagnostics, diff and authorship marks on the open file.
@@ -235,6 +297,13 @@ struct OmnieDevApp: App {
                     // Runs after the debug launch helpers above have opened any folder or file.
                     try? await Task.sleep(for: .milliseconds(300))
                     let args = ProcessInfo.processInfo.arguments
+                    // Wait for the debug fixtures and the folder's repository (git commands need it).
+                    for _ in 0..<100 where !model.launchFolderReady { try? await Task.sleep(for: .milliseconds(100)) }
+                    if let root = model.workspace.rootURL, FileManager.default.fileExists(atPath: root.appending(path: ".git").path(percentEncoded: false)) {
+                        for _ in 0..<50 where model.workspace.git.repo?.workdir.standardizedFileURL.lastPathComponent != root.lastPathComponent {
+                            try? await Task.sleep(for: .milliseconds(100))
+                        }
+                    }
                     for (i, arg) in args.enumerated() where arg == "-OmnieRunCommand" && args.indices.contains(i + 1) {
                         model.registry.run(CommandID(rawValue: args[i + 1]))
                     }

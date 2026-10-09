@@ -87,6 +87,9 @@ struct IDEShell: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .folderPicker()
         .gitSheets(model)
+        .fullScreenCover(isPresented: Binding(get: { model.welcomeOpen }, set: { model.welcomeOpen = $0 })) {
+            WelcomeView().environment(model)
+        }
         .onAppear { applyInitialLayout() }
     }
 
@@ -101,8 +104,13 @@ struct IDEShell: View {
     }
 
     private func applyInitialLayout() {
-        // With no project, lead with the files panel's "Open folder".
-        if model.workspace.root == nil {
+        // First run on this iPad (not when a debug launch opens its own folder).
+        if !UserDefaults.standard.bool(forKey: WelcomeView.doneKey) && !model.opensFolderAtLaunch
+            && !ProcessInfo.processInfo.arguments.contains("-OmnieNoWelcome") {
+            model.welcomeOpen = true
+        }
+        // With no project, lead with the files panel's "Open folder" (unless one is being opened).
+        if model.workspace.root == nil && !model.opensFolderAtLaunch {
             model.show(.files)
         }
     }

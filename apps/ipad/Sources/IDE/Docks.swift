@@ -237,6 +237,7 @@ struct PanelMenu: View {
         }
         if UIApplication.shared.supportsMultipleScenes {
             Button {
+                model.openedPanelWindows.insert(id)
                 openWindow(id: PanelWindow.sceneID, value: id)
             } label: {
                 Label("Open in new window", systemImage: "macwindow.badge.plus")
@@ -336,6 +337,7 @@ extension PaneLayout.Dock {
 struct PanelWindow: View {
     static let sceneID = "panel"
     @Environment(AppModel.self) private var model
+    @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
     let panel: String
@@ -354,6 +356,16 @@ struct PanelWindow: View {
         .tint(palette.accent.ion.color)
         .background(palette.surface.pane.color)
         .onAppear {
+            #if DEBUG
+            // UI tests start from a known layout: a panel window iPadOS restored from an earlier
+            // run (not opened in this one) closes again.
+            let args = ProcessInfo.processInfo.arguments
+            if ["-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmnieLayout"].contains(where: args.contains),
+               !model.openedPanelWindows.contains(panel) {
+                dismissWindow()
+                return
+            }
+            #endif
             model.windowedPanels.insert(panel)
             withAnimation(Motion.pane) { model.panes.close(panel) }
         }

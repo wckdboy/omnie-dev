@@ -281,15 +281,27 @@ struct CommitSheet: View {
     @State private var email = ""
     @State private var needsIdentity = false
     @State private var isDrafting = false
+    /// Commit everything (the default), or only the changes chosen into the index.
+    @State private var chosenOnly = false
 
     var body: some View {
         let git = model.workspace.git
         NavigationStack {
             Form {
                 Section {
+                    Picker("What to commit", selection: $chosenOnly) {
+                        Text("Everything").tag(false)
+                        Text("Chosen changes").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                } footer: {
+                    if chosenOnly { Text("Stage hunks or lines below (swipe a hunk right, or select lines and press S); only those are committed.") }
+                }
+                Section {
                     TextField("Message", text: $message, axis: .vertical)
                         .lineLimit(3...10)
                         .font(.subheadline)
+                        .accessibilityIdentifier("commit-message")
                 } header: {
                     Text("\(git.status?.changedCount ?? 0) changed on \(git.status?.head.branch ?? "HEAD")")
                 } footer: {
@@ -319,7 +331,9 @@ struct CommitSheet: View {
                         Text("This repository has no user.name or user.email. Saved on this device for future commits.")
                     }
                 }
-                if let changed = git.status?.entries, !changed.isEmpty {
+                if chosenOnly {
+                    StagingSections()
+                } else if let changed = git.status?.entries, !changed.isEmpty {
                     Section("Files") {
                         ForEach(changed, id: \.path) { entry in
                             HStack {
@@ -348,6 +362,9 @@ struct CommitSheet: View {
             model.workspace.saveCurrent()
             await git.refresh()
             message = git.draftMessage
+            await git.refreshStaging()
+            // Something already staged: you were choosing.
+            chosenOnly = git.staging.contains { $0.staged != nil }
             name = git.fallbackName
             email = git.fallbackEmail
             needsIdentity = await git.repo?.configuredSignature() == nil
@@ -363,7 +380,8 @@ struct CommitSheet: View {
     }
 
     private var canCommit: Bool {
-        !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        (!chosenOnly || model.workspace.git.staging.contains { $0.staged != nil })
+            && !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && (!needsIdentity || (!name.isEmpty && email.contains("@")))
     }
 
@@ -376,7 +394,11 @@ struct CommitSheet: View {
         guard let author = await git.author() else { return }
         var text = message.trimmingCharacters(in: .whitespacesAndNewlines)
         if !text.hasSuffix("\n") { text += "\n" }
-        if await git.commit(message: text, author: author) { dismiss() }
+        if chosenOnly {
+            if await git.commitStaged(message: text, author: author) { dismiss() }
+        } else if await git.commit(message: text, author: author) {
+            dismiss()
+        }
     }
 }
 
