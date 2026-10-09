@@ -95,10 +95,30 @@ public struct Sandbox: Sendable {
         return path == root.path ? "." : String(path.dropFirst(root.path.count + 1))
     }
 
-    /// Refuses writes that would break a file the app can check: JSON for now. A small model
-    /// appending a fragment after the closing brace is a common way to break package.json.
-    public static func validate(_ data: Data, path: String) throws {
-        guard path.lowercased().hasSuffix(".json") else { return }
+    /// Parses JavaScript/TypeScript for the edit guard (the app supplies RunKit's transpiler; AgentKit
+    /// doesn't depend on it). Returns the syntax error, or nil.
+    nonisolated(unsafe) public static var syntaxChecker: (@Sendable (_ text: String, _ path: String) -> String?)?
+
+    static let codeExtensions = [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts"]
+
+    /// Refuses writes that would break a file the app can check. JSON: a small model appending a
+    /// fragment after the closing brace is a common way to break package.json. JS/TS: a change
+    /// that leaves the code unparseable (an extra parenthesis) is refused with the line, unless the
+    /// file was already broken before it (fixing a broken file must stay possible).
+    public static func validate(_ data: Data, path: String, previous: Data? = nil) throws {
+        let lower = path.lowercased()
+        if codeExtensions.contains(where: { lower.hasSuffix($0) }), !lower.hasSuffix(".d.ts"), let check = syntaxChecker {
+            let text = String(decoding: data, as: UTF8.self)
+            guard let error = check(text, path) else { return }
+            if let previous, check(String(decoding: previous, as: UTF8.self), path) != nil { return }
+            var reason = "it wouldn't parse: \(error)"
+            if let m = error.firstMatch(of: /\((\d+):(\d+)\)/), let line = Int(m.1) {
+                let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+                if line >= 1, line <= lines.count { reason += "\nLine \(line) would be: \(lines[line - 1])" }
+            }
+            throw ToolError.wouldBreakSyntax(path: path, reason: reason)
+        }
+        guard lower.hasSuffix(".json") else { return }
         do { _ = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) } catch {
             // Show the would-be file (small ones) so the model can see what went wrong.
             let text = String(decoding: data, as: UTF8.self)
@@ -261,7 +281,7 @@ public struct PatchTool: AgentTool {
         guard count == 1 else { throw ToolError.findNotUnique(count: count) }
         if let updated {
             let out = Data(updated.utf8)
-            try Sandbox.validate(out, path: path)
+            try Sandbox.validate(out, path: path, previous: Data(text.utf8))
             try out.write(to: url, options: .atomic)
             return "Patched \(path) (matched ignoring blank lines). New sha: \(Sandbox.blobSHA(out))"
         }
@@ -274,7 +294,7 @@ public struct PatchTool: AgentTool {
             note = " (the change covers the following lines your replace already included)"
         }
         let out = Data(text.replacingOccurrences(of: find, with: replace).utf8)
-        try Sandbox.validate(out, path: path)
+        try Sandbox.validate(out, path: path, previous: Data(text.utf8))
         try out.write(to: url, options: .atomic)
         return "Patched \(path)\(note). New sha: \(Sandbox.blobSHA(out))"
     }
@@ -372,7 +392,7 @@ public struct AppendTool: AgentTool {
         // Keep one blank line between the old end and the addition.
         if !text.isEmpty && !text.hasSuffix("\n\n") && !addition.hasPrefix("\n") { text += "\n" }
         let out = Data((text + addition).utf8)
-        try Sandbox.validate(out, path: path)
+        try Sandbox.validate(out, path: path, previous: data)
         try out.write(to: url, options: .atomic)
         return "Appended to \(path). New sha: \(Sandbox.blobSHA(out))"
     }

@@ -54,4 +54,13 @@ public final class Transpiler: @unchecked Sendable {
         guard let code = result?.objectForKeyedSubscript("code")?.toString() else { throw Error.syntax("\(path): no output") }
         return code
     }
+
+    /// Why `source` doesn't parse as JavaScript/TypeScript (by its extension), or nil if it does.
+    /// The agent's edit guard uses it: a change that breaks a file's syntax is refused.
+    public func syntaxError(_ source: String, path: String) -> String? {
+        let lower = path.lowercased()
+        let checkPath = lower.hasSuffix(".js") || lower.hasSuffix(".mjs") || lower.hasSuffix(".cjs") ? path + ".jsx" : path
+        do { _ = try transpile(source, path: checkPath); return nil }
+        catch { return (error as? LocalizedError)?.errorDescription?.replacingOccurrences(of: checkPath, with: path) ?? "syntax error" }
+    }
 }

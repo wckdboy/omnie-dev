@@ -38,6 +38,16 @@ struct StagePanel: View {
                         Label(current, systemImage: Stage.isScene(current) ? "sparkles" : "cube").font(.system(.caption, design: .monospaced)).lineLimit(1)
                     }
                     Spacer()
+                    if controller.editCount > 0, Stage.isScene(current) {
+                        Button {
+                            let goal = controller.goal(file: current)
+                            controller.clearEdits()
+                            model.show(.agent)
+                            Task { await model.agent.start(goal) }
+                        } label: { Label("Write to code (\(controller.editCount))", systemImage: "square.and.pencil") }
+                        .font(.caption)
+                        .accessibilityHint("Asks the agent to put your inspector changes into the scene's code, for you to review")
+                    }
                     Button { showInspector.toggle() } label: { Image(systemName: "list.bullet.indent") }
                         .accessibilityLabel(showInspector ? "Hide inspector" : "Show inspector")
                         .foregroundStyle(showInspector ? palette.accent.ion.color : palette.text.secondary.color)
@@ -71,10 +81,12 @@ struct StagePanel: View {
     private func open(_ path: String) {
         selected = path
         stats = nil; status = nil; camera = nil; nodes = []; selection = nil
+        controller.clearEdits()
         model.workspace.problems.stageDiagnostics = []
     }
 
     private func reload() {
+        controller.clearEdits()
         model.workspace.problems.stageDiagnostics = []
         StageSnapshot.shared.problems = []
         reloads += 1
@@ -103,6 +115,28 @@ struct StagePanel: View {
             status = text; isError = true
         case .graph(let list):
             nodes = list
+            controller.titles = Dictionary(list.map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
+            #if DEBUG
+            // `-OmnieStageWriteDemo`: recolor and move "Cube", then write it to code with the agent.
+            if ProcessInfo.processInfo.arguments.contains("-OmnieStageWriteDemo"), controller.editCount == 0, !StageWriteDemo.done,
+               let cube = list.first(where: { $0.name == "Cube" }) {
+                StageWriteDemo.done = true
+                controller.apply(.color("#FF3366"), to: cube.id)
+                controller.apply(.position([0, 0.5, 0]), to: cube.id)
+                let goal = controller.goal(file: file)
+                print("[stage-write] goal: \(goal)")
+                controller.clearEdits()
+                Task {
+                    // `-OmnieStageWriteOnline`: the configured online model does it (consent still asked).
+                    let previous = model.models.route
+                    if ProcessInfo.processInfo.arguments.contains("-OmnieStageWriteOnline") { model.models.route = .online }
+                    defer { model.models.route = previous }
+                    await model.agent.start(goal)
+                    print("[stage-write] phase \(model.agent.current?.phase.rawValue ?? "none"), error \(model.agent.error ?? "none")")
+                    for change in model.agent.changes { print("[stage-write] \(change.patch)") }
+                }
+            }
+            #endif
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-OmnieStageInspect"), selection == nil {
                 showInspector = true
@@ -160,6 +194,10 @@ struct StagePanel: View {
     }
 }
 
+#if DEBUG
+@MainActor enum StageWriteDemo { static var done = false }
+#endif
+
 /// What the Stage shows, for the agent's `stage_scene` tool.
 @MainActor
 final class StageSnapshot {
@@ -198,12 +236,55 @@ final class StageSnapshot {
     }
 }
 
-/// Runs inspector commands in the current stage page.
+/// Runs inspector commands in the current stage page, and remembers what you changed so it can
+/// be written to the scene's code.
 @MainActor
+@Observable
 final class StageController {
-    weak var webView: WKWebView?
+    @ObservationIgnored weak var webView: WKWebView?
+    /// Object names by id, from the last scene graph.
+    @ObservationIgnored var titles: [String: String] = [:]
+    /// Object name → property → new value; the last edit of a property wins.
+    private(set) var edits: [String: [String: String]] = [:]
+
     func run(_ script: String) { webView?.evaluateJavaScript(script, completionHandler: nil) }
-    func apply(_ edit: Stage.Edit, to id: String) { run(Stage.script(edit, on: id)) }
+
+    func apply(_ edit: Stage.Edit, to id: String) {
+        run(Stage.script(edit, on: id))
+        let (property, value) = Self.describe(edit)
+        edits[titles[id] ?? id, default: [:]][property] = value
+    }
+
+    func clearEdits() { edits = [:] }
+
+    var editCount: Int { edits.values.reduce(0) { $0 + $1.count } }
+
+    static func describe(_ edit: Stage.Edit) -> (String, String) {
+        func v(_ a: [Double]) -> String { "[" + a.map { String(format: "%g", $0) }.joined(separator: ", ") + "]" }
+        return switch edit {
+        case .visible(let b): ("visible", b ? "true" : "false")
+        case .position(let a): ("position", v(a))
+        case .rotation(let a): ("rotation (degrees)", v(a))
+        case .scale(let a): ("scale", v(a))
+        case .color(let h): ("material color", h)
+        case .emissive(let h): ("material emissive", h)
+        case .roughness(let x): ("material roughness", String(format: "%.2f", x))
+        case .metalness(let x): ("material metalness", String(format: "%.2f", x))
+        case .opacity(let x): ("material opacity", String(format: "%.2f", x))
+        case .wireframe(let b): ("material wireframe", b ? "true" : "false")
+        case .uniform(let name, .number(let x)): ("uniform \(name)", String(format: "%g", x))
+        case .uniform(let name, .color(let h)): ("uniform \(name)", h)
+        }
+    }
+
+    /// The agent's task for writing the edits into the scene module.
+    func goal(file: String) -> String {
+        let lines = edits.keys.sorted().map { name in
+            "- \(name): " + edits[name]!.keys.sorted().map { "\($0) \(edits[name]![$0]!)" }.joined(separator: "; ")
+        }
+        return "In \(file), change the scene's code so these objects start with these values (I set them in the Stage inspector). "
+            + "Change only these values, where each object is created:\n" + lines.joined(separator: "\n")
+    }
 }
 
 /// The scene tree and the selected object's properties. Edits are live and last until the stage

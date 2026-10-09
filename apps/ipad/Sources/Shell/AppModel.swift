@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import AgentKit
+import RunKit
 import SwiftUI
 import ToolsKit
 import Network
@@ -107,6 +109,10 @@ final class AppModel {
 
     init() {
         Packages.activate()
+        // The agent's edit guard parses JS/TS with RunKit's transpiler (AgentKit can't see RunKit).
+        if let transpiler = try? Transpiler() {
+            Sandbox.syntaxChecker = { text, path in transpiler.syntaxError(text, path: path) }
+        }
         workspace = WorkspaceModel(policy: policy)
         models = ModelsModel(policy: policy)
         docs = DocsModel(policy: policy)

@@ -400,3 +400,20 @@ struct MergeProposerTests {
         #expect(MergeProposer.trimContext("if a {\n  b()\n}", short) == "if a {\n  b()\n}")
     }
 }
+
+struct SyntaxGuardTests {
+    @Test func refusesEditsThatBreakCodeButNotFixesOfBrokenCode() throws {
+        Sandbox.syntaxChecker = { text, path in text.contains(")))") ? "\(path): Unexpected token (2:9)" : nil }
+        defer { Sandbox.syntaxChecker = nil }
+        let good = Data("const a = f(1);\nconst b = 2;\n".utf8)
+        let broken = Data("const a = f(1);\nconst b))) = 2;\n".utf8)
+        #expect(throws: ToolError.wouldBreakSyntax(path: "src/a.ts", reason: "it wouldn't parse: src/a.ts: Unexpected token (2:9)\nLine 2 would be: const b))) = 2;")) {
+            try Sandbox.validate(broken, path: "src/a.ts", previous: good)
+        }
+        // Already broken before: the edit goes through (it may be the fix in progress).
+        try Sandbox.validate(broken, path: "src/a.ts", previous: broken)
+        // Other files aren't parsed.
+        try Sandbox.validate(broken, path: "notes.md", previous: good)
+        try Sandbox.validate(good, path: "src/a.ts", previous: broken)
+    }
+}

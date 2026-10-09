@@ -58,4 +58,14 @@ struct ModuleResolverTests {
         #expect(r.resolve("escape/hosts") == nil)
         #expect(r.resolve(".git/config") == nil)
     }
+
+    @Test func reportsSyntaxErrors() throws {
+        let t = try Transpiler()
+        // The local 7B's slip on the iPad: one parenthesis too many.
+        let bad = "const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 1 })));\n"
+        #expect(t.syntaxError(bad, path: "spin.stage.js")?.contains("spin.stage.js") == true)
+        #expect(t.syntaxError("const x = <b>hi</b>;\nexport default x;\n", path: "a.js") == nil)   // JSX in .js is fine
+        #expect(t.syntaxError("const n: number = 1;\n", path: "a.ts") == nil)
+        #expect(t.syntaxError("const n: = 1;\n", path: "a.ts") != nil)
+    }
 }
