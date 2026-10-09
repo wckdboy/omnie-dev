@@ -62,6 +62,26 @@ public struct TransferProgress: Sendable, Hashable {
 public struct RemoteInfo: Sendable, Hashable {
     public let name: String
     public let url: String
+    /// Where pushes go when it differs from `url` (a read-only remote's is unusable on purpose).
+    public var pushURL: String? = nil
+
+    /// Kept for fetching only, after a move to another forge (PLAN.md §9.11).
+    public var isReadOnly: Bool { pushURL?.hasPrefix(Repository.readOnlyPushPrefix) == true }
+
+    /// "origin · forgejo.example.net": names repeat across forges, hosts don't (PLAN.md §9.11).
+    public var label: String {
+        guard let host = Self.host(of: url) else { return name }
+        return "\(name) · \(host)"
+    }
+
+    /// The host of an `https://`, `ssh://` or `git@host:path` URL.
+    public static func host(of url: String) -> String? {
+        if let host = URL(string: url)?.host(), !host.isEmpty { return host }
+        if let at = url.firstIndex(of: "@"), let colon = url[at...].firstIndex(of: ":") {
+            return String(url[url.index(after: at)..<colon])
+        }
+        return nil
+    }
 }
 
 /// Trust-on-first-use host keys, persisted as JSON. The UI asks before calling `trust`.
@@ -238,7 +258,8 @@ extension Repository {
             var remote: OpaquePointer?
             try check(git_remote_lookup(&remote, pointer, cName), "read remote")
             defer { git_remote_free(remote) }
-            return RemoteInfo(name: String(cString: cName), url: git_remote_url(remote).map { String(cString: $0) } ?? "")
+            return RemoteInfo(name: String(cString: cName), url: git_remote_url(remote).map { String(cString: $0) } ?? "",
+                              pushURL: git_remote_pushurl(remote).map { String(cString: $0) })
         }
     }
 
@@ -327,6 +348,15 @@ extension Repository {
                 if rc < 0 {
                     continuation.resume(throwing: session.failure(rc, "clone \(url)"))
                 } else {
+                    // An empty repository has no branch to copy, so libgit2 names the first one
+                    // after its own default ("master"; on a Mac a global gitconfig may say "main",
+                    // on iOS there is none). Forges create "main" now: start there.
+                    var head: OpaquePointer?
+                    if git_repository_head_unborn(repo) == 1, git_reference_lookup(&head, repo, "HEAD") == 0 {
+                        let target = git_reference_symbolic_target(head).map { String(cString: $0) }
+                        git_reference_free(head)
+                        if target == "refs/heads/master" { git_repository_set_head(repo, "refs/heads/main") }
+                    }
                     continuation.resume(returning: Repository(adopting: repo!))
                 }
             }

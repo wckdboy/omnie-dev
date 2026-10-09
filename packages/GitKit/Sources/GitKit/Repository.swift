@@ -81,11 +81,12 @@ public actor Repository {
     }
 
     /// `git init` with `initialBranch` as the unborn HEAD.
-    public static func create(at url: URL, initialBranch: String = "main") throws -> Repository {
+    /// A new repository; `bare` makes one with no working tree (a local remote or backup mirror).
+    public static func create(at url: URL, initialBranch: String = "main", bare: Bool = false) throws -> Repository {
         Libgit2.initialize
         var opts = git_repository_init_options()
         git_repository_init_options_init(&opts, UInt32(GIT_REPOSITORY_INIT_OPTIONS_VERSION))
-        opts.flags = GIT_REPOSITORY_INIT_MKPATH.rawValue
+        opts.flags = GIT_REPOSITORY_INIT_MKPATH.rawValue | (bare ? GIT_REPOSITORY_INIT_BARE.rawValue : 0)
         var repo: OpaquePointer?
         try initialBranch.withCString { branch in
             opts.initial_head = branch
