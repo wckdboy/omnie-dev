@@ -60,13 +60,16 @@ public protocol AgentTool: Sendable {
 public struct Sandbox: Sendable {
     public let root: URL
 
-    public init(root: URL) { self.root = root.standardizedFileURL.resolvingSymlinksInPath() }
+    public init(root: URL) { self.root = URL(filePath: Self.realPath(root.standardizedFileURL.path)) }
 
     public func resolve(_ path: String) throws -> URL {
         let trimmed = path.trimmingCharacters(in: .whitespaces)
         let relative = trimmed.hasPrefix("/") ? String(trimmed.dropFirst()) : trimmed
-        let url = (relative.isEmpty || relative == "." ? root : root.appendingPathComponent(relative))
-            .standardizedFileURL.resolvingSymlinksInPath()
+        let lexical = (relative.isEmpty || relative == "." ? root : root.appendingPathComponent(relative)).standardizedFileURL
+        // Resolve symlinks in every part that exists, including the parents of a file that doesn't
+        // yet (Foundation's resolvingSymlinksInPath leaves a missing path alone, which let a planted
+        // symlink redirect a new file out of the project).
+        let url = URL(filePath: Self.realPath(lexical.path))
         let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
         guard url.path == root.path || url.path.hasPrefix(rootPath) else { throw ToolError.outsideProject(path) }
         let inside = url.path.dropFirst(rootPath.count)
@@ -74,8 +77,21 @@ public struct Sandbox: Sendable {
         return url
     }
 
+    /// `realpath` of the longest existing prefix, with the missing remainder appended.
+    static func realPath(_ path: String) -> String {
+        var existing = path
+        var missing: [String] = []
+        while !existing.isEmpty, existing != "/", access(existing, F_OK) != 0 {
+            missing.insert((existing as NSString).lastPathComponent, at: 0)
+            existing = (existing as NSString).deletingLastPathComponent
+        }
+        guard let resolved = realpath(existing, nil) else { return path }
+        defer { free(resolved) }
+        return ([String(cString: resolved)] + missing).joined(separator: "/").replacingOccurrences(of: "//", with: "/")
+    }
+
     public func relative(_ url: URL) -> String {
-        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        let path = URL(filePath: Self.realPath(url.standardizedFileURL.path)).path
         return path == root.path ? "." : String(path.dropFirst(root.path.count + 1))
     }
 
@@ -171,7 +187,9 @@ public struct GrepTool: AgentTool {
         while let url = enumerator?.nextObject() as? URL {
             if skippedNames.contains(url.lastPathComponent) { enumerator?.skipDescendants(); continue }
             let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            // Only files that really live in the project (a symlink could point anywhere).
             guard values?.isRegularFile == true, (values?.fileSize ?? 0) < 1_000_000,
+                  Sandbox.realPath(url.path).hasPrefix(sandbox.root.path + "/"),
                   let data = try? Data(contentsOf: url), !data.prefix(8192).contains(0) else { continue }
             for (i, line) in String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false).enumerated()
             where line.range(of: needle, options: .caseInsensitive) != nil
