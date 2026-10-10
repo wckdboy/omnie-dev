@@ -25,7 +25,7 @@ public final class CodeFormatter {
     /// The text formatted, and where `cursor` (a UTF-16 offset) ends up in it. Syntax errors throw
     /// with Prettier's message.
     public func format(_ text: String, path: String, cursor: Int = 0) async throws -> (text: String, cursor: Int) {
-        let result = try await worker.request("format", ["path": path, "text": text, "cursor": cursor], timeout: 30) as? [String: Any] ?? [:]
+        let result = try await worker.request("format", ["path": path, "text": text, "cursor": cursor], timeout: 60) as? [String: Any] ?? [:]
         guard let formatted = result["text"] as? String else { throw LanguageServiceError.failed("Prettier returned nothing") }
         return (formatted, (result["cursor"] as? NSNumber)?.intValue ?? cursor)
     }

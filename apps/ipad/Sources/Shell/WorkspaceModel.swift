@@ -48,6 +48,8 @@ final class WorkspaceModel {
     @ObservationIgnored private var savesSession = true
     /// The caret in each open file, as you move it (saved with the session, not on every move).
     @ObservationIgnored private var carets: [URL: Int] = [:]
+    /// Folded blocks (header rows) of files not in the editor right now.
+    @ObservationIgnored private var foldsByFile: [URL: [Int]] = [:]
     @ObservationIgnored private var watcher: ProjectWatcher?
     /// The model for ghost text, when one is installed and suggestions are on. Set by AppModel.
     @ObservationIgnored var completionModel: (() async -> TextModel?)?
@@ -110,6 +112,8 @@ final class WorkspaceModel {
                 editor.textView.additionalCaretLocations = []
             }
         }
+        // Folds are kept with the session, like the caret.
+        editor.onFoldsChanged = { [weak self] in self?.saveSession() }
         // Where the caret is, kept when the app goes to the background.
         NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.saveSession() }
@@ -123,6 +127,8 @@ final class WorkspaceModel {
             var path: String
             var isPreview: Bool
             var location: Int
+            /// Folded blocks, by header row.
+            var folds: [Int]? = nil
         }
         var tabs: [Tab]
         var open: String?
@@ -135,7 +141,11 @@ final class WorkspaceModel {
     func saveSession() {
         guard let rootURL, restoresSessions, savesSession else { return }
         let session = Session(
-            tabs: tabs.map { Session.Tab(path: relativePath(of: $0.url), isPreview: $0.isPreview, location: carets[$0.url] ?? $0.selection.location) },
+            tabs: tabs.map { tab in
+                let folds = tab.url == openFile ? editor.foldedHeaders : foldsByFile[tab.url] ?? []
+                return Session.Tab(path: relativePath(of: tab.url), isPreview: tab.isPreview,
+                                   location: carets[tab.url] ?? tab.selection.location, folds: folds.isEmpty ? nil : folds)
+            },
             open: openFile.map(relativePath(of:)))
         if let data = try? JSONEncoder().encode(session) { UserDefaults.standard.set(data, forKey: Self.sessionKey(for: rootURL)) }
     }
@@ -153,6 +163,7 @@ final class WorkspaceModel {
         guard !restored.isEmpty else { return }
         tabs = restored
         for tab in restored { carets[tab.url] = tab.selection.location }
+        for tab in session.tabs where !(tab.folds ?? []).isEmpty { foldsByFile[root.appending(path: tab.path)] = tab.folds }
         let current = session.open.flatMap { path in restored.first { relativePath(of: $0.url) == path } } ?? restored.last!
         open(file: current.url, preview: current.isPreview)
     }
@@ -163,6 +174,7 @@ final class WorkspaceModel {
         savesSession = false
         defer { savesSession = true }
         carets = [:]
+        foldsByFile = [:]
         watcher?.stop()
         if isAccessingRoot { rootURL?.stopAccessingSecurityScopedResource() }
         // Folders inside the app container need no grant, so false here is not an error by itself;
@@ -377,11 +389,15 @@ final class WorkspaceModel {
             return
         }
         if let current = openFile, let i = tabs.firstIndex(where: { $0.url == current }) { tabs[i].selection = editor.selectedRange }
+        // Its folds come back when the tab does.
+        if let current = openFile { foldsByFile[current] = editor.foldedHeaders }
         if isDirty { saveCurrent() }
         do {
             let loaded = try TextFile.load(url, presenter: watcher)
             language = Language(url: url)
+            editor.isMarkdown = ["md", "markdown", "mdx"].contains(url.pathExtension.lowercased())
             editor.load(loaded, language: language, marks: problems.marks(for: relativePath(of: url)))
+            editor.restoreFolds(foldsByFile[url] ?? [])
             editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
             isDirty = false
             openFile = url
@@ -527,6 +543,7 @@ final class WorkspaceModel {
         tabs = []
         closedTabs = []
         carets = [:]
+        foldsByFile = [:]
         savesSession = true
         rootURL = nil
         root = nil

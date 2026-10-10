@@ -129,7 +129,7 @@ final class CodeIntelUITests: XCTestCase {
         // Prettier puts gamma's body on lines of its own: 4 lines become 6.
         launch(at: "main.ts:1:1", ["editor.format"])
         // Formatting changes the file: it's unsaved once Prettier has answered.
-        XCTAssertTrue(app.staticTexts["Unsaved"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["Unsaved"].waitForExistence(timeout: 60))   // Prettier's first load, beside other web views, can be slow on a simulator
         editor.tap()
         sleep(1)
         app.typeKey(.downArrow, modifierFlags: .command)
@@ -201,4 +201,27 @@ final class CodeIntelUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["`os` imported but unused"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Ruff F401'")).firstMatch.exists)
     }
+
+    func testFolding() {
+        app = XCUIApplication()
+        // geometry.py: line 3 is `def area(width, height):`, lines 4–5 its body. The caret starts on line 3.
+        app.launchArguments = ["-OmnieUIPyFixture", "-OmnieOpenFile", "geometry.py:3:1", "-OmnieLayout", "standard",
+                               "-OmnieNoWelcome", "-OmnieNoPanelDrag", "-OmnieRunCommand", "editor.foldAll"]
+        app.launch()
+        XCTAssertTrue(editor.waitForExistence(timeout: 15))
+        // VoiceOver hears the fold on its line (the chevron's label is read with the line).
+        XCTAssertTrue(waitForEditor("Line 3,") && (editor.value as? String ?? "").contains("Folded, 2 lines"), "\(editor.value ?? "")")
+        shot("folded")
+        // A tap on the folded header's chevron (the gutter, just left of the text) opens it.
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        // Line 3's band whatever the density (lines 15.5–19 pt tall: auto density follows the
+        // keyboard, which earlier tests change): 8 pt inset plus two and a half lines of ~17 pt.
+        let header = editor.frame.minY + 8 + 2.5 * 17
+        origin.withOffset(CGVector(dx: editor.frame.minX - 12, dy: header)).tap()
+        sleep(1)
+        shot("unfolded")
+        XCTAssertTrue(waitForEditor("Line 3,"), "\(editor.value ?? "")")
+        XCTAssertFalse((editor.value as? String ?? "").contains("Folded"), "the block is open: \(editor.value ?? "")")
+    }
+
 }

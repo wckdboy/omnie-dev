@@ -27,6 +27,9 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// Called on the main thread when a load finishes (for first-paint timing).
     public var onLoaded: (() -> Void)?
     private(set) public var language: Language?
+    /// Markdown folds by headings; set by the app with the file (the editor has no Markdown mode).
+    public var isMarkdown = false
+    let folding = FoldingState()
     private var loadGeneration = 0
     private var shownGeneration = 0
     /// True from `load` until its text is in the view: selection changes meanwhile aren't yours.
@@ -46,6 +49,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                 recolored.range = liveRanges[mark.id] ?? mark.range
                 return recolored.decoration(in: theme.palette)
             }
+            applyFoldChevrons()
         }
     }
     /// The blame column, made when a view first shows it.
@@ -183,6 +187,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         textView.theme = theme
         textView.backgroundColor = theme.palette.surface.editor.uiColor
         textView.showLineNumbers = true
+        // Room for the fold chevrons between the line numbers and the text.
+        textView.gutterTrailingPadding = 16
         textView.lineSelectionDisplayType = .line
         textView.isLineWrappingEnabled = false
         textView.autocorrectionType = .no
@@ -200,6 +206,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         offsetObservation = textView.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.updateFirstVisibleLine() }
         }
+        installFoldGesture()
     }
 
     public var text: String { textView.text }
@@ -208,7 +215,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         get { textView.selectedRange }
         set {
             textView.selectedRange = newValue
-            // Setting it from code doesn't reach the delegate.
+            // Setting it from code doesn't reach the delegate: a jump into a fold opens it too.
+            unfoldAroundCaret()
             highlightBrackets()
         }
     }
@@ -222,6 +230,9 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// Loads a file's text; `marks` (its diagnostics) replace the previous file's.
     public func load(_ text: String, language: Language?, marks: [EditorMark] = []) {
         self.language = language
+        // A reload keeps its folds (re-applied by header once the new text's blocks are known);
+        // opening another file replaces them with its own through `restoreFolds`.
+        if folding.pending.isEmpty { folding.pending = foldedHeaders }
         loadGeneration += 1
         let generation = loadGeneration
         let marksAtStart = marksVersion
@@ -237,6 +248,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                 // Park the caret at the start while the text swaps, then put it back, clamped.
                 let caret = self.textView.selectedRange
                 self.textView.selectedRange = NSRange(location: 0, length: 0)
+                // The folds' ranges were for the old text; they come back by header (see above).
+                self.textView.foldedRanges = []
                 self.textView.setState(state)
                 let length = (self.textView.text as NSString).length
                 let location = min(caret.location, length)
@@ -251,6 +264,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                 // Newer marks (set while this loaded) win over the ones passed in.
                 self.setMarks(self.marksVersion == marksAtStart ? marks : self.marks)
                 self.refreshMinimap()
+                self.refreshFoldRegions(debounce: false)
                 self.onLoaded?()
                 guard let language else {
                     self.onHighlighted?()
@@ -284,6 +298,9 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         let rect = textView.caretRect(for: position)
         return view.map { textView.convert(rect, to: $0) } ?? rect
     }
+
+    /// Folds were added or removed (by a command, a tap, the caret, an edit).
+    public var onFoldsChanged: (() -> Void)?
 
     /// Shortcuts claimed while the editor has focus, and what runs them (the app's commands).
     public var keyCommands: [EditorKeyCommand] = []
@@ -340,10 +357,13 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     public func textViewDidChange(_ textView: TextView) {
         clearGhostText()
         refreshMinimap(debounce: true)
+        refreshFoldRegions(debounce: true)
         onChange?()
     }
 
     public func textViewDidChangeSelection(_ textView: TextView) {
+        // You moved the caret: step over folds rather than opening them.
+        if !skipOverFold() { unfoldAroundCaret() }
         if ghostText != nil, textView.selectedRange != NSRange(location: ghostLocation, length: 0) { clearGhostText() }
         highlightBrackets()
         onSelectionChange?(textView.selectedRange)

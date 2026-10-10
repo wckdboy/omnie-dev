@@ -472,6 +472,22 @@ final class AppModel {
                     shortcut: Shortcut("l", [.command, .shift]), surfaces: .ide, keywords: ["multi-cursor", "select all occurrences", "edit all"]) { [weak self] in
                 self?.workspace.changeAllOccurrences()
             },
+            Command(id: "editor.fold", title: "Fold", menu: "Edit",
+                    shortcut: Shortcut("[", [.option, .command]), surfaces: .ide, keywords: ["collapse", "code folding", "hide block"]) { [weak self] in
+                self?.workspace.editor.foldAtCaret()
+            },
+            Command(id: "editor.unfold", title: "Unfold", menu: "Edit",
+                    shortcut: Shortcut("]", [.option, .command]), surfaces: .ide, keywords: ["expand", "code folding"]) { [weak self] in
+                self?.workspace.editor.unfoldAtCaret()
+            },
+            Command(id: "editor.foldAll", title: "Fold all", menu: "Edit",
+                    shortcut: Shortcut("[", [.control, .option, .command]), surfaces: .ide, keywords: ["collapse all", "outline"]) { [weak self] in
+                self?.workspace.editor.foldAll()
+            },
+            Command(id: "editor.unfoldAll", title: "Unfold all", menu: "Edit",
+                    shortcut: Shortcut("]", [.control, .option, .command]), surfaces: .ide, keywords: ["expand all"]) { [weak self] in
+                self?.workspace.editor.unfoldAll()
+            },
             Command(id: "editor.toggleComment", title: "Toggle line comment", menu: "Edit",
                     shortcut: Shortcut("/"), surfaces: .ide, keywords: ["comment out", "uncomment"]) { [weak self] in
                 self?.workspace.perform(.toggleComment)
