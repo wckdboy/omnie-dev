@@ -143,4 +143,48 @@ final class CodeIntelUITests: XCTestCase {
         XCTAssertTrue(waitForEditor("Line 4,"))
         XCTAssertTrue((editor.value as? String ?? "").hasSuffix(".   return beta;"), "\(editor.value ?? "")")
     }
+
+    func lineText(_ line: Int) -> String {
+        editor.tap()
+        usleep(500_000)
+        app.typeKey(.upArrow, modifierFlags: .command)
+        usleep(300_000)
+        for _ in 1..<line {
+            app.typeKey(.downArrow, modifierFlags: [])
+            usleep(300_000)
+        }
+        let value = editor.value as? String ?? ""
+        return value.components(separatedBy: ". ").dropFirst().joined(separator: ". ")
+    }
+
+    func testMultipleCursors() {
+        // Change all occurrences of `alpha`, then type its new name once.
+        launch(at: "main.ts:1:1", [])
+        editor.tap()
+        sleep(1)
+        warmUpKeyboard(app)
+        app.typeKey(.upArrow, modifierFlags: .command)
+        for _ in 0..<5 {
+            app.typeKey(.rightArrow, modifierFlags: [])
+            usleep(200_000)
+        }
+        app.typeKey("l", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '2 cursors'")).firstMatch.waitForExistence(timeout: 10))
+        app.typeText("first")
+        sleep(1)
+        XCTAssertEqual(lineText(1), "let first = 1;")
+        XCTAssertEqual(lineText(2), "const beta = first + 2;")
+
+        // Cursors on three lines' starts (⌥⌘↓ twice), then one comment marker typed at all three.
+        app.typeKey(.upArrow, modifierFlags: .command)
+        usleep(300_000)
+        app.typeKey(.downArrow, modifierFlags: [.option, .command])
+        usleep(300_000)
+        app.typeKey(.downArrow, modifierFlags: [.option, .command])
+        usleep(300_000)
+        app.typeText("# ")
+        sleep(1)
+        XCTAssertEqual(lineText(1), "# let first = 1;")
+        XCTAssertTrue(lineText(3).hasPrefix("# function gamma() { return beta; }"))   // then its diagnostics, read out
+    }
 }

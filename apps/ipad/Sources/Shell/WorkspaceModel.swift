@@ -96,12 +96,19 @@ final class WorkspaceModel {
             scheduleAutosave()
             scheduleSuggestion()
             onEdited?()
+            // The selection change that follows an edit is the edit's own, not a move.
+            justEdited = true
+            DispatchQueue.main.async { [weak self] in self?.justEdited = false }
         }
         recentProjects = recents.available().map(\.ref)
         editor.onSelectionChange = { [weak self] range in
             guard let self, let location = editor.textView.textLocation(at: range.location) else { return }
             cursor = (location.lineNumber + 1, location.column + 1)
             if let openFile, !editor.isLoading { carets[openFile] = range.location }
+            // Moving the caret (a tap, an arrow) goes back to one cursor, as in VS Code.
+            if !justEdited, !extraCaretsJustSet, !editor.textView.additionalCaretLocations.isEmpty {
+                editor.textView.additionalCaretLocations = []
+            }
         }
         // Where the caret is, kept when the app goes to the background.
         NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
@@ -411,6 +418,56 @@ final class WorkspaceModel {
         } catch {
             banner = "Can't open \(url.lastPathComponent): \(error.localizedDescription)"
         }
+    }
+
+    // MARK: Multiple cursors (engine patch 0012: carets, typing and backspace at each)
+
+    @ObservationIgnored private var justEdited = false
+    @ObservationIgnored private var extraCaretsJustSet = false
+
+    var hasExtraCarets: Bool { !editor.textView.additionalCaretLocations.isEmpty }
+
+    /// ⌥⌘↓ / ⌥⌘↑: one more caret on the next line down (up), at the same column.
+    func addCursor(above: Bool) {
+        guard openFile != nil else { return }
+        let carets = editor.textView.additionalCaretLocations + [editor.selectedRange.location]
+        guard let next = MultiCaret.adjacent(in: editor.text, carets: carets, above: above) else { return }
+        setExtraCarets(editor.textView.additionalCaretLocations + [next])
+    }
+
+    /// ⇧⌘L: every whole-word occurrence of the word at the caret (or the selection) removed, with a
+    /// caret where each was, so what you type goes in everywhere. ⌘Z brings the word back.
+    func changeAllOccurrences() {
+        guard openFile != nil else { return }
+        let text = editor.text
+        let selection = editor.selectedRange
+        guard let target = selection.length > 0 ? selection : MultiCaret.word(in: text, at: selection.location) else { return }
+        let needle = (text as NSString).substring(with: target)
+        let ranges = MultiCaret.occurrences(of: needle, in: text)
+        guard ranges.count > 1 else {
+            banner = "“\(needle)” appears only once here."
+            return
+        }
+        let (_, carets) = MultiCaret.removing(ranges, from: text)
+        // One edit per occurrence, from the end, so earlier offsets stay put; then the carets.
+        for r in ranges.reversed() { editor.replace(r, with: "") }
+        let primaryIndex = ranges.firstIndex { NSLocationInRange(selection.location, NSRange(location: $0.location, length: $0.length + 1)) } ?? 0
+        extraCaretsJustSet = true
+        editor.selectedRange = NSRange(location: carets[primaryIndex], length: 0)
+        var others = carets
+        others.remove(at: primaryIndex)
+        setExtraCarets(others)
+        banner = "\(ranges.count) cursors: type to replace “\(needle)” everywhere; Esc for one cursor."
+    }
+
+    func clearExtraCarets() {
+        editor.textView.additionalCaretLocations = []
+    }
+
+    private func setExtraCarets(_ locations: [Int]) {
+        extraCaretsJustSet = true
+        editor.textView.additionalCaretLocations = locations
+        DispatchQueue.main.async { [weak self] in self?.extraCaretsJustSet = false }
     }
 
     /// Recently closed tabs, newest last (⌥⌘T reopens them).

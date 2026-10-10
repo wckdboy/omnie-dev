@@ -88,7 +88,9 @@ Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with com
 
 - **Format Document (⇧⌥F):** Prettier 3.9 (standalone, vendored) in RunKit's sandbox formats JavaScript, TypeScript, JSON, CSS, HTML, Markdown and YAML with the project's Prettier options (`.prettierrc`, `.prettierrc.json` or package.json's `prettier`); one undo step, the caret kept on its code; a syntax error leaves the file alone and says where. Format on save (Settings, on ⌘S only). `CodeFormatterTests`, `CodeIntelUITests.testFormatDocument`. The language services and the formatter share `SandboxWorker`.
 
-Still behind VS Code: language intelligence for the rest (Swift, Go, Rust, …), a Python formatter, code folding, multi-cursor commands (the engine has carets; ⌘D isn't wired yet), a debugger, and extensions.
+- **Multiple cursors:** Add cursor above/below (⌥⌘↑/⌥⌘↓, at the column), Change all occurrences (⇧⌘L: the word at the caret, whole words only, removed with a caret in each place, so typing replaces it everywhere; ⌘Z brings it back); Esc, a tap or an arrow goes back to one cursor. Typing and backspace at every caret come from the engine (patch 0012). `MultiCaretTests`, `CodeIntelUITests.testMultipleCursors`.
+
+Still behind VS Code: language intelligence for the rest (Swift, Go, Rust, …), a Python formatter, code folding, multiple selections (⌘D's select-next; the engine has carets, not selections), a debugger, and extensions.
 
 ## P4 online power: HostKit started
 

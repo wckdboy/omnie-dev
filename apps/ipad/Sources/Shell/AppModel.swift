@@ -223,6 +223,8 @@ final class AppModel {
             EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: .alternate, id: "editor.moveLineDown"),
             EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: [.alternate, .shift], id: "editor.copyLineUp"),
             EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: [.alternate, .shift], id: "editor.copyLineDown"),
+            EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: [.alternate, .command], id: "editor.addCursorAbove"),
+            EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: [.alternate, .command], id: "editor.addCursorBelow"),
             // ⌃ shortcuts don't reach the menu while the editor has focus.
             EditorKeyCommand(input: "r", modifiers: .control, id: "file.projects"),
             EditorKeyCommand(input: " ", modifiers: .control, id: "editor.suggest"),
@@ -242,7 +244,12 @@ final class AppModel {
         }
         // A completion list takes ↑ ↓ ⏎ ⇥ ⎋ while it shows.
         workspace.editor.dynamicKeyCommands = { [weak self] in
-            guard self?.language.completions != nil else { return [] }
+            guard let self else { return [] }
+            if self.language.completions == nil {
+                // Esc: back to one cursor.
+                return self.workspace.hasExtraCarets
+                    ? [EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "carets.clear")] : []
+            }
             return [
                 EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: [], id: "completion.previous"),
                 EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: [], id: "completion.next"),
@@ -258,6 +265,7 @@ final class AppModel {
             case "completion.next": language.moveSelection(1)
             case "completion.accept": language.accept()
             case "completion.dismiss": language.dismiss()
+            case "carets.clear": workspace.clearExtraCarets()
             default: registry.run(CommandID(rawValue: id))
             }
         }
@@ -451,6 +459,18 @@ final class AppModel {
                     surfaces: .ide, keywords: ["intellisense", "autocomplete", "suggest"]) { [weak self] in
                 guard let self else { return }
                 Task { await self.language.complete() }
+            },
+            Command(id: "editor.addCursorAbove", title: "Add cursor above", menu: "Edit",
+                    shortcut: Shortcut("↑", [.option, .command]), surfaces: .ide, keywords: ["multi-cursor", "multiple cursors", "column"]) { [weak self] in
+                self?.workspace.addCursor(above: true)
+            },
+            Command(id: "editor.addCursorBelow", title: "Add cursor below", menu: "Edit",
+                    shortcut: Shortcut("↓", [.option, .command]), surfaces: .ide, keywords: ["multi-cursor", "multiple cursors", "column"]) { [weak self] in
+                self?.workspace.addCursor(above: false)
+            },
+            Command(id: "editor.changeAllOccurrences", title: "Change all occurrences", menu: "Edit",
+                    shortcut: Shortcut("l", [.command, .shift]), surfaces: .ide, keywords: ["multi-cursor", "select all occurrences", "edit all"]) { [weak self] in
+                self?.workspace.changeAllOccurrences()
             },
             Command(id: "editor.toggleComment", title: "Toggle line comment", menu: "Edit",
                     shortcut: Shortcut("/"), surfaces: .ide, keywords: ["comment out", "uncomment"]) { [weak self] in
