@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Builds RunKit's bundled JavaScript from the pinned lockfile in scripts/runkit:
 #   - Sucrase (MIT): TypeScript → JavaScript, bundled into JS/sucrase.js
-#   - Pyodide (MPL-2.0; CPython is PSF-2.0): Python in WebAssembly, copied into JS/pyodide/
+#   - Pyodide (MPL-2.0; CPython is PSF-2.0): Python in WebAssembly, copied into JS/pyodide/, with
+#     its builds of jedi and parso (MIT) for Python code intelligence
 #   - three.js (MIT): the first entry of the offline package cache, copied into JS/packages/three/
 #   - marked and Mermaid (MIT): the Markdown preview, copied into JS/packages/
 #   - TypeScript 5.9 (Apache-2.0): type checking, copied into JS/packages/typescript/
@@ -20,6 +21,15 @@ cp node_modules/sucrase/LICENSE "$JS/sucrase-LICENSE.txt"
 mkdir -p "$JS/pyodide"
 for f in pyodide.mjs pyodide.asm.mjs pyodide.asm.wasm python_stdlib.zip pyodide-lock.json; do
   cp "node_modules/pyodide/$f" "$JS/pyodide/$f"
+done
+# Jedi and parso (MIT; pure Python): Python code intelligence, offline. Pyodide's own builds,
+# from its CDN, checked against the sha256 in its lock file.
+PYODIDE_VERSION=$(node -p 'require("./node_modules/pyodide/package.json").version')
+for pkg in jedi parso; do
+  file=$(node -p "require('./node_modules/pyodide/pyodide-lock.json').packages['$pkg'].file_name")
+  sum=$(node -p "require('./node_modules/pyodide/pyodide-lock.json').packages['$pkg'].sha256")
+  curl -fsSL "https://cdn.jsdelivr.net/pyodide/v$PYODIDE_VERSION/full/$file" -o "$JS/pyodide/$file"
+  echo "$sum  $JS/pyodide/$file" | shasum -a 256 -c - >/dev/null
 done
 # License texts (the npm package ships none), from a pinned SPDX commit, checked.
 SPDX=31ba1a50e5397e00a304dbadc76531740e89ee48

@@ -7,18 +7,18 @@ import RunKit
 import SwiftUI
 import WorkspaceKit
 
-/// Code intelligence for TypeScript and JavaScript (VS Code's features from the same TypeScript
-/// language service, offline): go to definition, find references, rename, quick info and
-/// completions as you type. One service per project, fed the editor's unsaved text.
+/// Code intelligence (VS Code's features, offline): go to definition, find references, rename,
+/// quick info and completions as you type, for TypeScript and JavaScript (the TypeScript language
+/// service) and Python (Jedi). One service per language per project, fed the editor's unsaved text.
 @MainActor
 @Observable
 final class LanguageModel {
     @ObservationIgnored private let workspace: WorkspaceModel
-    @ObservationIgnored private var service: LanguageService?
+    @ObservationIgnored private var services: [LanguageService.Flavor: LanguageService] = [:]
     @ObservationIgnored private var serviceRoot: URL?
-    /// The editor text the service last saw, and the disk state it loaded (changeCount).
-    @ObservationIgnored private var syncedText: (path: String, text: String)?
-    @ObservationIgnored private var loadedChangeCount = -1
+    /// The editor text each service last saw, and the disk state it loaded (changeCount).
+    @ObservationIgnored private var syncedText: [LanguageService.Flavor: (path: String, text: String)] = [:]
+    @ObservationIgnored private var loadedChangeCount: [LanguageService.Flavor: Int] = [:]
     @ObservationIgnored private var completionTask: Task<Void, Never>?
 
     init(workspace: WorkspaceModel) { self.workspace = workspace }
@@ -69,38 +69,45 @@ final class LanguageModel {
 
     var isAvailable: Bool { target != nil }
 
-    /// The project's service, started on first use and caught up with the disk and the editor.
+    /// The open file's service, started on first use and caught up with the disk and the editor.
     private func ready() async throws -> LanguageService {
-        guard let root = workspace.rootURL else { throw LanguageServiceError.notReady("no project open") }
-        if serviceRoot != root {
-            service?.stop()
-            service = try LanguageService(root: root)
-            serviceRoot = root
-            syncedText = nil
-            loadedChangeCount = workspace.changeCount
+        guard let root = workspace.rootURL, let file = workspace.openFile,
+              let flavor = LanguageService.Flavor.of(workspace.relativePath(of: file)) else {
+            throw LanguageServiceError.notReady("no TypeScript, JavaScript or Python file open")
         }
-        let service = service!
+        if serviceRoot != root { reset() }
+        serviceRoot = root
+        let service: LanguageService
+        if let running = services[flavor] {
+            service = running
+        } else {
+            service = try LanguageService(root: root, flavor: flavor)
+            services[flavor] = service
+            loadedChangeCount[flavor] = workspace.changeCount
+            // Python's first start loads Pyodide and Jedi.
+            try await service.start(timeout: flavor == .python ? 90 : 30)
+        }
         // Files saved, added or changed outside the editor since it last loaded.
-        if loadedChangeCount != workspace.changeCount {
-            loadedChangeCount = workspace.changeCount
+        if loadedChangeCount[flavor] != workspace.changeCount {
+            loadedChangeCount[flavor] = workspace.changeCount
             try await service.reload()
-            syncedText = nil
+            syncedText[flavor] = nil
         }
-        if let file = workspace.openFile {
-            let path = workspace.relativePath(of: file)
-            let text = workspace.editor.text
-            if syncedText?.path != path || syncedText?.text != text {
-                try await service.update(path, text: text)
-                syncedText = (path, text)
-            }
+        let path = workspace.relativePath(of: file)
+        let text = workspace.editor.text
+        if syncedText[flavor]?.path != path || syncedText[flavor]?.text != text {
+            try await service.update(path, text: text)
+            syncedText[flavor] = (path, text)
         }
         return service
     }
 
-    /// Project closed or switched: the next request starts a fresh service.
+    /// Project closed or switched: the next request starts fresh services.
     func reset() {
-        service?.stop()
-        service = nil
+        for service in services.values { service.stop() }
+        services = [:]
+        syncedText = [:]
+        loadedChangeCount = [:]
         serviceRoot = nil
         references = nil
         info = nil
@@ -343,7 +350,7 @@ struct CompletionPopup: View {
         case "enum", "enum member": "e.square"
         case "module", "external module name", "directory", "script": "shippingbox"
         case "keyword": "k.square"
-        case "const", "let", "var", "local var", "parameter": "v.square"
+        case "const", "let", "var", "local var", "parameter", "statement", "instance", "param": "v.square"   // Jedi's last three
         case "string": "textformat"
         default: "circle"
         }

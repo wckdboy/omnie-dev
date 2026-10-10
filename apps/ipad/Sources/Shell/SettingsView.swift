@@ -54,7 +54,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Editor")
                 } footer: {
-                    Text("TypeScript and JavaScript get definitions, references, rename and completions from the TypeScript language service on this iPad; ⌃Space asks for completions any time.")
+                    Text("TypeScript and JavaScript (the TypeScript language service) and Python (Jedi) get definitions, references, rename and completions, on this iPad; ⌃Space asks for completions any time.")
                 }
 
                 ModelsSection()

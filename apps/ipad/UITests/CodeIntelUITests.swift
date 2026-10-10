@@ -107,4 +107,21 @@ final class CodeIntelUITests: XCTestCase {
         item.tap()
         XCTAssertTrue(waitForEditor("Line 4, column 5. beta"), "\(editor.value ?? "")")
     }
+
+    func testPython() {
+        app = XCUIApplication()
+        // On `area` in `print(area(2, 3))`: its definition is in geometry.py.
+        app.launchArguments = ["-OmnieUIPyFixture", "-OmnieOpenFile", "app.py:3:8", "-OmnieLayout", "standard",
+                               "-OmnieNoWelcome", "-OmnieNoPanelDrag", "-OmnieRunCommand", "editor.goToDefinition"]
+        app.launch()
+        XCTAssertTrue(app.textViews["Code editor, geometry.py"].waitForExistence(timeout: 60), "Jedi found the definition")
+        XCTAssertTrue(waitForEditor("Line 1, column 5."), "\(editor.value ?? "")")
+        // Completions as you type, from Jedi.
+        editor.tap()
+        sleep(1)
+        app.typeKey(.downArrow, modifierFlags: .command)
+        app.typeText("\nimport os\nos.pa")
+        XCTAssertTrue(app.buttons["path, module"].waitForExistence(timeout: 20) || app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'pathsep'")).firstMatch.exists)
+        shot("python-completions")
+    }
 }

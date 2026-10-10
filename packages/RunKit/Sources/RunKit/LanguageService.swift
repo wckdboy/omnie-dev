@@ -63,13 +63,27 @@ public enum LanguageServiceError: Error, LocalizedError, Equatable {
     }
 }
 
-/// The TypeScript language service for a project (TypeScript and JavaScript), offline, in
-/// RunKit's sandbox and kept running: go to definition, find references, rename, quick info and
-/// completions. Feed it the editor's text with `update` so answers follow unsaved edits; `reload`
-/// after files change on disk. VS Code's TypeScript features use the same service.
+/// Code intelligence for a project, offline, in RunKit's sandbox and kept running: go to
+/// definition, find references, rename, quick info and completions. TypeScript and JavaScript get
+/// the TypeScript language service (what VS Code uses); Python gets Jedi in Pyodide. Feed it the
+/// editor's text with `update` so answers follow unsaved edits; `reload` after files change on disk.
 @MainActor
 public final class LanguageService: NSObject, WKScriptMessageHandler {
+    public enum Flavor: String, Sendable, CaseIterable {
+        case typescript, python
+
+        /// The flavor for a project file, or nil when neither answers for it.
+        public static func of(_ path: String) -> Flavor? {
+            if path.range(of: #"\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$"#, options: .regularExpression) != nil { return .typescript }
+            if path.hasSuffix(".py") || path.hasSuffix(".pyi") { return .python }
+            return nil
+        }
+
+        var mode: String { self == .typescript ? "language" : "pylanguage" }
+    }
+
     public let root: URL
+    public let flavor: Flavor
     private let handler: SchemeHandler
     private var webView: WKWebView?
     private var ready: CheckedContinuation<Void, Error>?
@@ -77,15 +91,14 @@ public final class LanguageService: NSObject, WKScriptMessageHandler {
     private var pending: [Int: CheckedContinuation<Any?, Error>] = [:]
     private var nextID = 1
 
-    public init(root: URL) throws {
+    public init(root: URL, flavor: Flavor = .typescript) throws {
         self.root = root
+        self.flavor = flavor
         handler = SchemeHandler(resolver: ModuleResolver(root: root), transpiler: try Transpiler())
     }
 
-    /// Whether a project file is one the service answers for.
-    public nonisolated static func handles(_ path: String) -> Bool {
-        path.range(of: #"\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$"#, options: .regularExpression) != nil
-    }
+    /// Whether a project file is one some service answers for.
+    public nonisolated static func handles(_ path: String) -> Bool { Flavor.of(path) != nil }
 
     /// Starts the sandbox (once); the project loads on the first request.
     public func start(timeout: Double = 30) async throws {
@@ -98,7 +111,7 @@ public final class LanguageService: NSObject, WKScriptMessageHandler {
             let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 10, height: 10), configuration: config)
             self.webView = webView
             var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/harness.html")!
-            components.setQueryForJS([URLQueryItem(name: "mode", value: "language")])
+            components.setQueryForJS([URLQueryItem(name: "mode", value: flavor.mode)])
             webView.load(URLRequest(url: components.url!))
         }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in

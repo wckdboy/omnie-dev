@@ -33,6 +33,17 @@ struct OmnieDevApp: App {
                         model.workspace.open(folder: folder)
                         model.workspace.open(file: folder.appending(path: "main.ts"), preview: false)
                     }
+                    // `-OmnieUIPyFixture`: two Python files, the second calling the first (code intelligence).
+                    if args.contains("-OmnieUIPyFixture") {
+                        let folder = URL.documentsDirectory.appending(path: "uitest-py")
+                        try? FileManager.default.removeItem(at: folder)
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        try? "def area(width, height):\n    \"\"\"Width times height.\"\"\"\n    return width * height\n"
+                            .write(to: folder.appending(path: "geometry.py"), atomically: true, encoding: .utf8)
+                        try? "from geometry import area\n\nprint(area(2, 3))\n"
+                            .write(to: folder.appending(path: "app.py"), atomically: true, encoding: .utf8)
+                        model.workspace.open(folder: folder)
+                    }
                     // `-OmnieUIHistoryFixture`: a git project with four commits after a base (UI tests of Edit history).
                     if args.contains("-OmnieUIHistoryFixture") {
                         let folder = URL.documentsDirectory.appending(path: "uitest-history")

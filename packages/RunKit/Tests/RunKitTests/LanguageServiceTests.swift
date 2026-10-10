@@ -87,3 +87,60 @@ struct LanguageServiceTests {
     }
 }
 }
+
+extension WebKitSuites {
+@MainActor
+struct PythonLanguageTests {
+    let root: URL
+    let geometry = "def area(width, height):\n    \"\"\"Width times height.\"\"\"\n    return width * height\n"
+    let main = "from geometry import area\n\nprint(area(2, 3))\ntotal = area(4, 5)\n"
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("pylang-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try geometry.write(to: root.appendingPathComponent("geometry.py"), atomically: true, encoding: .utf8)
+        try main.write(to: root.appendingPathComponent("main.py"), atomically: true, encoding: .utf8)
+    }
+
+    func offset(of needle: String, in text: String, occurrence: Int = 1) -> Int {
+        var range = text.startIndex..<text.endIndex
+        var found = text.startIndex
+        for _ in 0..<occurrence {
+            let r = text.range(of: needle, range: range)!
+            found = r.lowerBound
+            range = r.upperBound..<text.endIndex
+        }
+        return text.utf16.distance(from: text.startIndex, to: found)
+    }
+
+    @Test func definitionReferencesInfoRenameAndCompletions() async throws {
+        let service = try LanguageService(root: root, flavor: .python)
+        defer { service.stop() }
+        // Jedi loads with Pyodide: give a cold start on a slow machine its time.
+        try await service.start(timeout: JSRunnerTests.pythonTimeout)
+        let call = offset(of: "area", in: main, occurrence: 2)
+        try await service.update("main.py", text: main)
+        let definition = try await service.definition("main.py", offset: call)
+        #expect(definition.map(\.path) == ["geometry.py"], "\(definition)")
+        #expect(definition.first?.line == 1 && definition.first?.start == 4)
+
+        let references = try await service.references("main.py", offset: call)
+        #expect(Set(references.map(\.path)) == ["geometry.py", "main.py"], "\(references)")
+        #expect(references.count == 4)
+        #expect(references.contains { $0.isDefinition && $0.path == "geometry.py" })
+
+        let info = try #require(try await service.quickInfo("main.py", offset: call))
+        #expect(info.signature.contains("area(width, height)"), "\(info.signature)")
+        #expect(info.documentation == "Width times height.")
+
+        let plan = try await service.rename("main.py", offset: call, to: "surface")
+        #expect(plan.files == ["geometry.py", "main.py"] && plan.edits.count == 4)
+
+        let typed = main + "count = 10\ncount.bit_"
+        try await service.update("main.py", text: typed)
+        let found = try await service.completions("main.py", offset: (typed as NSString).length)
+        #expect(found.first?.name == "bit_length", "\(found.prefix(5).map(\.name))")
+        #expect(found.first?.length == 4)
+    }
+}
+}

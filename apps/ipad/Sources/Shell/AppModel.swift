@@ -155,7 +155,7 @@ final class AppModel {
 
     let policy = PolicyModel()
     let workspace: WorkspaceModel
-    /// Definitions, references, rename, quick info and completions (TypeScript and JavaScript).
+    /// Definitions, references, rename, quick info and completions (TypeScript, JavaScript, Python).
     let language: LanguageModel
     let models: ModelsModel
     let docs: DocsModel
@@ -208,7 +208,7 @@ final class AppModel {
         #endif
         let args = ProcessInfo.processInfo.arguments
         // Debug launch arguments open their own folder (fixtures rebuild theirs, so don't reopen it).
-        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmniePRFixture"].contains { args.contains($0) }
+        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmniePRFixture", "-OmnieUIPyFixture"].contains { args.contains($0) }
         #if DEBUG
         // Fixtures and launch files set up the editor themselves; an earlier run's tabs would leak in.
         if args.contains(where: { $0.hasPrefix("-OmnieUI") || $0 == "-OmniePRFixture" || $0 == "-OmnieOpenFile" }), !args.contains("-OmnieRestoreSessions") {
@@ -229,7 +229,7 @@ final class AppModel {
             EditorKeyCommand(input: UIKeyCommand.f12, modifiers: [], id: "editor.goToDefinition"),
             EditorKeyCommand(input: UIKeyCommand.f12, modifiers: .shift, id: "editor.findReferences"),
         ]
-        // A long press on code offers what VS Code's context menu does, for TypeScript and JavaScript.
+        // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
             guard let self, self.language.isAvailable else { return [] }
             let run = { (id: String) in { (_: UIAction) in self.registry.run(CommandID(rawValue: id)) } }

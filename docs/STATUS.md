@@ -84,7 +84,9 @@ Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with com
 
 - **Code intelligence for TypeScript and JavaScript (1.2):** the TypeScript language service (the one VS Code uses) runs offline and stays up per project in RunKit's sandbox (`LanguageService`), fed the editor's unsaved text. Go to definition (⌃⌘J or F12), find all references (⇧⌃⌘J or ⇧F12; grouped by file with each line, declarations marked), rename symbol across the project (⌃⌘E: the open file through the editor as one undo step, the others on disk), type and docs at the caret (⌃⌘I), and completions as you type after a dot or two letters (⌃Space asks; ↑ ↓ ⏎ ⇥ ⎋; the chosen one's signature and docs below; Settings can turn the as-you-type list off). A long press on code puts Go to Definition, Find All References, Rename Symbol and Type & Docs first in the edit menu (engine patch 0015, `omnie-dev-editor-engine` 0.6.7). `LanguageServiceTests` and `CodeIntelUITests`.
 
-Still behind VS Code: language intelligence for Python and the rest, code folding, multi-cursor commands (the engine has carets; ⌘D isn't wired yet), a debugger, extensions, and a formatter.
+- **Python too (1.3):** the same commands, edit menu and completion list for `.py` files, from Jedi (pure Python, Pyodide's builds of jedi 0.19.2 and parso 0.8.6, vendored and checked against Pyodide's lock file) running in Pyodide in a long-lived worker; definitions and references across the project's modules, rename across files, signatures and docstrings, member completions from typeshed. `PythonLanguageTests`, `CodeIntelUITests.testPython`.
+
+Still behind VS Code: language intelligence for the rest (Swift, Go, Rust, …), code folding, multi-cursor commands (the engine has carets; ⌘D isn't wired yet), a debugger, extensions, and a formatter.
 
 ## P4 online power: HostKit started
 
