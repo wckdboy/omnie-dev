@@ -95,8 +95,18 @@ public final class LanguageService {
     /// Whether a project file is one some service answers for.
     public nonisolated static func handles(_ path: String) -> Bool { Flavor.of(path) != nil }
 
-    /// Starts the sandbox (once); the project loads on the first request.
-    public func start(timeout: Double = 30) async throws { try await worker.start(timeout: timeout) }
+    /// Starts the sandbox (once). Python's also loads Pyodide, Jedi and the project here, within
+    /// `timeout` (its first answer would wait for them anyway); TypeScript's project loads on the
+    /// first request.
+    public func start(timeout: Double = 30) async throws {
+        try await worker.start(timeout: timeout)
+        if flavor == .python, !pythonLoaded {
+            _ = try await worker.request("reload", [:], timeout: timeout)
+            pythonLoaded = true
+        }
+    }
+
+    private var pythonLoaded = false
 
     public func stop() { worker.stop() }
 
@@ -157,7 +167,8 @@ public final class LanguageService {
     }
 
     private func request(_ op: String, _ args: [String: Any], timeout: Double = 60) async throws -> Any? {
-        try await worker.request(op, args, timeout: timeout)
+        try await start(timeout: flavor == .python ? 120 : 30)
+        return try await worker.request(op, args, timeout: timeout)
     }
 
     // MARK: Decoding

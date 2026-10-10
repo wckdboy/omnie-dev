@@ -152,9 +152,17 @@ struct PythonRunnerTests {
         Issue.record("Pyodide didn't load in three tries: \(last)")
     }
 
+    /// A Python run, once more if it stalled with no output at all (a hosted CI runner's Pyodide
+    /// load sometimes does; a run that fails for real has output).
+    func runRetrying(_ run: () async throws -> RunResult) async rethrows -> RunResult {
+        let first = try await run()
+        if first.output.isEmpty && first.tests.isEmpty { return try await run() }
+        return first
+    }
+
     @Test func runsAScript() async throws {
         try await warmUp()
-        let result = await (try JSRunner(root: root)).runPython("main.py", timeout: JSRunnerTests.pythonTimeout)
+        let result = try await runRetrying { await (try JSRunner(root: root)).runPython("main.py", timeout: JSRunnerTests.pythonTimeout) }
         #expect(result.output.contains(.init(stream: .out, text: "total 6")), "\(result.report)")
         #expect(result.output.contains(.init(stream: .err, text: "oops")))
     }
@@ -162,7 +170,7 @@ struct PythonRunnerTests {
     @Test func runsPytestStyleTests() async throws {
         try await warmUp()
         #expect(JSRunner.pythonTestFiles(in: root) == ["tests/test_calc.py"])
-        let result = await (try JSRunner(root: root)).runPythonTests(["tests/test_calc.py"], timeout: JSRunnerTests.pythonTimeout)
+        let result = try await runRetrying { await (try JSRunner(root: root)).runPythonTests(["tests/test_calc.py"], timeout: JSRunnerTests.pythonTimeout) }
         // Say why when nothing came back (a slow CI runner timing out), and never index past the end.
         try #require(result.tests.count == 6, "\(result.report)")
         #expect(result.tests.map(\.name) == ["test_total", "test_wrong", "test_raises", "test_cases[1, 1]", "test_cases[2, 3]", "TestApprox.test_float"])
