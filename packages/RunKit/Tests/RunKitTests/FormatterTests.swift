@@ -48,6 +48,13 @@ struct CodeFormatterTests {
         let narrow = try await formatter.format("result = some_function(argument_one, argument_two)\n", path: "b.py")
         #expect(narrow.text.contains("(\n    argument_one,\n"), "\(narrow.text)")
         await #expect(throws: LanguageServiceError.self) { try await formatter.format("def (:\n", path: "c.py") }
+
+        // Lint: an unused import (a warning) and an undefined name (an error), where they are.
+        let text = "import os\nprint(missing)\n"
+        let problems = try await formatter.lint(text, path: "d.py")
+        #expect(problems.map(\.rule) == ["F401", "F821"], "\(problems)")
+        #expect(problems.map(\.category) == [.warning, .error])
+        #expect(problems[1].line == 2 && problems[1].start == 16 && problems[1].length == 7)
     }
 }
 }

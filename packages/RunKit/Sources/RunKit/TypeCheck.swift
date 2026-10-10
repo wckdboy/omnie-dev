@@ -7,7 +7,7 @@ import Foundation
 /// compiler running in RunKit's sandbox. Reads `tsconfig.json` when there is one.
 public struct TypeDiagnostic: Sendable, Hashable, Identifiable {
     public enum Category: String, Sendable { case error, warning, info }
-    public var id: String { "\(path ?? ""):\(start ?? -1):\(code)" }
+    public var id: String { "\(path ?? ""):\(start ?? -1):\(code):\(rule ?? "")" }
     public let code: Int
     public let category: Category
     public let message: String
@@ -18,6 +18,8 @@ public struct TypeDiagnostic: Sendable, Hashable, Identifiable {
     /// UTF-16 offset and length in the file, for marking it in the editor.
     public let start: Int?
     public let length: Int?
+    /// A linter's rule ("F401") when it isn't a TypeScript error code.
+    public var rule: String?
 
     public init(code: Int, category: Category, message: String, path: String?, line: Int?, column: Int?, start: Int?, length: Int?) {
         self.code = code

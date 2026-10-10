@@ -30,5 +30,20 @@ public final class CodeFormatter {
         return (formatted, (result["cursor"] as? NSNumber)?.intValue ?? cursor)
     }
 
+    /// Ruff's lint for a Python file: unused imports, undefined names, syntax errors and the rest of
+    /// its default rules. Syntax errors and undefined names are errors; the others warnings.
+    public func lint(_ text: String, path: String) async throws -> [TypeDiagnostic] {
+        let found = try await worker.request("lint", ["path": path, "text": text], timeout: 30) as? [[String: Any]] ?? []
+        return found.map { d in
+            func int(_ k: String) -> Int? { (d[k] as? NSNumber)?.intValue }
+            let rule = d["rule"] as? String ?? ""
+            let serious = rule == "invalid-syntax" || rule.hasPrefix("E9") || ["F821", "F822", "F823"].contains(rule)
+            var diagnostic = TypeDiagnostic(code: 0, category: serious ? .error : .warning, message: d["message"] as? String ?? "",
+                                            path: path, line: int("line"), column: int("column"), start: int("start"), length: int("length"))
+            diagnostic.rule = rule
+            return diagnostic
+        }
+    }
+
     public func stop() { worker.stop() }
 }

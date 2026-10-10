@@ -42,10 +42,11 @@ async function ruffWorkspace() {
     await module.default({ module_or_path: base + "__omnie/packages/ruff/ruff_wasm_bg.wasm" });
     ruff = module;
   }
-  const settings = ruff.Workspace.defaultSettings();
+  // Plain options (the constructor ignores a Map): Ruff's command-line rule set, not the
+  // playground's wide one, and the project's line length.
+  const settings = { lint: { select: ["E4", "E7", "E9", "F"] } };
   const lineLength = await pythonLineLength();
-  // The defaults come back as a Map.
-  if (lineLength) { if (settings instanceof Map) settings.set("line-length", lineLength); else settings["line-length"] = lineLength; }
+  if (lineLength) settings["line-length"] = lineLength;
   return new ruff.Workspace(settings, ruff.PositionEncoding?.Utf16 ?? 1);
 }
 
@@ -72,7 +73,30 @@ function carryCursor(before, after, cursor) {
   return offset + Math.min(column, lines[target].length);
 }
 
+/// UTF-16 offset of a 1-based row and column.
+function offsetAt(text, row, column) {
+  let offset = 0;
+  for (let r = 1; r < row; r++) {
+    const next = text.indexOf("\n", offset);
+    if (next < 0) return text.length;
+    offset = next + 1;
+  }
+  return Math.min(text.length, offset + Math.max(0, column - 1));
+}
+
 const handlers = {
+  /// Ruff's linter (its default rules: pyflakes and the error-prone pycodestyle ones).
+  async lint({ text }) {
+    const workspace = await ruffWorkspace();
+    try {
+      return workspace.check(text).sort((a, b) => a.start_location.row - b.start_location.row || a.start_location.column - b.start_location.column).map((d) => {
+        const start = offsetAt(text, d.start_location.row, d.start_location.column);
+        const end = offsetAt(text, d.end_location.row, d.end_location.column);
+        return { rule: d.code, message: d.message, line: d.start_location.row, column: d.start_location.column, start, length: Math.max(0, end - start) };
+      });
+    } finally { workspace.free(); }
+  },
+
   async supports({ path }) {
     const info = await prettier.getFileInfo(path, { plugins }).catch(() => null);
     return !!info?.inferredParser;

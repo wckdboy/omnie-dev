@@ -115,7 +115,7 @@ final class CodeIntelUITests: XCTestCase {
                                "-OmnieNoWelcome", "-OmnieNoPanelDrag", "-OmnieRunCommand", "editor.goToDefinition"]
         app.launch()
         XCTAssertTrue(app.textViews["Code editor, geometry.py"].waitForExistence(timeout: 60), "Jedi found the definition")
-        XCTAssertTrue(waitForEditor("Line 1, column 5."), "\(editor.value ?? "")")
+        XCTAssertTrue(waitForEditor("Line 3, column 5."), "\(editor.value ?? "")")
         // Completions as you type, from Jedi.
         editor.tap()
         sleep(1)
@@ -186,5 +186,19 @@ final class CodeIntelUITests: XCTestCase {
         sleep(1)
         XCTAssertEqual(lineText(1), "# let first = 1;")
         XCTAssertTrue(lineText(3).hasPrefix("# function gamma() { return beta; }"))   // then its diagnostics, read out
+    }
+
+    func testPythonProblemsFromRuff() {
+        app = XCUIApplication()
+        app.launchArguments = ["-OmnieUIPyFixture", "-OmnieOpenFile", "geometry.py", "-OmnieLayout", "standard",
+                               "-OmnieNoWelcome", "-OmnieNoPanelDrag"]
+        app.launch()
+        XCTAssertTrue(editor.waitForExistence(timeout: 15))
+        // The unused import is counted in the status strip and listed with its rule.
+        let count = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'warning'")).firstMatch
+        XCTAssertTrue(count.waitForExistence(timeout: 30), "the strip counts the warning")
+        count.tap()
+        XCTAssertTrue(app.staticTexts["`os` imported but unused"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Ruff F401'")).firstMatch.exists)
     }
 }

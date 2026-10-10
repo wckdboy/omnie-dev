@@ -38,7 +38,7 @@ struct OmnieDevApp: App {
                         let folder = URL.documentsDirectory.appending(path: "uitest-py")
                         try? FileManager.default.removeItem(at: folder)
                         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                        try? "def area(width, height):\n    \"\"\"Width times height.\"\"\"\n    return width * height\n"
+                        try? "import os\n\ndef area(width, height):\n    \"\"\"Width times height.\"\"\"\n    return width * height\n"
                             .write(to: folder.appending(path: "geometry.py"), atomically: true, encoding: .utf8)
                         try? "from geometry import area\n\nprint(area(2, 3))\n"
                             .write(to: folder.appending(path: "app.py"), atomically: true, encoding: .utf8)
