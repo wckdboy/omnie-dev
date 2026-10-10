@@ -3,6 +3,7 @@
   "private": true,
   "description": "Pins the JavaScript RunKit bundles (scripts/vendor-runkit.sh).",
   "dependencies": {
+    "@astral-sh/ruff-wasm-web": "0.17.0",
     "marked": "18.1.0",
     "mermaid": "12.1.0",
     "prettier": "3.9.9",

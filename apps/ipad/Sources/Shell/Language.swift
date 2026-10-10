@@ -164,7 +164,7 @@ final class LanguageModel {
 
     // MARK: Format
 
-    /// Prettier's file types: JavaScript, TypeScript, JSON, CSS, HTML, Markdown, YAML.
+    /// Prettier's file types (JavaScript, TypeScript, JSON, CSS, HTML, Markdown, YAML) and Python (Ruff).
     var canFormat: Bool {
         guard let file = workspace.openFile else { return false }
         return CodeFormatter.handles(file.lastPathComponent)
@@ -179,7 +179,7 @@ final class LanguageModel {
     func formatDocument(quiet: Bool = false) async {
         guard let root = workspace.rootURL, let file = workspace.openFile else { return }
         guard canFormat else {
-            if !quiet { workspace.banner = "No formatter for \(file.lastPathComponent) yet (Prettier formats JS, TS, JSON, CSS, HTML, Markdown and YAML)." }
+            if !quiet { workspace.banner = "No formatter for \(file.lastPathComponent) yet (Prettier formats JS, TS, JSON, CSS, HTML, Markdown and YAML; Ruff formats Python)." }
             return
         }
         do {

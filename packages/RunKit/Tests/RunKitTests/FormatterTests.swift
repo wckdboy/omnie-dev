@@ -35,7 +35,19 @@ struct CodeFormatterTests {
 
         // A syntax error says so instead of mangling the file.
         await #expect(throws: LanguageServiceError.self) { try await formatter.format("const = ;", path: "c.ts") }
-        #expect(CodeFormatter.handles("README.md") && !CodeFormatter.handles("main.py"))
+        #expect(CodeFormatter.handles("README.md") && CodeFormatter.handles("main.py") && !CodeFormatter.handles("main.swift"))
+    }
+
+    @Test func formatsPythonWithRuff() async throws {
+        let formatter = try CodeFormatter(root: root)
+        defer { formatter.stop() }
+        let py = try await formatter.format("def f( a,b ):\n  return {'x':a,'y':b}\n", path: "app.py", cursor: 0)
+        #expect(py.text == "def f(a, b):\n    return {\"x\": a, \"y\": b}\n")
+        // pyproject.toml's line length.
+        try "[tool.ruff]\nline-length = 20\n".write(to: root.appendingPathComponent("pyproject.toml"), atomically: true, encoding: .utf8)
+        let narrow = try await formatter.format("result = some_function(argument_one, argument_two)\n", path: "b.py")
+        #expect(narrow.text.contains("(\n    argument_one,\n"), "\(narrow.text)")
+        await #expect(throws: LanguageServiceError.self) { try await formatter.format("def (:\n", path: "c.py") }
     }
 }
 }

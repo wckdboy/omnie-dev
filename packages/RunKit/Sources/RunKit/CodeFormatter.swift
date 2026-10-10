@@ -3,9 +3,9 @@
 
 import Foundation
 
-/// Format Document (VS Code's ⇧⌥F) with Prettier, offline, in RunKit's sandbox: JavaScript,
-/// TypeScript, JSON, CSS, HTML, Markdown and YAML, with the project's Prettier options. Kept
-/// running per project once used.
+/// Format Document (VS Code's ⇧⌥F), offline, in RunKit's sandbox: Prettier for JavaScript,
+/// TypeScript, JSON, CSS, HTML, Markdown and YAML (with the project's Prettier options) and Ruff for
+/// Python (with its line-length). Kept running per project once used.
 @MainActor
 public final class CodeFormatter {
     public let root: URL
@@ -18,7 +18,7 @@ public final class CodeFormatter {
 
     /// Whether Prettier knows the file's language, by its name.
     public nonisolated static func handles(_ path: String) -> Bool {
-        path.range(of: #"\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|json|jsonc|json5|css|scss|less|html|htm|vue|md|markdown|mdx|yaml|yml)$"#,
+        path.range(of: #"\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|json|jsonc|json5|css|scss|less|html|htm|vue|md|markdown|mdx|yaml|yml|py|pyi)$"#,
                    options: [.regularExpression, .caseInsensitive]) != nil
     }
 

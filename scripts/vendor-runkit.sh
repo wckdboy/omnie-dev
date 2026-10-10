@@ -9,6 +9,7 @@
 #   - marked and Mermaid (MIT): the Markdown preview, copied into JS/packages/
 #   - TypeScript 5.9 (Apache-2.0): type checking, copied into JS/packages/typescript/
 #   - Prettier (MIT): Format Document, copied into JS/packages/prettier/
+#   - Ruff (MIT): Format Document for Python, its WebAssembly build, copied into JS/packages/ruff/
 #   - WASI tools (tools/wasi/*, pinned by their Cargo.lock): built for wasm32-wasip1 into
 #     JS/packages/wasi/, with every linked crate's licence. Needs `rustup target add wasm32-wasip1`.
 # Output is gitignored.
@@ -59,6 +60,10 @@ cp node_modules/typescript/LICENSE.txt node_modules/typescript/ThirdPartyNoticeT
 rm -rf "$JS/packages/prettier" && mkdir -p "$JS/packages/prettier/plugins"
 cp node_modules/prettier/standalone.mjs node_modules/prettier/LICENSE node_modules/prettier/THIRD-PARTY-NOTICES.md "$JS/packages/prettier/"
 for p in babel estree typescript postcss html markdown yaml; do cp "node_modules/prettier/plugins/$p.mjs" "$JS/packages/prettier/plugins/"; done
+
+# Format Document for Python: Ruff's formatter (MIT), its WebAssembly build.
+rm -rf "$JS/packages/ruff" && mkdir -p "$JS/packages/ruff"
+cp node_modules/@astral-sh/ruff-wasm-web/ruff_wasm.js node_modules/@astral-sh/ruff-wasm-web/ruff_wasm_bg.wasm node_modules/@astral-sh/ruff-wasm-web/LICENSE "$JS/packages/ruff/"
 
 # Markdown preview: marked (MIT) and Mermaid (MIT).
 rm -rf "$JS/packages/marked" "$JS/packages/mermaid" && mkdir -p "$JS/packages/marked" "$JS/packages/mermaid"
