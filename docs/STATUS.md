@@ -86,7 +86,9 @@ Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with com
 
 - **Python too (1.3):** the same commands, edit menu and completion list for `.py` files, from Jedi (pure Python, Pyodide's builds of jedi 0.19.2 and parso 0.8.6, vendored and checked against Pyodide's lock file) running in Pyodide in a long-lived worker; definitions and references across the project's modules, rename across files, signatures and docstrings, member completions from typeshed. `PythonLanguageTests`, `CodeIntelUITests.testPython`.
 
-Still behind VS Code: language intelligence for the rest (Swift, Go, Rust, …), code folding, multi-cursor commands (the engine has carets; ⌘D isn't wired yet), a debugger, extensions, and a formatter.
+- **Format Document (⇧⌥F):** Prettier 3.9 (standalone, vendored) in RunKit's sandbox formats JavaScript, TypeScript, JSON, CSS, HTML, Markdown and YAML with the project's Prettier options (`.prettierrc`, `.prettierrc.json` or package.json's `prettier`); one undo step, the caret kept on its code; a syntax error leaves the file alone and says where. Format on save (Settings, on ⌘S only). `CodeFormatterTests`, `CodeIntelUITests.testFormatDocument`. The language services and the formatter share `SandboxWorker`.
+
+Still behind VS Code: language intelligence for the rest (Swift, Go, Rust, …), a Python formatter, code folding, multi-cursor commands (the engine has carets; ⌘D isn't wired yet), a debugger, and extensions.
 
 ## P4 online power: HostKit started
 

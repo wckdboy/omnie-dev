@@ -48,6 +48,7 @@ struct SettingsView: View {
                     Toggle("Completions as you type", isOn: Binding(get: { model.language.completesAsYouType },
                                                                    set: { model.language.completesAsYouType = $0 }))
                     Toggle("Wrap long lines", isOn: Binding(get: { model.wordWrap }, set: { model.wordWrap = $0 }))
+                    Toggle("Format on save (⌘S)", isOn: Binding(get: { model.language.formatsOnSave }, set: { model.language.formatsOnSave = $0 }))
                     Toggle("Minimap", isOn: Binding(get: { model.showsMinimap }, set: { model.showsMinimap = $0 }))
                     Stepper("Text size \(Int((model.workspace.fontScale * 100).rounded())) %", value: Binding(
                         get: { Double(model.workspace.fontScale) }, set: { model.workspace.fontScale = CGFloat($0) }), in: 0.6...2.5, step: 0.1)

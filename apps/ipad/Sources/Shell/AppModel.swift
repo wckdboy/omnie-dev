@@ -639,7 +639,21 @@ final class AppModel {
             },
             Command(id: "file.save", title: "Save", menu: "File",
                     shortcut: Shortcut("s")) { [weak self] in
-                self?.workspace.saveCurrent()
+                guard let self else { return }
+                // Format on save (Settings), on an explicit save only, as VS Code does.
+                if self.language.formatsOnSave, self.language.canFormat {
+                    Task {
+                        await self.language.formatDocument(quiet: true)
+                        self.workspace.saveCurrent()
+                    }
+                } else {
+                    self.workspace.saveCurrent()
+                }
+            },
+            Command(id: "editor.format", title: "Format document", menu: "Edit",
+                    shortcut: Shortcut("f", [.option, .shift]), surfaces: .ide, keywords: ["prettier", "beautify", "pretty print", "indent"]) { [weak self] in
+                guard let self else { return }
+                Task { await self.language.formatDocument() }
             },
             Command(id: "git.commit", title: "Commit", menu: "Git",
                     shortcut: Shortcut("c", [.command, .shift]), keywords: ["save", "snapshot"]) { [weak self] in

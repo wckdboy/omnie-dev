@@ -8,6 +8,7 @@
 #   - three.js (MIT): the first entry of the offline package cache, copied into JS/packages/three/
 #   - marked and Mermaid (MIT): the Markdown preview, copied into JS/packages/
 #   - TypeScript 5.9 (Apache-2.0): type checking, copied into JS/packages/typescript/
+#   - Prettier (MIT): Format Document, copied into JS/packages/prettier/
 #   - WASI tools (tools/wasi/*, pinned by their Cargo.lock): built for wasm32-wasip1 into
 #     JS/packages/wasi/, with every linked crate's licence. Needs `rustup target add wasm32-wasip1`.
 # Output is gitignored.
@@ -53,6 +54,11 @@ cp node_modules/typescript/lib/typescript.js "$JS/packages/typescript/typescript
 cp node_modules/typescript/lib/lib.d.ts node_modules/typescript/lib/lib.*.d.ts "$JS/packages/typescript/lib/"
 cp node_modules/typescript/LICENSE.txt node_modules/typescript/ThirdPartyNoticeText.txt "$JS/packages/typescript/"
 (cd "$JS/packages/typescript/lib" && ls lib.d.ts lib.*.d.ts) > "$JS/packages/typescript/libs.txt"
+
+# Format Document: Prettier (MIT), its standalone build and the parsers for the languages the editor knows.
+rm -rf "$JS/packages/prettier" && mkdir -p "$JS/packages/prettier/plugins"
+cp node_modules/prettier/standalone.mjs node_modules/prettier/LICENSE node_modules/prettier/THIRD-PARTY-NOTICES.md "$JS/packages/prettier/"
+for p in babel estree typescript postcss html markdown yaml; do cp "node_modules/prettier/plugins/$p.mjs" "$JS/packages/prettier/plugins/"; done
 
 # Markdown preview: marked (MIT) and Mermaid (MIT).
 rm -rf "$JS/packages/marked" "$JS/packages/mermaid" && mkdir -p "$JS/packages/marked" "$JS/packages/mermaid"

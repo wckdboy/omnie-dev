@@ -35,11 +35,11 @@ const project = (path) => "omnie-run://local/" + path.split("/").map(encodeURICo
       });
       worker.terminate();
       send({ type: "done" });
-    } else if (params.get("mode") === "language" || params.get("mode") === "pylanguage") {
+    } else if (["language", "pylanguage", "format"].includes(params.get("mode"))) {
       // Long-lived: Swift sends requests through omnieLanguage(), replies come back as messages.
       const worker = params.get("mode") === "language"
         ? new Worker("omnie-run://local/__omnie/runtime/language-worker.js")
-        : new Worker("omnie-run://local/__omnie/runtime/pylanguage-worker.js", { type: "module" });
+        : new Worker(`omnie-run://local/__omnie/runtime/${params.get("mode") === "format" ? "format" : "pylanguage"}-worker.js`, { type: "module" });
       worker.onmessage = (e) => send(e.data);
       worker.onerror = (e) => send({ type: "error", text: e.message || "Language service failed" });
       window.omnieLanguage = (request) => worker.postMessage(request);

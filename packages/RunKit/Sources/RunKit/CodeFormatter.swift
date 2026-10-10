@@ -1,0 +1,34 @@
+// SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
+// SPDX-License-Identifier: Apache-2.0
+
+import Foundation
+
+/// Format Document (VS Code's ⇧⌥F) with Prettier, offline, in RunKit's sandbox: JavaScript,
+/// TypeScript, JSON, CSS, HTML, Markdown and YAML, with the project's Prettier options. Kept
+/// running per project once used.
+@MainActor
+public final class CodeFormatter {
+    public let root: URL
+    private let worker: SandboxWorker
+
+    public init(root: URL) throws {
+        self.root = root
+        worker = try SandboxWorker(root: root, mode: "format")
+    }
+
+    /// Whether Prettier knows the file's language, by its name.
+    public nonisolated static func handles(_ path: String) -> Bool {
+        path.range(of: #"\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|json|jsonc|json5|css|scss|less|html|htm|vue|md|markdown|mdx|yaml|yml)$"#,
+                   options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    /// The text formatted, and where `cursor` (a UTF-16 offset) ends up in it. Syntax errors throw
+    /// with Prettier's message.
+    public func format(_ text: String, path: String, cursor: Int = 0) async throws -> (text: String, cursor: Int) {
+        let result = try await worker.request("format", ["path": path, "text": text, "cursor": cursor], timeout: 30) as? [String: Any] ?? [:]
+        guard let formatted = result["text"] as? String else { throw LanguageServiceError.failed("Prettier returned nothing") }
+        return (formatted, (result["cursor"] as? NSNumber)?.intValue ?? cursor)
+    }
+
+    public func stop() { worker.stop() }
+}

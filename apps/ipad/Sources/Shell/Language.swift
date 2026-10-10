@@ -20,6 +20,7 @@ final class LanguageModel {
     @ObservationIgnored private var syncedText: [LanguageService.Flavor: (path: String, text: String)] = [:]
     @ObservationIgnored private var loadedChangeCount: [LanguageService.Flavor: Int] = [:]
     @ObservationIgnored private var completionTask: Task<Void, Never>?
+    @ObservationIgnored private var formatter: CodeFormatter?
 
     init(workspace: WorkspaceModel) { self.workspace = workspace }
 
@@ -104,6 +105,8 @@ final class LanguageModel {
 
     /// Project closed or switched: the next request starts fresh services.
     func reset() {
+        formatter?.stop()
+        formatter = nil
         for service in services.values { service.stop() }
         services = [:]
         syncedText = [:]
@@ -157,6 +160,41 @@ final class LanguageModel {
         guard let root = workspace.rootURL else { return }
         references = nil
         workspace.open(file: root.appending(path: location.path), select: NSRange(location: location.start, length: location.length))
+    }
+
+    // MARK: Format
+
+    /// Prettier's file types: JavaScript, TypeScript, JSON, CSS, HTML, Markdown, YAML.
+    var canFormat: Bool {
+        guard let file = workspace.openFile else { return false }
+        return CodeFormatter.handles(file.lastPathComponent)
+    }
+
+    var formatsOnSave = UserDefaults.standard.bool(forKey: "editor.formatOnSave") {
+        didSet { UserDefaults.standard.set(formatsOnSave, forKey: "editor.formatOnSave") }
+    }
+
+    /// The whole file through Prettier with the project's options: one undo step, the caret kept
+    /// on its code. A syntax error leaves the file alone and says where.
+    func formatDocument(quiet: Bool = false) async {
+        guard let root = workspace.rootURL, let file = workspace.openFile else { return }
+        guard canFormat else {
+            if !quiet { workspace.banner = "No formatter for \(file.lastPathComponent) yet (Prettier formats JS, TS, JSON, CSS, HTML, Markdown and YAML)." }
+            return
+        }
+        do {
+            if formatter?.root != root { formatter?.stop(); formatter = try CodeFormatter(root: root) }
+            let text = workspace.editor.text
+            let result = try await formatter!.format(text, path: workspace.relativePath(of: file), cursor: workspace.editor.selectedRange.location)
+            // Typed on while it worked: this result is stale.
+            guard workspace.editor.text == text, result.text != text else { return }
+            workspace.editor.replace(NSRange(location: 0, length: (text as NSString).length), with: result.text)
+            let length = (result.text as NSString).length
+            workspace.editor.selectedRange = NSRange(location: min(result.cursor, length), length: 0)
+            workspace.editor.scrollRangeToVisible(workspace.editor.selectedRange)
+        } catch {
+            workspace.banner = "Not formatted: \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)"
+        }
     }
 
     // MARK: Rename

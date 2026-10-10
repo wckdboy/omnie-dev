@@ -68,7 +68,7 @@ public enum LanguageServiceError: Error, LocalizedError, Equatable {
 /// the TypeScript language service (what VS Code uses); Python gets Jedi in Pyodide. Feed it the
 /// editor's text with `update` so answers follow unsaved edits; `reload` after files change on disk.
 @MainActor
-public final class LanguageService: NSObject, WKScriptMessageHandler {
+public final class LanguageService {
     public enum Flavor: String, Sendable, CaseIterable {
         case typescript, python
 
@@ -84,55 +84,21 @@ public final class LanguageService: NSObject, WKScriptMessageHandler {
 
     public let root: URL
     public let flavor: Flavor
-    private let handler: SchemeHandler
-    private var webView: WKWebView?
-    private var ready: CheckedContinuation<Void, Error>?
-    private var isReady = false
-    private var pending: [Int: CheckedContinuation<Any?, Error>] = [:]
-    private var nextID = 1
+    private let worker: SandboxWorker
 
     public init(root: URL, flavor: Flavor = .typescript) throws {
         self.root = root
         self.flavor = flavor
-        handler = SchemeHandler(resolver: ModuleResolver(root: root), transpiler: try Transpiler())
+        worker = try SandboxWorker(root: root, mode: flavor.mode)
     }
 
     /// Whether a project file is one some service answers for.
     public nonisolated static func handles(_ path: String) -> Bool { Flavor.of(path) != nil }
 
     /// Starts the sandbox (once); the project loads on the first request.
-    public func start(timeout: Double = 30) async throws {
-        if isReady { return }
-        if webView == nil {
-            let config = WKWebViewConfiguration()
-            config.websiteDataStore = .nonPersistent()
-            config.setURLSchemeHandler(handler, forURLScheme: JSRunner.scheme)
-            config.userContentController.add(WeakHandler(self), name: "run")
-            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 10, height: 10), configuration: config)
-            self.webView = webView
-            var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/harness.html")!
-            components.setQueryForJS([URLQueryItem(name: "mode", value: flavor.mode)])
-            webView.load(URLRequest(url: components.url!))
-        }
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            if isReady { continuation.resume(); return }
-            ready = continuation
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-                guard let self, let ready = self.ready else { return }
-                self.ready = nil
-                ready.resume(throwing: LanguageServiceError.notReady("it didn't start in \(Int(timeout)) s"))
-            }
-        }
-    }
+    public func start(timeout: Double = 30) async throws { try await worker.start(timeout: timeout) }
 
-    public func stop() {
-        webView?.stopLoading()
-        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "run")
-        webView = nil
-        isReady = false
-        for (_, continuation) in pending { continuation.resume(throwing: LanguageServiceError.notReady("stopped")) }
-        pending = [:]
-    }
+    public func stop() { worker.stop() }
 
     // MARK: Requests
 
@@ -191,47 +157,7 @@ public final class LanguageService: NSObject, WKScriptMessageHandler {
     }
 
     private func request(_ op: String, _ args: [String: Any], timeout: Double = 60) async throws -> Any? {
-        try await start()
-        guard let webView else { throw LanguageServiceError.notReady("no sandbox") }
-        let id = nextID
-        nextID += 1
-        var message = args
-        message["id"] = id
-        message["op"] = op
-        let json = String(decoding: try JSONSerialization.data(withJSONObject: message), as: UTF8.self)
-        return try await withCheckedThrowingContinuation { continuation in
-            pending[id] = continuation
-            webView.evaluateJavaScript("omnieLanguage(\(json))") { [weak self] _, error in
-                guard let error, let self, let continuation = self.pending.removeValue(forKey: id) else { return }
-                continuation.resume(throwing: LanguageServiceError.failed(error.localizedDescription))
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-                guard let continuation = self?.pending.removeValue(forKey: id) else { return }
-                continuation.resume(throwing: LanguageServiceError.failed("\(op) took longer than \(Int(timeout)) s"))
-            }
-        }
-    }
-
-    public func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
-        switch type {
-        case "ready":
-            isReady = true
-            ready?.resume()
-            ready = nil
-        case "reply":
-            guard let id = (body["id"] as? NSNumber)?.intValue, let continuation = pending.removeValue(forKey: id) else { return }
-            if let error = body["error"] as? String {
-                continuation.resume(throwing: LanguageServiceError.failed(error))
-            } else {
-                continuation.resume(returning: body["result"] is NSNull ? nil : body["result"])
-            }
-        case "error":
-            let text = body["text"] as? String ?? "error"
-            if let ready { self.ready = nil; ready.resume(throwing: LanguageServiceError.notReady(text)) }
-        default:
-            break
-        }
+        try await worker.request(op, args, timeout: timeout)
     }
 
     // MARK: Decoding
@@ -248,14 +174,5 @@ public final class LanguageService: NSObject, WKScriptMessageHandler {
         location.isDefinition = e["isDefinition"] as? Bool ?? false
         location.isWrite = e["isWrite"] as? Bool ?? false
         return location
-    }
-}
-
-/// WebKit keeps its script message handlers strongly; this breaks the cycle.
-private final class WeakHandler: NSObject, WKScriptMessageHandler {
-    weak var target: (any WKScriptMessageHandler)?
-    init(_ target: any WKScriptMessageHandler) { self.target = target }
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        target?.userContentController(controller, didReceive: message)
     }
 }

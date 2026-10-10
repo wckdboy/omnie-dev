@@ -124,4 +124,23 @@ final class CodeIntelUITests: XCTestCase {
         XCTAssertTrue(app.buttons["path, module"].waitForExistence(timeout: 20) || app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'pathsep'")).firstMatch.exists)
         shot("python-completions")
     }
+
+    func testFormatDocument() {
+        // Prettier puts gamma's body on lines of its own: 4 lines become 6.
+        launch(at: "main.ts:1:1", ["editor.format"])
+        // Formatting changes the file: it's unsaved once Prettier has answered.
+        XCTAssertTrue(app.staticTexts["Unsaved"].waitForExistence(timeout: 30))
+        editor.tap()
+        sleep(1)
+        app.typeKey(.downArrow, modifierFlags: .command)
+        XCTAssertTrue(waitForEditor("Line 6,"), "\(editor.value ?? "")")
+        app.typeKey(.upArrow, modifierFlags: .command)
+        XCTAssertTrue(waitForEditor("Line 1,"))
+        for _ in 0..<3 {
+            app.typeKey(.downArrow, modifierFlags: [])
+            usleep(300_000)
+        }
+        XCTAssertTrue(waitForEditor("Line 4,"))
+        XCTAssertTrue((editor.value as? String ?? "").hasSuffix(".   return beta;"), "\(editor.value ?? "")")
+    }
 }
