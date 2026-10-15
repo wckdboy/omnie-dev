@@ -21,6 +21,9 @@ final class WorkspaceModel {
     /// The code editor. It owns the text of the open file; read `editor.text` only to save (O(n)).
     @ObservationIgnored let editor = CodeEditorController(theme: EditorTheme(palette: .dark, density: .regular))
     @ObservationIgnored private var autosaveTask: Task<Void, Never>?
+    /// Notification tokens, removed on deinit (the models live for the process, but this is the
+    /// correct pattern and survives any future teardown).
+    @ObservationIgnored nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
     private(set) var root: FileNode?
     private(set) var rootURL: URL?
     private var isAccessingRoot = false
@@ -115,9 +118,13 @@ final class WorkspaceModel {
         // Folds are kept with the session, like the caret.
         editor.onFoldsChanged = { [weak self] in self?.saveSession() }
         // Where the caret is, kept when the app goes to the background.
-        NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+        observers.append(NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.saveSession() }
-        }
+        })
+    }
+
+    deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
     }
 
     // MARK: Session (open tabs, the open file and its caret, per project)
@@ -395,7 +402,7 @@ final class WorkspaceModel {
         do {
             let loaded = try TextFile.load(url, presenter: watcher)
             language = Language(url: url)
-            editor.isMarkdown = ["md", "markdown", "mdx"].contains(url.pathExtension.lowercased())
+            editor.isMarkdown = WorkspaceModel.isMarkdown(url)
             editor.load(loaded, language: language, marks: problems.marks(for: relativePath(of: url)))
             editor.restoreFolds(foldsByFile[url] ?? [])
             editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
@@ -695,6 +702,11 @@ final class WorkspaceModel {
             if ["makefile", "dockerfile", ".gitignore", ".env", ".editorconfig"].contains(name) { return .line("#") }
             return .line("//")
         }
+    }
+
+    /// Whether the editor folds the file by Markdown headings rather than by indentation.
+    nonisolated static func isMarkdown(_ url: URL) -> Bool {
+        ["md", "markdown", "mdx"].contains(url.pathExtension.lowercased())
     }
 
     /// The file's own indent: a tab, or the smallest run of leading spaces (2 when there's none).

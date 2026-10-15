@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import DesignKit
 import EditorKit
 import Foundation
 import RunKit

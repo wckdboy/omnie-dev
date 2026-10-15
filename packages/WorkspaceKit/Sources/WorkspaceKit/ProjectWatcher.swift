@@ -44,7 +44,11 @@ public final class ProjectWatcher: NSObject, NSFilePresenter, @unchecked Sendabl
     // MARK: NSFilePresenter
 
     public func savePresentedItemChanges(completionHandler: @escaping (Error?) -> Void) {
-        if let onSaveRequest { DispatchQueue.main.sync { onSaveRequest() } }
+        if let onSaveRequest {
+            // `saveCurrent()` needs the main thread, but this can also be delivered on it; a plain
+            // `main.sync` from main would deadlock, so only hop when we're not already there.
+            if Thread.isMainThread { onSaveRequest() } else { DispatchQueue.main.sync { onSaveRequest() } }
+        }
         completionHandler(nil)
     }
 

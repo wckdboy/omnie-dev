@@ -233,6 +233,9 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         // A reload keeps its folds (re-applied by header once the new text's blocks are known);
         // opening another file replaces them with its own through `restoreFolds`.
         if folding.pending.isEmpty { folding.pending = foldedHeaders }
+        // The previous file's blocks don't describe the text that's loading: drop them so a fold
+        // command before the background pass finishes recomputes from what's on screen.
+        folding.regions = []
         loadGeneration += 1
         let generation = loadGeneration
         let marksAtStart = marksVersion
@@ -241,8 +244,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         Task.detached(priority: .userInitiated) {
             guard let theme = box.theme else { return }
             box.state = TextViewState(text: text, theme: theme)
-            await MainActor.run {
-                guard generation == self.loadGeneration, let state = box.state else { return }
+            await MainActor.run { [weak self] in
+                guard let self, generation == self.loadGeneration, let state = box.state else { return }
                 // A selection past the new text's end (the file shrank on disk, say an agent rewrote
                 // it) makes the keyboard ask Runestone for a line that no longer exists, a crash.
                 // Park the caret at the start while the text swaps, then put it back, clamped.
@@ -271,8 +274,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                     return
                 }
                 let mode = TreeSitterLanguageMode(language: Self.treeSitterLanguage(language))
-                self.textView.setLanguageMode(mode) { [weak self] _ in
-                    guard let self, generation == self.loadGeneration else { return }
+                self.textView.setLanguageMode(mode) { _ in
+                    guard generation == self.loadGeneration else { return }
                     self.onHighlighted?()
                 }
             }

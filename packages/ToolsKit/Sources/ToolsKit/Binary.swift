@@ -80,12 +80,17 @@ public struct WasmInfo: Sendable, Equatable {
             defer { p += n }
             return String(decoding: b[p..<(p + n)], as: UTF8.self)
         }
+        func byte() throws -> Int {
+            guard p < b.count else { throw Failure(message: "Truncated") }
+            defer { p += 1 }
+            return Int(b[p])
+        }
         func limits() throws -> (Int, Int?) {
             let flags = try u32(); let min = try u32()
             return (min, flags & 1 == 1 ? try u32() : nil)
         }
         while p < b.count {
-            let id = Int(b[p]); p += 1
+            let id = try byte()
             let size = try u32()
             let start = p, end = p + size
             guard end <= b.count else { throw Failure(message: "Truncated section") }
@@ -95,7 +100,7 @@ public struct WasmInfo: Sendable, Equatable {
             case 2:
                 for _ in 0..<(try u32()) {
                     let module = try name(), field = try name()
-                    let kind = Int(b[p]); p += 1
+                    let kind = try byte()
                     switch kind {
                     case 0: _ = try u32()
                     case 1: p += 1; _ = try limits()
@@ -110,7 +115,7 @@ public struct WasmInfo: Sendable, Equatable {
             case 7:
                 for _ in 0..<(try u32()) {
                     let field = try name()
-                    let kind = Int(b[p]); p += 1
+                    let kind = try byte()
                     _ = try u32()
                     exports.append(Entry(module: "", name: field, kind: Self.kinds[kind] ?? "?"))
                 }

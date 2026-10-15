@@ -444,7 +444,7 @@ private struct StageInspector: View {
     private func slider(_ label: String, _ value: Double, _ range: ClosedRange<Double>, set: @escaping (Double) -> Void) -> some View {
         HStack {
             Text(label).frame(width: 70, alignment: .leading).lineLimit(1)
-            Slider(value: Binding(get: { value }, set: set), in: range)
+            Slider(value: Binding(get: { value }, set: { set($0) }), in: range)
             Text(String(format: "%.2f", value)).font(.system(.caption2, design: .monospaced)).frame(width: 40)
         }
     }

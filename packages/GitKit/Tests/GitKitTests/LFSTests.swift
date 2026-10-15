@@ -20,6 +20,8 @@ struct LFSPointerTests {
         #expect(LFS.endpoint(for: "https://codeberg.org/me/app")?.absoluteString == "https://codeberg.org/me/app.git/info/lfs")
         #expect(LFS.endpoint(for: "git@gitlab.com:me/app.git")?.absoluteString == "https://gitlab.com/me/app.git/info/lfs")
         #expect(LFS.endpoint(for: "ssh://git@forgejo.example.net/me/app.git")?.absoluteString == "https://forgejo.example.net/me/app.git/info/lfs")
+        // A malformed SSH remote (nothing after the scheme) has no endpoint; it must not crash.
+        #expect(LFS.endpoint(for: "ssh://") == nil)
     }
 }
 

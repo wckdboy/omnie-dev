@@ -163,7 +163,9 @@ public enum LFS {
         if !url.contains("://"), let at = url.firstIndex(of: "@"), let colon = url[at...].firstIndex(of: ":") {
             url = "https://" + url[url.index(after: at)..<colon] + "/" + url[url.index(after: colon)...]
         } else if url.hasPrefix("ssh://") {
-            url = "https://" + url.dropFirst("ssh://".count).split(separator: "@", maxSplits: 1).last!
+            let rest = url.dropFirst("ssh://".count)
+            guard let host = rest.split(separator: "@", maxSplits: 1).last, !host.isEmpty else { return nil }
+            url = "https://" + host
         }
         if !url.hasSuffix(".git") { url += ".git" }
         return URL(string: url + "/info/lfs")

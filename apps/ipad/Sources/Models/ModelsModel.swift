@@ -83,16 +83,21 @@ final class ModelsModel {
     @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var loaded: (pack: ModelPack, model: MLXTextModel)?
     @ObservationIgnored private var isLoading = false
+    @ObservationIgnored nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
     init(policy: PolicyModel) {
         self.policy = policy
         Task { await refresh() }
         let center = NotificationCenter.default
         for name in [UIApplication.didReceiveMemoryWarningNotification, UIApplication.didEnterBackgroundNotification] {
-            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.unload() }
-            }
+            })
         }
+    }
+
+    deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
     }
 
     func refresh() async {

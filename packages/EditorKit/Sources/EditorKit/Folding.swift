@@ -122,7 +122,8 @@ extension CodeEditorController {
     /// Folded blocks' header rows.
     public var foldedHeaders: [Int] {
         let starts = FoldRegions.lineStarts(textView.text)
-        return textView.foldedRanges.map { FoldRegions.row(of: $0.location, lineStarts: starts) - 1 }
+        // A fold's first hidden row is its header + 1, so a header is never below row 0.
+        return textView.foldedRanges.map { max(0, FoldRegions.row(of: $0.location, lineStarts: starts) - 1) }
     }
 
     /// Recomputes the blocks from the text, off the main thread.

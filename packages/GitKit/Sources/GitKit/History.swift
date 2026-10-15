@@ -75,6 +75,7 @@ extension Repository {
         // New commits so far: (id, info) with info as written.
         var made: [CommitInfo] = []
         for step in steps {
+            // A drop builds nothing; skip before touching the repository (its tree need not apply).
             if case .drop = step.action { continue }
             let original = try commit(step.commit)
             let onto = made.last?.id ?? base
@@ -96,7 +97,7 @@ extension Repository {
                                           author: Signature(name: previous.authorName, email: previous.authorEmail), date: previous.date)
                 made.append(try commit(id))
             case .drop:
-                break
+                break   // unreachable: dropped steps continue above; keeps the switch exhaustive
             }
         }
         guard apply else { return made }

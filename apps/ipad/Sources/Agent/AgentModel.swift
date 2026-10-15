@@ -324,7 +324,7 @@ final class AgentModel {
             goal: goal, model: model, tools: tools,
             journal: journal(for: record), config: config,
             authorize: { action, artifact in await policy.authorize(action, by: .agent, artifact: artifact) },
-            onEntry: { entry in
+            onEntry: { [weak self] entry in
                 Task { @MainActor [weak self] in
                     self?.transcript.append(entry)
                     #if DEBUG

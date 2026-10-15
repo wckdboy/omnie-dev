@@ -89,4 +89,18 @@ struct FoldingTests {
         #expect(editor.handleGutterTap(at: CGPoint(x: dots.midX, y: dots.midY)))
         #expect(editor.textView.foldedRanges.isEmpty)
     }
+
+    @Test func loadingAnotherFileDropsTheOldBlocks() async throws {
+        let editor = CodeEditorController(theme: EditorTheme(palette: .dark, density: .regular))
+        editor.textView.frame = CGRect(x: 0, y: 0, width: 600, height: 400)
+        var loaded = false
+        editor.onLoaded = { loaded = true }
+        editor.load("function f() {\n  return 1;\n}\n", language: nil)
+        for _ in 0..<200 where !loaded || editor.foldRegions.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        #expect(editor.foldRegions == [FoldRegion(header: 0, last: 1)])
+        // Loading another file must not leave the previous file's blocks in place: a fold command
+        // before the background pass finishes would otherwise fold the wrong rows.
+        editor.load("a\nb\nc\n", language: nil)
+        #expect(editor.foldRegions.isEmpty, "the old file's blocks are gone before the new ones arrive")
+    }
 }

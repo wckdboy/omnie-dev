@@ -32,4 +32,12 @@ struct BinaryTests {
         #expect(info.functions == 1 && info.memory?.min == 1 && info.memory?.max == 2)
         #expect(throws: WasmInfo.Failure(message: "Not a WebAssembly module")) { try WasmInfo(Data("hello".utf8)) }
     }
+
+    @Test func truncatedImportSectionThrowsInsteadOfTrapping() {
+        // An import section whose module and field names use every byte: the kind byte is missing.
+        // Reading it used to index past the end and crash the viewer.
+        let module: [UInt8] = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+            0x02, 0x05, 0x01, 0x01, 0x41, 0x01, 0x42]
+        #expect(throws: WasmInfo.Failure(message: "Truncated")) { try WasmInfo(Data(module)) }
+    }
 }

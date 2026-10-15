@@ -170,6 +170,7 @@ final class AppModel {
     }
 
     private let pathMonitor = NWPathMonitor()
+    @ObservationIgnored nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
     init() {
         Packages.activate()
@@ -385,12 +386,16 @@ final class AppModel {
 
         let center = NotificationCenter.default
         for name in [Notification.Name.GCKeyboardDidConnect, .GCKeyboardDidDisconnect] {
-            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
                     self?.hasHardwareKeyboard = GCKeyboard.coalesced != nil
                 }
-            }
+            })
         }
+    }
+
+    deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
     }
 
     private func registerCommands() {

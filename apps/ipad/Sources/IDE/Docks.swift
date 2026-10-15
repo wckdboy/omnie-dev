@@ -154,9 +154,9 @@ struct GroupView: View {
         }
         .hoverEffect(.highlight)
         .modifier(PanelDrag(tab: tab))
-        .dropDestination(for: String.self) { items, _ in
+        .dropDestination(for: String.self, action: { items, _ in
             drop(items, at: group.panels.firstIndex(of: tab.rawValue))
-        }
+        }, isTargeted: { _ in })
         .contextMenu { PanelMenu(tab: tab, dock: dock) }
     }
 

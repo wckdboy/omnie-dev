@@ -94,7 +94,14 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
             }
         case "error":
             let text = body["text"] as? String ?? "error"
-            if let ready { self.ready = nil; ready.resume(throwing: LanguageServiceError.notReady(text)) }
+            if let ready {
+                self.ready = nil
+                ready.resume(throwing: LanguageServiceError.notReady(text))
+            } else {
+                // The worker failed after starting: fail everyone waiting instead of hanging to timeout.
+                for (_, continuation) in pending { continuation.resume(throwing: LanguageServiceError.failed(text)) }
+                pending = [:]
+            }
         default:
             break
         }

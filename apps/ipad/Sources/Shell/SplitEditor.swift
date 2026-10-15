@@ -41,6 +41,7 @@ final class SplitEditorModel {
         if let theme = workspace?.editor.theme { editor.theme = theme }
         do {
             let text = try TextFile.load(url)
+            editor.isMarkdown = WorkspaceModel.isMarkdown(url)
             editor.load(text, language: Language(url: url))
             editor.textView.accessibilityLabel = "Second editor, \(url.lastPathComponent)"
             loadedText = text
@@ -77,6 +78,7 @@ final class SplitEditorModel {
     func refreshFromDisk() {
         guard let file, !isDirty, let text = try? TextFile.load(file), text != loadedText else { return }
         let selection = editor.selectedRange
+        editor.isMarkdown = WorkspaceModel.isMarkdown(file)
         editor.load(text, language: Language(url: file))
         loadedText = text
         editor.onLoaded = { [weak self] in

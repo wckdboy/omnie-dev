@@ -45,29 +45,33 @@ final class ModelSpike {
                         "availableAfterMB": Self.availableMB(), "mlxActiveMB": Double(Memory.activeMemory) / 1_048_576])
 
         // Warm-up: the first generation compiles GPU kernels; don't count it.
-        _ = await container.perform { model, tokenizer in
-            try? generate(promptTokens: tokenizer.encode(text: "let x = 1\n", addSpecialTokens: false),
-                          parameters: GenerateParameters(maxTokens: 8, temperature: 0), model: model, tokenizer: tokenizer) { _ in .more }
-                .tokensPerSecond
+        do {
+            let warmUp = LMInput(tokens: MLXArray(await container.encode("let x = 1\n")))
+            for await _ in try await container.generate(input: warmUp, parameters: GenerateParameters(maxTokens: 8, temperature: 0)) {}
+        } catch {
+            log("warm-up failed: \(error)")
         }
         for promptTokens in [1_000, 4_000, 8_000] {
             Memory.peakMemory = 0
-            let measured = await container.perform { model, tokenizer in
-                // A realistic code prompt, repeated to the target length.
-                let unit = "export function total(order: Order): number {\n  return order.items.reduce((sum, item) => sum + item.qty * item.price, 0);\n}\n\n"
-                var tokens: [Int] = []
-                while tokens.count < promptTokens { tokens += tokenizer.encode(text: unit, addSpecialTokens: false) }
-                tokens = Array(tokens.prefix(promptTokens))
-                let parameters = GenerateParameters(maxTokens: 128, temperature: 0)
-                let result = try? generate(promptTokens: tokens, parameters: parameters, model: model, tokenizer: tokenizer) { _ in .more }
-                return result.map { ($0.promptTime, $0.promptTokensPerSecond, $0.tokensPerSecond, Double($0.generationTokenCount)) }
+            // A realistic code prompt, repeated to the target length.
+            let unit = "export function total(order: Order): number {\n  return order.items.reduce((sum, item) => sum + item.qty * item.price, 0);\n}\n\n"
+            var tokens: [Int] = []
+            while tokens.count < promptTokens { tokens += await container.encode(unit) }
+            tokens = Array(tokens.prefix(promptTokens))
+            let parameters = GenerateParameters(maxTokens: 128, temperature: 0)
+            var info: GenerateCompletionInfo?
+            if let stream = try? await container.generate(input: LMInput(tokens: MLXArray(tokens)), parameters: parameters) {
+                for await event in stream {
+                    if case .info(let value) = event { info = value; break }
+                }
             }
-            guard let (ttft, prefill, decode, generated) = measured else {
+            guard let info else {
                 record("prompt \(promptTokens)", [:], note: "generation failed")
                 continue
             }
             record("prompt \(promptTokens) tokens",
-                   ["ttftSeconds": ttft, "prefillTokPerS": prefill, "decodeTokPerS": decode, "generatedTokens": generated,
+                   ["ttftSeconds": info.promptTime, "prefillTokPerS": info.promptTokensPerSecond,
+                    "decodeTokPerS": info.tokensPerSecond, "generatedTokens": Double(info.generationTokenCount),
                     "mlxPeakMB": Double(Memory.peakMemory) / 1_048_576, "footprintMB": Self.footprintMB(),
                     "availableMB": Self.availableMB()])
         }

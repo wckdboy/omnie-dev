@@ -181,7 +181,7 @@ struct OmnieDevApp: App {
                     // (PullRequestUITests opens a pull request from it).
                     if let i = args.firstIndex(of: "-OmniePRFixture"), args.indices.contains(i + 1),
                        let folder = await model.workspace.git.clone(args[i + 1]),
-                       let repo = try? await Repository.open(at: folder) {
+                       let repo = try? Repository.open(at: folder) {
                         let me = Signature(name: "Pad", email: "pad@example.com")
                         _ = try? await repo.createBranch("feature")
                         try? await repo.switchBranch(to: "feature")
@@ -326,7 +326,7 @@ struct OmnieDevApp: App {
                             let files = FileManager.default.enumerator(atPath: folder.path(percentEncoded: false))?
                                 .compactMap { $0 as? String }.filter { !$0.hasPrefix(".git/") && $0 != ".git" }.count ?? 0
                             let head = (try? await Repository.open(at: folder).log(limit: 1).first?.summary) ?? "?"
-                            print("[clone] \(args[i + 1]) → \(folder.lastPathComponent): \(files) entries, HEAD \"\(head ?? "")\", \(ms) ms")
+                            print("[clone] \(args[i + 1]) → \(folder.lastPathComponent): \(files) entries, HEAD \"\(head)\", \(ms) ms")
                             if let pointers = try? await Repository.open(at: folder).lfsPointers(), !pointers.isEmpty {
                                 let stillPointers = pointers.keys.filter { (try? Data(contentsOf: folder.appending(path: $0))).flatMap(LFS.Pointer.parse) != nil }
                                 print("[clone] LFS: \(pointers.count) files, \(stillPointers.count) still pointers; \(model.workspace.git.syncMessage ?? model.workspace.git.error ?? "")")

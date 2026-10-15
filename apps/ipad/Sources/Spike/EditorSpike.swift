@@ -436,7 +436,7 @@ final class EditorSpike {
             self.link = link
         }
 
-        @objc func tick(_ link: CADisplayLink) {
+        @MainActor @objc func tick(_ link: CADisplayLink) {
             let now = link.timestamp
             if start == 0 { start = now; last = now; lastHeight = scroll.contentSize.height; return }
             let expected = link.targetTimestamp - link.timestamp

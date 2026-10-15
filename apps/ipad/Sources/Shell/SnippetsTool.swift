@@ -61,10 +61,10 @@ struct SnippetsTool: View {
         .task(id: query) {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-OmnieSeedSnippets"), (try? model.snippets?.all().isEmpty) == true {
-                try? model.snippets?.save(.init(title: "Fetch JSON with a timeout", language: "typescript",
-                                                body: "const res = await fetch(url, { signal: AbortSignal.timeout(5000) });\nconst data = await res.json();",
-                                                tags: ["web", "fetch"], pinned: true))
-                try? model.snippets?.save(.init(title: "Python dataclass", language: "python", body: "@dataclass\nclass Point:\n    x: float\n    y: float", tags: ["python"]))
+                _ = try? model.snippets?.save(.init(title: "Fetch JSON with a timeout", language: "typescript",
+                                                    body: "const res = await fetch(url, { signal: AbortSignal.timeout(5000) });\nconst data = await res.json();",
+                                                    tags: ["web", "fetch"], pinned: true))
+                _ = try? model.snippets?.save(.init(title: "Python dataclass", language: "python", body: "@dataclass\nclass Point:\n    x: float\n    y: float", tags: ["python"]))
             }
             #endif
             reload()
