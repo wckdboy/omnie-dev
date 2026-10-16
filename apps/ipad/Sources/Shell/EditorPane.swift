@@ -33,6 +33,7 @@ struct EditorPane: View {
 
             if workspace.openFile != nil {
                 Breadcrumbs(scopes: scopes)
+                if model.find.isOpen { FindBar() }
                 HStack(spacing: 0) {
                     if model.showsBlame && model.layout != .single {
                         BlameStrip(controller: workspace.editor)
@@ -64,6 +65,8 @@ struct EditorPane: View {
         .background(palette.surface.editor.color)
         .onChange(of: palette, initial: true) { workspace.applyEditorTheme(palette: palette, density: density) }
         .onChange(of: density) { workspace.applyEditorTheme(palette: palette, density: density) }
+        // Find follows the open file.
+        .onChange(of: workspace.openFile) { model.find.fileChanged() }
         // Blame for the open file: on open, on save, and when it's turned on.
         .task(id: "\(model.showsBlame) \(workspace.relativePath ?? "") \(workspace.changeCount)") {
             guard model.showsBlame, let path = workspace.relativePath, let repo = workspace.git.repo else { return }

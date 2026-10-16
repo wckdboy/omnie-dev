@@ -162,6 +162,8 @@ final class AppModel {
     let agent: AgentModel
     /// The second editor (the Editor 2 panel).
     let split = SplitEditorModel()
+    /// Find & replace in the open file (⌘F).
+    let find = FindModel()
 
     var density: Density {
         if let densityOverride { return densityOverride }
@@ -190,7 +192,10 @@ final class AppModel {
             self?.language.reset()
             self?.restoreLayout(for: root)
         }
-        workspace.onEdited = { [weak self] in self?.language.edited() }
+        workspace.onEdited = { [weak self] in
+            self?.language.edited()
+            self?.find.textChanged()
+        }
         workspace.onProjectClosed = { [weak self] in self?.language.reset() }
         workspace.suppressesGhostText = { [weak self] in self?.language.completions != nil }
         workspace.completionModel = { [models] in
@@ -198,6 +203,7 @@ final class AppModel {
             return await models.tinyModel()
         }
         split.workspace = workspace
+        find.workspace = workspace
         registerCommands()
         #if DEBUG
         // `-OmnieLayout terminalBelow` starts from a preset (screenshots, UI tests), before any
@@ -231,6 +237,10 @@ final class AppModel {
             EditorKeyCommand(input: " ", modifiers: .control, id: "editor.suggest"),
             EditorKeyCommand(input: UIKeyCommand.f12, modifiers: [], id: "editor.goToDefinition"),
             EditorKeyCommand(input: UIKeyCommand.f12, modifiers: .shift, id: "editor.findReferences"),
+            // ⌘F/⌘G don't reach the menu while the editor has focus.
+            EditorKeyCommand(input: "f", modifiers: .command, id: "editor.find"),
+            EditorKeyCommand(input: "g", modifiers: .command, id: "editor.findNext"),
+            EditorKeyCommand(input: "g", modifiers: [.command, .shift], id: "editor.findPrevious"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -246,18 +256,21 @@ final class AppModel {
         // A completion list takes ↑ ↓ ⏎ ⇥ ⎋ while it shows.
         workspace.editor.dynamicKeyCommands = { [weak self] in
             guard let self else { return [] }
-            if self.language.completions == nil {
-                // Esc: back to one cursor.
-                return self.workspace.hasExtraCarets
-                    ? [EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "carets.clear")] : []
+            if self.language.completions != nil {
+                return [
+                    EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: [], id: "completion.previous"),
+                    EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: [], id: "completion.next"),
+                    EditorKeyCommand(input: "\r", modifiers: [], id: "completion.accept"),
+                    EditorKeyCommand(input: "\t", modifiers: [], id: "completion.accept"),
+                    EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "completion.dismiss"),
+                ]
             }
-            return [
-                EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: [], id: "completion.previous"),
-                EditorKeyCommand(input: UIKeyCommand.inputDownArrow, modifiers: [], id: "completion.next"),
-                EditorKeyCommand(input: "\r", modifiers: [], id: "completion.accept"),
-                EditorKeyCommand(input: "\t", modifiers: [], id: "completion.accept"),
-                EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "completion.dismiss"),
-            ]
+            // Esc closes the find bar first, then goes back to one cursor.
+            if self.find.isOpen {
+                return [EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "find.close")]
+            }
+            return self.workspace.hasExtraCarets
+                ? [EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "carets.clear")] : []
         }
         workspace.editor.onKeyCommand = { [weak self] id in
             guard let self else { return }
@@ -267,6 +280,7 @@ final class AppModel {
             case "completion.accept": language.accept()
             case "completion.dismiss": language.dismiss()
             case "carets.clear": workspace.clearExtraCarets()
+            case "find.close": find.close()
             default: registry.run(CommandID(rawValue: id))
             }
         }
@@ -449,6 +463,24 @@ final class AppModel {
                     shortcut: Shortcut("j", [.command, .control, .shift]), surfaces: .ide, keywords: ["usages", "callers", "where used"]) { [weak self] in
                 guard let self else { return }
                 Task { await self.language.findReferences() }
+            },
+            Command(id: "editor.find", title: "Find in file", menu: "Edit",
+                    shortcut: Shortcut("f"), surfaces: .ide, keywords: ["search", "replace", "find"]) { [weak self] in
+                guard let self else { return }
+                let selection = self.workspace.editor.selectedRange
+                let text = self.workspace.editor.text as NSString
+                let seed = selection.length > 0 && NSMaxRange(selection) <= text.length ? text.substring(with: selection) : nil
+                self.find.open(seed: seed)
+            },
+            Command(id: "editor.findNext", title: "Find next", menu: "Edit",
+                    shortcut: Shortcut("g"), surfaces: .ide, keywords: ["search", "find"]) { [weak self] in
+                guard let self, self.find.isOpen else { return }
+                self.find.next()
+            },
+            Command(id: "editor.findPrevious", title: "Find previous", menu: "Edit",
+                    shortcut: Shortcut("g", [.shift]), surfaces: .ide, keywords: ["search", "find"]) { [weak self] in
+                guard let self, self.find.isOpen else { return }
+                self.find.previous()
             },
             Command(id: "editor.rename", title: "Rename symbol…", menu: "Edit",
                     shortcut: Shortcut("e", [.command, .control]), surfaces: .ide, keywords: ["refactor", "f2"]) { [weak self] in

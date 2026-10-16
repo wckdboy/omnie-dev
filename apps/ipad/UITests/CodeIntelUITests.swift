@@ -43,6 +43,19 @@ final class CodeIntelUITests: XCTestCase {
         XCTAssertTrue(waitForEditor("Line 2, column 7."), "\(editor.value ?? "")")
     }
 
+    func testFindInFile() {
+        // ⌘F: "alpha" appears twice in the fixture (its declaration and its use).
+        launch(at: "main.ts:1:1", ["editor.find"])
+        let field = app.textFields["Find"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("alpha")
+        XCTAssertTrue(app.staticTexts["1 of 2"].waitForExistence(timeout: 10), "find bar didn't count matches")
+        app.buttons["Next match"].tap()
+        XCTAssertTrue(app.staticTexts["2 of 2"].waitForExistence(timeout: 10), "next didn't advance")
+        shot("find-in-file")
+    }
+
     func testEditMenuGoesToDefinition() {
         launch(at: "main.ts:1:1", [])
         // A long press on `beta` in line 3 ("function gamma() { return beta; }") selects it and

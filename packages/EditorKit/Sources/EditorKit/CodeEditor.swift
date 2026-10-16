@@ -48,7 +48,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                 var recolored = mark
                 recolored.range = liveRanges[mark.id] ?? mark.range
                 return recolored.decoration(in: theme.palette)
-            }
+            } + searchDecorations
             applyFoldChevrons()
         }
     }
@@ -164,6 +164,9 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     var marks: [EditorMark] = []
     /// Bumped by every setMarks, so a load doesn't apply marks that were replaced while it ran.
     var marksVersion = 0
+    /// Find & replace highlights ("find-…" decorations), kept apart from marks so a diagnostics
+    /// refresh doesn't clear them.
+    var searchDecorations: [Decoration] = []
 
     /// An inline suggestion drawn after the caret (PLAN.md §7 ghost text). It isn't part of the
     /// text: Tab inserts it, and any edit or caret move clears it.

@@ -113,27 +113,11 @@ struct PythonLanguageTests {
         return text.utf16.distance(from: text.startIndex, to: found)
     }
 
-    /// A Python language service with the first Pyodide load retried in a fresh sandbox: that load
-    /// sometimes stalls with no output at all (see the note on `JSRunnerTests.warmUp`), and only a
-    /// new worker gets past it.
-    private func startedService() async throws -> LanguageService {
-        var lastError: Error?
-        for _ in 0..<3 {
-            let service = try LanguageService(root: root, flavor: .python)
-            do {
-                try await service.start(timeout: JSRunnerTests.pythonTimeout)
-                return service
-            } catch {
-                service.stop()
-                lastError = error
-            }
-        }
-        throw lastError ?? LanguageServiceError.notReady("the Python service didn't start")
-    }
-
     @Test func definitionReferencesInfoRenameAndCompletions() async throws {
-        let service = try await startedService()
+        let service = try LanguageService(root: root, flavor: .python)
         defer { service.stop() }
+        // Jedi loads with Pyodide: give a cold start on a slow machine its time.
+        try await service.start(timeout: JSRunnerTests.pythonTimeout)
         let call = offset(of: "area", in: main, occurrence: 2)
         try await service.update("main.py", text: main)
         let definition = try await service.definition("main.py", offset: call)
