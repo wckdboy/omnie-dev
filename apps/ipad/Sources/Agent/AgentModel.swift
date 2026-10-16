@@ -399,10 +399,15 @@ final class AgentModel {
         rejected = [:]
     }
 
+    /// Called just before an accepted changeset is written to your branch. The app snapshots the
+    /// project first, so an apply can be undone even in a folder without git.
+    var beforeApply: (() -> Void)?
+
     /// Lands the changeset on your branch as one commit, after a secret scan.
     func accept() async {
         guard let record = current, record.phase == .review, let repo = workspace.git.repo else { return }
         guard !changes.isEmpty else { await reject(); return }
+        beforeApply?()
         let partial = rejected.values.contains(where: { !$0.isEmpty })
         let leftOut = rejected.values.reduce(0) { $0 + $1.count }
         if partial {

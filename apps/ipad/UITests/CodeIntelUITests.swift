@@ -65,6 +65,16 @@ final class CodeIntelUITests: XCTestCase {
         shot("simple-mode")
     }
 
+    func testSnapshotsSheet() {
+        app = XCUIApplication()
+        app.launchArguments = ["-OmnieUIFixture", "-OmnieOpenFile", "main.ts", "-OmnieLayout", "standard", "-OmnieNoWelcome", "-OmnieNoPanelDrag",
+                               "-OmnieRunCommand", "snapshot.take", "-OmnieRunCommand", "snapshot.browse"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Snapshots"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Restore"].waitForExistence(timeout: 10), "the snapshot we just took is listed")
+        shot("snapshots")
+    }
+
     func testEditMenuGoesToDefinition() {
         launch(at: "main.ts:1:1", [])
         // A long press on `beta` in line 3 ("function gamma() { return beta; }") selects it and

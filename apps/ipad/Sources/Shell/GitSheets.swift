@@ -212,6 +212,7 @@ extension View {
             .sheet(isPresented: $model.findOpen) { FindInProjectSheet() }
             .sheet(isPresented: $model.goToLineOpen) { GoToLineSheet() }
             .sheet(isPresented: $model.problemsOpen) { ProblemsSheet() }
+            .sheet(isPresented: $model.snapshotsOpen) { SnapshotsSheet() }
             .sheet(isPresented: Binding(get: { model.workspace.binaryFile != nil }, set: { if !$0 { model.workspace.binaryFile = nil } })) {
                 if let url = model.workspace.binaryFile { BinaryViewer(url: url).presentationSizing(.page) }
             }

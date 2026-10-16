@@ -81,6 +81,7 @@ final class AppModel {
     var findOpen = false
     var goToLineOpen = false
     var problemsOpen = false
+    var snapshotsOpen = false
     /// A command for the terminal to run (the palette's "Run task: …").
     var terminalRequest: String?
     /// A file for the diff tool's left side ("Compare open file with…").
@@ -168,6 +169,8 @@ final class AppModel {
     let split = SplitEditorModel()
     /// Find & replace in the open file (⌘F).
     let find = FindModel()
+    /// Local project snapshots (File › Snapshots).
+    let snapshots = SnapshotsModel()
 
     var density: Density {
         if let densityOverride { return densityOverride }
@@ -190,6 +193,7 @@ final class AppModel {
         agent = AgentModel(workspace: workspace, models: models, policy: policy)
         language = LanguageModel(workspace: workspace)
         agent.snippets = snippets
+        agent.beforeApply = { [weak self] in _ = self?.snapshots.take(reason: "Before agent changes") }
         agent.isOffline = { [weak self] in self?.isOffline ?? false }
         workspace.onProjectOpened = { [weak self, agent] root in
             agent.attach(root)
@@ -208,6 +212,7 @@ final class AppModel {
         }
         split.workspace = workspace
         find.workspace = workspace
+        snapshots.workspace = workspace
         registerCommands()
         #if DEBUG
         // `-OmnieLayout terminalBelow` starts from a preset (screenshots, UI tests), before any
@@ -588,6 +593,16 @@ final class AppModel {
                     surfaces: .ide, keywords: ["discard changes", "reload from disk"]) { [weak self] in
                 guard let self, self.workspace.openFile != nil else { return }
                 self.workspace.revertFile()
+            },
+            Command(id: "snapshot.take", title: "Take a snapshot", menu: "File",
+                    surfaces: .ide, keywords: ["backup", "save point", "snapshot", "restore"]) { [weak self] in
+                _ = self?.snapshots.take(reason: "Manual")
+            },
+            Command(id: "snapshot.browse", title: "Snapshots…", menu: "File",
+                    surfaces: .ide, keywords: ["backup", "restore", "history", "snapshot", "unevaporate"]) { [weak self] in
+                guard let self else { return }
+                self.snapshots.opening()
+                self.snapshotsOpen = true
             },
             Command(id: "view.wordWrap", title: "Toggle word wrap", menu: "View",
                     shortcut: Shortcut("z", [.option]), surfaces: .ide, keywords: ["wrap lines", "long lines", "soft wrap"]) { [weak self] in
