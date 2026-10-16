@@ -85,12 +85,14 @@ struct AppApprover: Approver {
 }
 
 enum Biometrics {
-    /// Face ID (or the passcode). Devices with no passcode can't authenticate anyone, so it passes there.
+    /// Face ID (or the passcode). A device with no passcode can't authenticate anyone, so a
+    /// biometric-tier action is refused there rather than waved through — otherwise a passcode-less
+    /// iPad would auto-approve pushes, deploys and secret use.
     static func confirm(_ reason: String) async -> Bool {
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            return (error as? LAError)?.code == .passcodeNotSet
+            return false
         }
         return (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)) ?? false
     }

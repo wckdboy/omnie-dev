@@ -39,6 +39,22 @@ struct SecretScannerTests {
         #expect(rules("let password = readPassword()").isEmpty)
     }
 
+    @Test func findsSecretsPastTheFirstWindow() {
+        // A minified line can hide a token well past the first few thousand characters.
+        let long = String(repeating: "x", count: 5_000) + ";gh" + "p_" + body
+        #expect(rules(long) == ["GitHub token"])
+    }
+
+    @Test func findsSecretsAcrossAWindowBoundary() {
+        // The token starts just before the first window ends, so it straddles the seam.
+        let long = String(repeating: "x", count: 3_990) + ";gh" + "p_" + body
+        #expect(rules(long) == ["GitHub token"])
+    }
+
+    @Test func aLongLineWithoutASecretFindsNothing() {
+        #expect(rules(String(repeating: "const a = 1; ", count: 800)).isEmpty)
+    }
+
     @Test func ordinaryCodeIsQuiet() {
         for line in ["import Foundation", "const skipList = ['sk-', 'ghp_']", "let task = \"ask-anything\"",
                      "url = \"https://example.com/AKIA\"", "// password must be 12+ characters"] {

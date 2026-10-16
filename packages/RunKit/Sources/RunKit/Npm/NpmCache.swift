@@ -88,6 +88,8 @@ public actor NpmCache {
     }
 
     private func download(_ name: String, range: String) async throws -> String {
+        // A name from package.json (or the terminal) must not be able to write outside the cache.
+        guard Self.isSafePackageName(name) else { throw Failure.badMetadata(name) }
         let encoded = name.replacingOccurrences(of: "/", with: "%2f")
         guard let metaURL = URL(string: registry.absoluteString + "/" + encoded) else { throw Failure.notFound(name) }
         let data: Data
@@ -156,8 +158,23 @@ public actor NpmCache {
 
     static func folder(_ root: URL, _ name: String, _ version: String) -> URL { root.appending(path: name).appending(path: version) }
 
+    /// A package name that can't leave the cache: `pkg` or `@scope/pkg`, no empty/`.`/`..` component,
+    /// no leading slash, no backslash.
+    nonisolated static func isSafePackageName(_ name: String) -> Bool {
+        guard !name.isEmpty, !name.hasPrefix("/"), !name.contains("\\") else { return false }
+        let parts = name.split(separator: "/", omittingEmptySubsequences: false)
+        return parts.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
+    }
+
+    /// A relative path inside a package that can't escape it (used for `main`/`exports` values).
+    nonisolated static func isContained(_ path: String) -> Bool {
+        guard !path.hasPrefix("/"), !path.contains("\\") else { return false }
+        return !path.split(separator: "/", omittingEmptySubsequences: false).contains { $0 == ".." }
+    }
+
     /// Cached versions of a package (complete installs only).
     public nonisolated static func versions(of name: String, in root: URL) -> [Semver] {
+        guard isSafePackageName(name) else { return [] }
         let dir = root.appending(path: name)
         let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
         return names.compactMap { v in

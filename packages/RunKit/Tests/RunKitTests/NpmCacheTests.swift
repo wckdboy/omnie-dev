@@ -6,6 +6,29 @@ import Foundation
 import Testing
 @testable import RunKit
 
+/// A package name or a package's `main` must not be able to leave the cache.
+struct NpmPathSafetyTests {
+    @Test func packageNamesCannotEscape() {
+        #expect(NpmCache.isSafePackageName("zod"))
+        #expect(NpmCache.isSafePackageName("@scope/pkg"))
+        #expect(!NpmCache.isSafePackageName("../evil"))
+        #expect(!NpmCache.isSafePackageName("a/../../b"))
+        #expect(!NpmCache.isSafePackageName("/abs"))
+        #expect(!NpmCache.isSafePackageName("a\\b"))
+        #expect(!NpmCache.isSafePackageName("."))
+        #expect(!NpmCache.isSafePackageName(""))
+    }
+
+    @Test func relativePathsCannotEscape() {
+        #expect(NpmCache.isContained("dist/index.js"))
+        #expect(NpmCache.isContained("index.js"))
+        #expect(!NpmCache.isContained("../secrets"))
+        #expect(!NpmCache.isContained("a/../../b"))
+        #expect(!NpmCache.isContained("/etc/passwd"))
+        #expect(!NpmCache.isContained("a\\b"))
+    }
+}
+
 struct SemverTests {
     func matches(_ range: String, _ version: String) -> Bool { SemverRange(range)!.contains(Semver(version)!) }
 

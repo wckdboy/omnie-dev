@@ -80,7 +80,8 @@ enum NpmModules {
     /// (or its package.json main).
     static func file(_ path: String, in folder: URL, depth: Int = 0) -> String? {
         // A folder's package.json can point back at the folder ("main": "." or "./"): never loop.
-        guard depth < 8 else { return nil }
+        // A path or `main` with `..` must not walk out of the package.
+        guard depth < 8, NpmCache.isContained(path) else { return nil }
         let fm = FileManager.default
         var isDirectory: ObjCBool = false
         func isFile(_ p: String) -> Bool { fm.fileExists(atPath: folder.appending(path: p).path, isDirectory: &isDirectory) && !isDirectory.boolValue }
@@ -91,7 +92,8 @@ enum NpmModules {
         if var main = NpmCache.packageJSON(folder.appending(path: p))?["main"] as? String {
             while main.hasPrefix("./") { main.removeFirst(2) }
             if main.hasSuffix("/") { main.removeLast() }
-            if !main.isEmpty, main != ".", let found = file(prefix + main, in: folder, depth: depth + 1) { return found }
+            if !main.isEmpty, main != ".", NpmCache.isContained(prefix + main),
+               let found = file(prefix + main, in: folder, depth: depth + 1) { return found }
         }
         for index in ["index.js", "index.mjs", "index.cjs", "index.json"] where isFile(prefix + index) { return prefix + index }
         return nil

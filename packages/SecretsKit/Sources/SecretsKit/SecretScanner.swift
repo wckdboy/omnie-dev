@@ -56,29 +56,37 @@ public struct SecretScanner: Sendable {
     ]
 
     static let allowMarker = "omnie:allow-secret"
-    /// Long lines (minified bundles) are only scanned this far.
-    static let maxLineLength = 4_000
+    /// Long lines are scanned in overlapping windows: a minified bundle can hide a secret well past
+    /// the first few thousand characters, so we don't stop there — we just bound the work per window.
+    static let windowLength = 4_000
+    static let windowOverlap = 256
 
     public init() {}
 
     public func scan(path: String, line: Int, text: String) -> [Finding] {
         guard !text.contains(Self.allowMarker) else { return [] }
-        let text = text.count > Self.maxLineLength ? String(text.prefix(Self.maxLineLength)) : text
         let ns = text as NSString
         var findings: [Finding] = []
         var covered: [NSRange] = []
-        for rule in Self.rules {
-            for match in rule.regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
-                let range = match.range(at: rule.group)
-                guard range.location != NSNotFound,
-                      !covered.contains(where: { NSIntersectionRange($0, range).length > 0 }) else { continue }
-                let value = ns.substring(with: range)
-                if !rule.certain && !Self.looksRandom(value) { continue }
-                covered.append(range)
-                findings.append(Finding(path: path, line: line, rule: rule.name,
-                                        redacted: Self.redact(value), isCertain: rule.certain))
+        var start = 0
+        repeat {
+            let length = min(Self.windowLength, ns.length - start)
+            let window = NSRange(location: start, length: length)
+            for rule in Self.rules {
+                for match in rule.regex.matches(in: text, range: window) {
+                    let range = match.range(at: rule.group)
+                    guard range.location != NSNotFound,
+                          !covered.contains(where: { NSIntersectionRange($0, range).length > 0 }) else { continue }
+                    let value = ns.substring(with: range)
+                    if !rule.certain && !Self.looksRandom(value) { continue }
+                    covered.append(range)
+                    findings.append(Finding(path: path, line: line, rule: rule.name,
+                                            redacted: Self.redact(value), isCertain: rule.certain))
+                }
             }
-        }
+            guard start + length < ns.length else { break }
+            start += Self.windowLength - Self.windowOverlap
+        } while start < ns.length
         return findings
     }
 
