@@ -83,7 +83,12 @@ async function start() {
   progress("loading Pyodide");
   py = await loadPyodide({ indexURL: base + "__omnie/pyodide/", stdout: () => {}, stderr: () => {} });
   progress("loading jedi and parso");
-  await py.loadPackage(["parso", "jedi"], { messageCallback: () => {}, errorCallback: () => {} });
+  // Load the wheels by URL from the local lock. `loadPackage(["jedi","parso"])` by name resolves
+  // through the package index, which hangs when the network is slow or absent — the local files are
+  // right here, so point at them.
+  const lock = await (await fetch(base + "__omnie/pyodide/pyodide-lock.json")).json();
+  const wheel = (name) => base + "__omnie/pyodide/" + lock.packages[name].file_name;
+  await py.loadPackage([wheel("parso"), wheel("jedi")], { messageCallback: () => {}, errorCallback: () => {} });
   progress("reading the project");
   await mirror();
   progress("starting Jedi");

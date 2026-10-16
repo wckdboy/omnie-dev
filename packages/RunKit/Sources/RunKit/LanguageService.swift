@@ -84,7 +84,7 @@ public final class LanguageService {
 
     public let root: URL
     public let flavor: Flavor
-    private let worker: SandboxWorker
+    private var worker: SandboxWorker
 
     public init(root: URL, flavor: Flavor = .typescript) throws {
         self.root = root
@@ -98,11 +98,39 @@ public final class LanguageService {
     /// Starts the sandbox (once). Python's also loads Pyodide, Jedi and the project here, within
     /// `timeout` (its first answer would wait for them anyway); TypeScript's project loads on the
     /// first request.
+    ///
+    /// The first load in a fresh sandbox occasionally stalls with no output at all — a WebKit/Pyodide
+    /// hiccup, not a slow compile (see the note on `JSRunnerTests.warmUp`). So the first attempt uses
+    /// a short probe; a stall there is retried once in a *new* sandbox, which gets past it.
     public func start(timeout: Double = 30) async throws {
+        do {
+            try await startOnce(timeout: min(timeout, Self.probeTimeout))
+        } catch let error as LanguageServiceError where Self.isStall(error) {
+            worker.stop()
+            worker = try SandboxWorker(root: root, mode: flavor.mode)
+            pythonLoaded = false
+            try await startOnce(timeout: timeout)
+        }
+    }
+
+    private func startOnce(timeout: Double) async throws {
         try await worker.start(timeout: timeout)
         if flavor == .python, !pythonLoaded {
             _ = try await worker.request("reload", [:], timeout: timeout)
             pythonLoaded = true
+        }
+    }
+
+    /// Enough for a healthy first load (about 36 s on a Mac), short enough that a stall is bounded.
+    static let probeTimeout: Double = 60
+
+    /// A timeout that says the worker never progressed (as opposed to a real error).
+    static func isStall(_ error: LanguageServiceError) -> Bool {
+        switch error {
+        case .failed(let why), .notReady(let why):
+            return why.contains("took longer than") || why.contains("didn't start in")
+        case .cantRename:
+            return false
         }
     }
 

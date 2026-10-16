@@ -32,6 +32,15 @@ struct LanguageServiceTests {
         return text.utf16.distance(from: text.startIndex, to: found)
     }
 
+    @Test func stallDetection() {
+        // A timeout with a phase note is retryable; a real error is not.
+        #expect(LanguageService.isStall(.failed("reload took longer than 60 s, last step: loading Pyodide")))
+        #expect(LanguageService.isStall(.notReady("it didn't start in 60 s")))
+        #expect(!LanguageService.isStall(.failed("SyntaxError: unexpected token")))
+        #expect(!LanguageService.isStall(.notReady("stopped")))
+        #expect(!LanguageService.isStall(.cantRename("no symbol")))
+    }
+
     @Test func definitionReferencesAndQuickInfo() async throws {
         let service = try LanguageService(root: root)
         defer { service.stop() }

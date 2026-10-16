@@ -33,7 +33,9 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
             config.websiteDataStore = .nonPersistent()
             config.setURLSchemeHandler(handler, forURLScheme: JSRunner.scheme)
             config.userContentController.add(WeakHandler(self), name: "run")
-            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 10, height: 10), configuration: config)
+            // The same size JSRunner uses: a very small (or offscreen) web view can have its timers
+            // throttled, which stalls an async load such as Pyodide's package install.
+            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 240), configuration: config)
             self.webView = webView
             var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/harness.html")!
             components.setQueryForJS([URLQueryItem(name: "mode", value: mode)])
