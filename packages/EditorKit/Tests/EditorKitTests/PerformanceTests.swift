@@ -81,4 +81,25 @@ struct PerformanceTests {
         print("[perf] 50 bracket matches: \(elapsed)")
         #expect(elapsed < .seconds(1))
     }
+
+    /// fold-all's cost is the engine hiding the ranges (layout), not ours: building all 2 000 ranges
+    /// takes well under a millisecond. Kept so a regression on either side is visible.
+    @Test func foldAllCostSplitsCleanly() async {
+        let editor = await loadedEditor(Self.largeFile())
+        let starts = FoldRegions.lineStarts(editor.text)
+        let length = (editor.text as NSString).length
+        let regions = editor.foldRegions.sorted { $0.header < $1.header }
+        var covered = -1
+        var ranges: [NSRange] = []
+        let build = ContinuousClock().measure {
+            for region in regions where region.header > covered {
+                ranges.append(FoldRegions.range(of: region, lineStarts: starts, length: length))
+                covered = region.last
+            }
+        }
+        let hide = ContinuousClock().measure { editor.textView.foldedRanges = ranges }
+        print("[perf] fold ranges build: \(build) (\(ranges.count) ranges); engine hide: \(hide)")
+        #expect(build < .milliseconds(50), "building the fold ranges must stay cheap")
+        #expect(hide < .seconds(2), "engine-side: hiding the ranges runs layout (see the engine repo)")
+    }
 }
