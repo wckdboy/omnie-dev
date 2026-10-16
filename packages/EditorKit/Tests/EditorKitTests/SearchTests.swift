@@ -27,6 +27,18 @@ struct SearchTests {
         #expect(editor.searchRanges("missing", caseSensitive: false).isEmpty)
     }
 
+    @Test func wholeWordAndRegex() async {
+        let editor = await loadedEditor("foo foobar\nfoo Foo\n")
+        #expect(editor.searchRanges("foo", caseSensitive: true).count == 3)
+        #expect(editor.searchRanges("foo", caseSensitive: true, wholeWord: true).count == 2, "not the one inside foobar")
+        #expect(editor.searchRanges("foo", caseSensitive: false).count == 4)
+
+        let words = await loadedEditor("foo fxo foobar\n")
+        #expect(words.searchRanges("f.o", caseSensitive: true, regex: true).count == 3, "regex: foo, fxo, foo")
+        #expect(words.searchRanges("\\bfoo\\b", caseSensitive: true, regex: true).count == 1, "whole-word via the pattern")
+        #expect(words.searchRanges("(", caseSensitive: true, regex: true).isEmpty, "an invalid pattern finds nothing")
+    }
+
     @Test func highlightsAndClears() async {
         let editor = await loadedEditor("one two one\n")
         editor.setSearchHighlights(editor.searchRanges("one", caseSensitive: true), current: 0)

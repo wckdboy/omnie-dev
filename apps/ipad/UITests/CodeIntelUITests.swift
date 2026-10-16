@@ -53,6 +53,12 @@ final class CodeIntelUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1 of 2"].waitForExistence(timeout: 10), "find bar didn't count matches")
         app.buttons["Next match"].tap()
         XCTAssertTrue(app.staticTexts["2 of 2"].waitForExistence(timeout: 10), "next didn't advance")
+        // The whole-word and regex toggles keep the same two whole-word matches (the index may stay).
+        let twoMatches = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'of 2'")).firstMatch
+        app.buttons["Whole word"].tap()
+        XCTAssertTrue(twoMatches.waitForExistence(timeout: 5), "whole word changed the count")
+        app.buttons["Regular expression"].tap()
+        XCTAssertTrue(twoMatches.waitForExistence(timeout: 5), "regex changed the count")
         shot("find-in-file")
     }
 

@@ -14,6 +14,8 @@ final class FindModel {
     var query = ""
     var replacement = ""
     var caseSensitive = false
+    var wholeWord = false
+    var regex = false
     var showsReplace = false
     private(set) var matches: [NSRange] = []
     private(set) var index = 0
@@ -97,7 +99,7 @@ final class FindModel {
 
     private func refresh(startingAtCaret: Bool, preferredLocation: Int? = nil) {
         guard let editor = workspace?.editor else { return }
-        matches = editor.searchRanges(query, caseSensitive: caseSensitive)
+        matches = editor.searchRanges(query, caseSensitive: caseSensitive, wholeWord: wholeWord, regex: regex)
         truncated = matches.count >= Self.limit
         guard !matches.isEmpty else {
             index = 0
@@ -140,9 +142,9 @@ struct FindBar: View {
                     .frame(minWidth: 56, alignment: .leading)
                 iconButton("chevron.up", "Previous match") { find.previous() }
                 iconButton("chevron.down", "Next match") { find.next() }
-                Toggle("Aa", isOn: Binding(get: { find.caseSensitive }, set: { find.caseSensitive = $0; find.queryChanged() }))
-                    .toggleStyle(.button).font(.caption)
-                    .help("Match case")
+                toggle("Aa", "Match case", isOn: find.caseSensitive) { find.caseSensitive.toggle(); find.queryChanged() }
+                toggle("W", "Whole word", isOn: find.wholeWord) { find.wholeWord.toggle(); find.queryChanged() }
+                toggle(".*", "Regular expression", isOn: find.regex) { find.regex.toggle(); find.queryChanged() }
                 iconButton(find.showsReplace ? "chevron.down" : "chevron.right", "Show replace") { find.showsReplace.toggle() }
                 iconButton("xmark", "Close find") { find.close() }
             }
@@ -187,5 +189,21 @@ struct FindBar: View {
             .buttonStyle(.plain)
             .foregroundStyle(palette.text.secondary.color)
             .accessibilityLabel(label)
+    }
+
+    /// A small on/off button (match case, whole word, regex), visibly highlighted when on.
+    private func toggle(_ title: String, _ label: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(isOn ? .semibold : .regular))
+                .frame(width: 24, height: 22)
+                .background(isOn ? palette.accent.ion.color.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 5))
+                .foregroundStyle(isOn ? palette.accent.ion.color : palette.text.secondary.color)
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(label)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
