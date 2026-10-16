@@ -114,16 +114,22 @@ public actor NpmCache {
         let files = try Tarball.files(try Tarball.gunzip(tarball))
         let target = Self.folder(root, name, chosen)
         let staging = target.deletingLastPathComponent().appending(path: ".\(chosen).partial-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-        for file in files {
-            let url = staging.appending(path: file.path)
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try file.data.write(to: url)
+        do {
+            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+            for file in files {
+                let url = staging.appending(path: file.path)
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try file.data.write(to: url)
+            }
+            let record = ["name": name, "version": chosen, "integrity": dist["integrity"] as? String ?? "sha1-" + (dist["shasum"] as? String ?? "")]
+            try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]).write(to: staging.appending(path: Self.marker))
+            try? FileManager.default.removeItem(at: target)
+            try FileManager.default.moveItem(at: staging, to: target)
+        } catch {
+            // A failed install must not leave a uniquely-named partial directory in the cache forever.
+            try? FileManager.default.removeItem(at: staging)
+            throw error
         }
-        let record = ["name": name, "version": chosen, "integrity": dist["integrity"] as? String ?? "sha1-" + (dist["shasum"] as? String ?? "")]
-        try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]).write(to: staging.appending(path: Self.marker))
-        try? FileManager.default.removeItem(at: target)
-        try FileManager.default.moveItem(at: staging, to: target)
         try excludeFromBackup()
         return chosen
     }

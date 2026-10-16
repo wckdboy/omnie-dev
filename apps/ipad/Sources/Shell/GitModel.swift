@@ -151,8 +151,9 @@ final class GitModel {
                 if Self.isSSH(url) {
                     return signer.map { .sshSigner(username: "git", signer: $0) }
                 }
-                // HTTPS: a per-host token from the Keychain. Read here, used for this operation only.
-                guard let host = Self.host(of: url), let token = HTTPSToken.load(host: host) else { return nil }
+                // HTTPS: a per-host token from the Keychain (read here, used for this operation only).
+                // Only over HTTPS — never send a stored token in cleartext to an http:// remote.
+                guard url.hasPrefix("https://"), let host = Self.host(of: url), let token = HTTPSToken.load(host: host) else { return nil }
                 return .token(username: token.username, token: token.token)
             },
             checkHostKey: { hosts.check($0) })

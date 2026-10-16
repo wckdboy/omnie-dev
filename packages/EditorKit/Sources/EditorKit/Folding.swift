@@ -120,10 +120,12 @@ extension CodeEditorController {
     public var foldRegions: [FoldRegion] { folding.regions }
 
     /// Folded blocks' header rows.
-    public var foldedHeaders: [Int] {
-        let starts = FoldRegions.lineStarts(textView.text)
+    public var foldedHeaders: [Int] { foldedHeaders(FoldRegions.lineStarts(textView.text)) }
+
+    /// The same, when the caller already has the line starts (saves an O(n) pass per fold command).
+    private func foldedHeaders(_ starts: [Int]) -> [Int] {
         // A fold's first hidden row is its header + 1, so a header is never below row 0.
-        return textView.foldedRanges.map { max(0, FoldRegions.row(of: $0.location, lineStarts: starts) - 1) }
+        textView.foldedRanges.map { max(0, FoldRegions.row(of: $0.location, lineStarts: starts) - 1) }
     }
 
     /// Recomputes the blocks from the text, off the main thread.
@@ -174,6 +176,10 @@ extension CodeEditorController {
         return FoldRegions.range(of: region, lineStarts: FoldRegions.lineStarts(text), length: (text as NSString).length)
     }
 
+    private func range(of region: FoldRegion, starts: [Int], length: Int) -> NSRange {
+        FoldRegions.range(of: region, lineStarts: starts, length: length)
+    }
+
     private func isFolded(_ region: FoldRegion) -> Bool {
         textView.foldedRanges.contains { $0.location == range(of: region).location }
     }
@@ -218,8 +224,11 @@ extension CodeEditorController {
         ensureRegions()
         var covered = -1
         var ranges: [NSRange] = []
+        let text = textView.text
+        let starts = FoldRegions.lineStarts(text)
+        let length = (text as NSString).length
         for region in folding.regions.sorted(by: { $0.header < $1.header }) where region.header > covered {
-            ranges.append(range(of: region))
+            ranges.append(range(of: region, starts: starts, length: length))
             covered = region.last
         }
         textView.foldedRanges = ranges
@@ -298,20 +307,20 @@ extension CodeEditorController {
     /// Chevrons in the gutter: › on folded blocks, a faint ⌄ on the open ones. Also where fold
     /// changes are reported (the app keeps them with the session).
     func applyFoldChevrons() {
-        let headers = foldedHeaders
+        let text = textView.text
+        let starts = FoldRegions.lineStarts(text)
+        let length = (text as NSString).length
+        let headers = foldedHeaders(starts)
         if headers != folding.reported {
             folding.reported = headers
             onFoldsChanged?()
         }
-        let text = textView.text
-        let starts = FoldRegions.lineStarts(text)
-        let length = (text as NSString).length
         let folded = Set(textView.foldedRanges.map(\.location))
         var seenHeaders = Set<Int>()
         folding.chevrons = folding.regions.compactMap { region -> Decoration? in
             guard region.header < starts.count, seenHeaders.insert(region.header).inserted else { return nil }
             let headerStart = starts[region.header]
-            let isFolded = folded.contains(FoldRegions.range(of: region, lineStarts: starts, length: length).location)
+            let isFolded = folded.contains(range(of: region, starts: starts, length: length).location)
             let color = isFolded ? theme.palette.accent.ion.uiColor : theme.palette.text.tertiary.uiColor.withAlphaComponent(0.55)
             return Decoration(id: "fold-\(region.header)", range: NSRange(location: headerStart, length: 0),
                               style: .gutterChevron(color, folded: isFolded),

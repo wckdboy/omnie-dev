@@ -50,7 +50,13 @@ enum Packages {
         if wanted.isEmpty { return "package.json lists no dependencies. Try npm install <name>." }
         // Already cached: no network, no question.
         // git:, file:, workspace: and URL dependencies aren't on the registry.
-        let fromRegistry = wanted.map(parse).filter { !$0.1.contains(":") && !$0.1.contains("/") }
+        let fromRegistry = wanted.map(parse).filter { name, range in
+            // A registry name is `pkg` or `@scope/pkg`, optionally with a version range. A name with a
+            // slash that isn't a scope, or any scheme in the name or range, is a path/git/URL spec.
+            if name.contains(":") || range.contains(":") || range.contains("/") { return false }
+            if name.contains("/") && !name.hasPrefix("@") { return false }
+            return true
+        }
         let missing = fromRegistry.filter { NpmCache.best($0.0, range: $0.1, in: root) == nil }
         var lines: [String] = []
         if !missing.isEmpty {

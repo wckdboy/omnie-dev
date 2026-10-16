@@ -327,6 +327,7 @@ extension Repository {
         // A file still holding its pointer looks unchanged to git (cleaning a pointer gives the
         // pointer), so checkout would skip it: take those away first, then check them out.
         let stale = pointers.keys.filter { path in
+            guard isInsideWorktree(path, workdir) else { return false }
             let url = workdir.appending(path: path)
             return (try? Data(contentsOf: url)).flatMap(LFS.Pointer.parse) != nil
                 && FileManager.default.fileExists(atPath: LFS.objectURL(pointers[path]!.oid, gitDir: gitDir).path(percentEncoded: false))
@@ -357,4 +358,12 @@ extension Repository {
         }
         try check(rc, "check out LFS files")
     }
+}
+
+/// Whether a tree path stays inside the worktree after resolving `..` (git can hold such an entry;
+/// the manual removal above must not follow it out of the project).
+private func isInsideWorktree(_ path: String, _ workdir: URL) -> Bool {
+    let base = workdir.standardizedFileURL.path
+    let target = workdir.appending(path: path).standardizedFileURL.path
+    return target.hasPrefix(base + "/")
 }

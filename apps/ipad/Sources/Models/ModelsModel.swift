@@ -24,6 +24,7 @@ struct URLSessionFetcher: ModelFetcher {
     /// Polls the task's byte count; URLSession's async download has no progress callback of its own.
     final class ProgressRelay: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         let report: @Sendable (Int64) -> Void
+        private let lock = NSLock()
         private var timer: DispatchSourceTimer?
         init(_ report: @escaping @Sendable (Int64) -> Void) { self.report = report }
 
@@ -34,10 +35,13 @@ struct URLSessionFetcher: ModelFetcher {
                 if let task { report(task.countOfBytesReceived) }
             }
             timer.resume()
-            self.timer = timer
+            lock.lock(); self.timer = timer; lock.unlock()
         }
 
-        func stop() { timer?.cancel() }
+        func stop() {
+            lock.lock(); let timer = self.timer; self.timer = nil; lock.unlock()
+            timer?.cancel()
+        }
     }
 }
 

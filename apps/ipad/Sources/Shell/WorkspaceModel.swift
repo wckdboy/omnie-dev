@@ -739,13 +739,16 @@ final class WorkspaceModel {
     func relativePath(of url: URL) -> String {
         guard let rootURL else { return url.lastPathComponent }
         let path = url.path(percentEncoded: false), base = rootURL.path(percentEncoded: false)
-        return path.hasPrefix(base) ? String(path.dropFirst(base.count)).trimmingPrefix("/").description : url.lastPathComponent
+        // Require a path boundary: root "…/app" must not match "…/app-old/x".
+        let prefix = base.hasSuffix("/") ? base : base + "/"
+        return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : url.lastPathComponent
     }
 
     var relativePath: String? {
         guard let openFile, let rootURL else { return nil }
         let path = openFile.path(percentEncoded: false)
         let base = rootURL.path(percentEncoded: false)
-        return path.hasPrefix(base) ? String(path.dropFirst(base.count)).trimmingPrefix("/").description : openFile.lastPathComponent
+        let prefix = base.hasSuffix("/") ? base : base + "/"
+        return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : openFile.lastPathComponent
     }
 }

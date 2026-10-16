@@ -204,14 +204,17 @@ final class AgentModel {
     /// Face ID the first time) and with its key.
     private func onlineModel(root: URL, purpose: String) async -> RemoteModel? {
         let config = models.online
-        if !policy.approvedProviders(for: root).contains(config.provider) {
-            guard await policy.authorize(.sendToProvider(provider: config.provider),
+        // Bind consent to the provider *and its host*: a custom Base URL edited to another host must
+        // ask again (the artifact you agreed to named the old host).
+        let consent = config.kind == .openAICompatible ? "\(config.provider) @ \(config.host)" : config.provider
+        if !policy.approvedProviders(for: root).contains(consent) {
+            guard await policy.authorize(.sendToProvider(provider: consent),
                                          artifact: "\(purpose) in \(root.lastPathComponent) will send code to \(config.provider) (\(config.model)) at \(config.host).")
             else {
                 error = "Not sent to \(config.provider)."
                 return nil
             }
-            policy.approve(config.provider, for: root)
+            policy.approve(consent, for: root)
         }
         guard let key = APIKeys.load(provider: config.provider) else {
             error = "Add an API key for \(config.provider) in Settings › Models."
@@ -452,6 +455,14 @@ final class AgentModel {
     }
 
     /// Undoes the rejected hunks in the task's worktree and commits that, so the merge carries only
+    /// Whether a path from a diff stays inside the project (a tree can carry `..` or a symlink out;
+    /// the agent's own tools check this, so this write path must too).
+    private static func isInside(_ root: URL, _ url: URL) -> Bool {
+        let base = root.resolvingSymlinksInPath().path
+        let target = url.resolvingSymlinksInPath().path
+        return target == base || target.hasPrefix(base + "/")
+    }
+
     /// what you accepted.
     private func applyHunkChoices(_ record: TaskRecord) async -> Bool {
         let root = URL(filePath: record.worktreePath)
@@ -459,6 +470,10 @@ final class AgentModel {
             let undo = file.hunks.filter { rejected[file.path]?.contains($0.index) == true }
             guard !undo.isEmpty else { continue }
             let url = root.appending(path: file.path)
+            guard Self.isInside(root, url) else {
+                self.error = "Refusing to change \(file.path): it points outside the project."
+                return false
+            }
             let current = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
             let result = FileDiff.revert(undo, in: current)
             do {

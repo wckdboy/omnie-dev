@@ -13,6 +13,7 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
     private let handler: SchemeHandler
     private var webView: WKWebView?
     private var ready: CheckedContinuation<Void, Error>?
+    private var readyTimeout: DispatchWorkItem?
     private var isReady = false
     private var pending: [Int: CheckedContinuation<Any?, Error>] = [:]
     private var nextID = 1
@@ -39,11 +40,16 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             if isReady { continuation.resume(); return }
             ready = continuation
-            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+            // Kept so `stop()` and a resolved start can cancel it: a stale timer must not resume a
+            // later start's continuation.
+            let timeoutWork = DispatchWorkItem { [weak self] in
                 guard let self, let ready = self.ready else { return }
                 self.ready = nil
+                self.readyTimeout = nil
                 ready.resume(throwing: LanguageServiceError.notReady("it didn't start in \(Int(timeout)) s"))
             }
+            readyTimeout = timeoutWork
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: timeoutWork)
         }
     }
 
@@ -52,6 +58,12 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "run")
         webView = nil
         isReady = false
+        readyTimeout?.cancel()
+        readyTimeout = nil
+        if let ready {
+            self.ready = nil
+            ready.resume(throwing: LanguageServiceError.notReady("stopped"))
+        }
         for (_, continuation) in pending { continuation.resume(throwing: LanguageServiceError.notReady("stopped")) }
         pending = [:]
     }
@@ -83,6 +95,8 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
         switch type {
         case "ready":
             isReady = true
+            readyTimeout?.cancel()
+            readyTimeout = nil
             ready?.resume()
             ready = nil
         case "reply":
@@ -96,6 +110,8 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
             let text = body["text"] as? String ?? "error"
             if let ready {
                 self.ready = nil
+                readyTimeout?.cancel()
+                readyTimeout = nil
                 ready.resume(throwing: LanguageServiceError.notReady(text))
             } else {
                 // The worker failed after starting: fail everyone waiting instead of hanging to timeout.

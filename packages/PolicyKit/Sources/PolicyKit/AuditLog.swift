@@ -52,7 +52,9 @@ public actor AuditLog {
 
     public init(url: URL) {
         self.url = url
-        if let last = Self.readEntries(url).last.flatMap({ $0 }) {
+        // The last entry that parses: a truncated final line must not reset the chain (the next
+        // append would write a second `seq: 1`).
+        if let last = Self.readEntries(url).compactMap({ $0 }).last {
             lastSeq = last.seq
             lastHash = last.hash
         }

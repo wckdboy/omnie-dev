@@ -118,10 +118,12 @@ public struct HTTPResult: Sendable, Equatable {
 public enum HTTPClientError: Error, Equatable, LocalizedError {
     case badURL(String)
     case missingSecret(String)
+    case secretInURL
     public var errorDescription: String? {
         switch self {
         case .badURL(let u): "Not a URL: \(u)"
         case .missingSecret(let name): "The secret \"\(name)\" isn't set. Add it in the HTTP tool's Secrets."
+        case .secretInURL: "A secret can't go in the URL: it would be sent as a query string and land in logs. Put it in a header instead."
         }
     }
 }
@@ -137,7 +139,10 @@ public enum HTTPClient {
             }
             return out
         }
-        guard let url = URL(string: try fill(spec.url)), url.scheme == "http" || url.scheme == "https" else {
+        // Secrets are substituted into headers and the body only. A `{{secret}}` in the URL would be
+        // sent as a query string (and logged), so refuse it — the URL is also untrusted project text.
+        guard !spec.url.contains(/\{\{\s*secret\b/) else { throw HTTPClientError.secretInURL }
+        guard let url = URL(string: spec.url), url.scheme == "http" || url.scheme == "https" else {
             throw HTTPClientError.badURL(spec.url)
         }
         var request = URLRequest(url: url)

@@ -75,6 +75,7 @@ public enum ForgeError: Error, Equatable, LocalizedError {
     case rejected(String)
     case http(status: Int, message: String)
     case badResponse(String)
+    case insecure(String)
 
     public var errorDescription: String? {
         switch self {
@@ -84,6 +85,7 @@ public enum ForgeError: Error, Equatable, LocalizedError {
         case .rejected(let message): message
         case .http(let status, let message): "The forge answered \(status)\(message.isEmpty ? "" : ": \(message)")."
         case .badResponse(let what): "The forge's answer wasn't what was expected (\(what))."
+        case .insecure(let url): "Not sending the token to \(url) over http; use https."
         }
     }
 }
@@ -131,6 +133,8 @@ struct ForgeClient: Sendable {
         components.percentEncodedPath = repo.api.path(percentEncoded: true) + "/" + path
         if !query.isEmpty { components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) } }
         guard let url = components.url else { throw ForgeError.badResponse("URL for \(path)") }
+        // Never send the token over plain http: a LAN forge can still be used unauthenticated.
+        if url.scheme?.lowercased() != "https", !token.isEmpty { throw ForgeError.insecure(url.host() ?? url.absoluteString) }
         var request = URLRequest(url: url, timeoutInterval: 30)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")

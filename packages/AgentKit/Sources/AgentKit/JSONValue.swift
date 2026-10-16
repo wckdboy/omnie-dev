@@ -32,7 +32,8 @@ public enum JSONValue: Codable, Sendable, Hashable {
     public var string: String? {
         switch self {
         case .string(let s): s
-        case .number(let n): n == n.rounded() ? String(Int(n)) : String(n)
+        // `Int(exactly:)` never traps on a model-supplied number outside Int's range.
+        case .number(let n): Int(exactly: n).map(String.init) ?? String(n)
         case .bool(let b): String(b)
         default: nil
         }
@@ -40,7 +41,7 @@ public enum JSONValue: Codable, Sendable, Hashable {
 
     public var int: Int? {
         switch self {
-        case .number(let n): Int(n)
+        case .number(let n): Int(exactly: n)
         case .string(let s): Int(s)
         default: nil
         }

@@ -389,6 +389,17 @@ struct ToolCallParserTests {
         #expect(fencedInside.call?.name == "list")
     }
 
+    @Test func hugeNumbersDontCrashToolArguments() {
+        // A model can emit a number outside Int's range, or infinity; converting must never trap.
+        let parsed = ToolCallParser.parse("<tool_call>{\"name\": \"read\", \"arguments\": {\"path\": \"a.ts\", \"start_line\": 1e20}}</tool_call>")
+        #expect(parsed.call?.arguments["start_line"]?.int == nil)
+        #expect(parsed.call?.arguments["start_line"]?.string != nil)
+        #expect(JSONValue.number(1e20).int == nil)
+        #expect(JSONValue.number(Double.infinity).int == nil)
+        #expect(JSONValue.number(3.0).int == 3)
+        #expect(JSONValue.number(3.5).int == nil)
+    }
+
     @Test func blobSHAMatchesGit() {
         // `printf 'hello\n' | git hash-object --stdin`
         #expect(Sandbox.blobSHA(Data("hello\n".utf8)) == "ce013625030ba8dba906f756967f9e9ca394464a")
