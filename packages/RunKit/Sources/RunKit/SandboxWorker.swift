@@ -17,6 +17,8 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
     private var isReady = false
     private var pending: [Int: CheckedContinuation<Any?, Error>] = [:]
     private var nextID = 1
+    /// The last phase the worker reported ("loading Pyodide…"). A timeout says where it stalled.
+    private var lastProgress: String?
 
     init(root: URL, mode: String) throws {
         self.mode = mode
@@ -46,7 +48,7 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
                 guard let self, let ready = self.ready else { return }
                 self.ready = nil
                 self.readyTimeout = nil
-                ready.resume(throwing: LanguageServiceError.notReady("it didn't start in \(Int(timeout)) s"))
+                ready.resume(throwing: LanguageServiceError.notReady("it didn't start in \(Int(timeout)) s\(self.whereStalled)"))
             }
             readyTimeout = timeoutWork
             DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: timeoutWork)
@@ -85,7 +87,7 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
                 guard let continuation = self?.pending.removeValue(forKey: id) else { return }
-                continuation.resume(throwing: LanguageServiceError.failed("\(op) took longer than \(Int(timeout)) s"))
+                continuation.resume(throwing: LanguageServiceError.failed("\(op) took longer than \(Int(timeout)) s\(self?.whereStalled ?? "")"))
             }
         }
     }
@@ -99,6 +101,8 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
             readyTimeout = nil
             ready?.resume()
             ready = nil
+        case "progress":
+            lastProgress = body["text"] as? String
         case "reply":
             guard let id = (body["id"] as? NSNumber)?.intValue, let continuation = pending.removeValue(forKey: id) else { return }
             if let error = body["error"] as? String {
@@ -121,6 +125,11 @@ final class SandboxWorker: NSObject, WKScriptMessageHandler {
         default:
             break
         }
+    }
+
+    /// ", last step: loading Pyodide…", or "" when the worker never reported one.
+    private var whereStalled: String {
+        lastProgress.map { ", last step: \($0)" } ?? ""
     }
 }
 

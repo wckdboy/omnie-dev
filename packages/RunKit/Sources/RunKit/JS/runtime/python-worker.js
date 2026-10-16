@@ -9,12 +9,15 @@ const send = (message) => postMessage(message);
 
 self.onmessage = async (event) => {
   const { mode, entry, files } = event.data;
+  const progress = (text) => postMessage({ type: "progress", text });
   try {
+    progress("loading Pyodide");
     const py = await loadPyodide({
       indexURL: base + "__omnie/pyodide/",
       stdout: (text) => send({ type: "console", level: "log", text }),
       stderr: (text) => send({ type: "console", level: "error", text }),
     });
+    progress("reading the project files");
     const manifest = await (await fetch(base + "__omnie/manifest.json")).json();
     for (const path of manifest) {
       const data = new Uint8Array(await (await fetch(base + path.split("/").map(encodeURIComponent).join("/"))).arrayBuffer());
@@ -30,6 +33,7 @@ self.onmessage = async (event) => {
     const quiet = { messageCallback: () => {}, errorCallback: (text) => send({ type: "console", level: "error", text }) };
     if (packages.lock.length) await py.loadPackage(packages.lock, quiet);
     if (packages.wheels.length) await py.loadPackage(packages.wheels, quiet);
+    progress("running");
     py.runPython("import os, sys\nos.chdir('/project')\nsys.path[:0] = ['/project', '/omnie']");
     if (mode === "python") {
       py.globals.set("omnie_entry", entry);

@@ -79,11 +79,17 @@ def handle(request_json, code):
 `;
 
 async function start() {
+  const progress = (text) => postMessage({ type: "progress", text });
+  progress("loading Pyodide");
   py = await loadPyodide({ indexURL: base + "__omnie/pyodide/", stdout: () => {}, stderr: () => {} });
+  progress("loading jedi and parso");
   await py.loadPackage(["parso", "jedi"], { messageCallback: () => {}, errorCallback: () => {} });
+  progress("reading the project");
   await mirror();
+  progress("starting Jedi");
   py.runPython(LANG_PY);
   handle = py.globals.get("handle");
+  progress("ready");
 }
 
 /// The project's Python files (and package markers) in Pyodide's file system, for imports.
