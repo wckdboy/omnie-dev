@@ -180,8 +180,9 @@ struct PythonRunnerTests {
 
     @Test func reportsExceptionsAndStopsLoops() async throws {
         try await warmUp()
-        let boom = await (try JSRunner(root: root)).runPython("boom.py")
-        #expect(boom.output.contains { $0.stream == .err && $0.text.contains("ValueError: bad input") })
+        // A stalled Pyodide load produces no output at all; retry it once, as the tests above do.
+        let boom = try await runRetrying { await (try JSRunner(root: root)).runPython("boom.py") }
+        #expect(boom.output.contains { $0.stream == .err && $0.text.contains("ValueError: bad input") }, "\(boom.report)")
         let loop = await (try JSRunner(root: root)).runPython("loop.py", timeout: 8)
         #expect(loop.ending == .timedOut(seconds: 8))
     }
