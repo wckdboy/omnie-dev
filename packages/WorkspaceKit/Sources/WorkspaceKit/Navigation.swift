@@ -107,4 +107,52 @@ public enum ProjectSearch {
         }
         return hits
     }
+
+    public struct Replacement: Sendable, Hashable {
+        /// Files written.
+        public let files: Int
+        /// Occurrences replaced.
+        public let count: Int
+        /// Files that couldn't be written (permissions, a provider that's gone).
+        public let skipped: [String]
+    }
+
+    /// Replaces every occurrence of `query` in the project, writing only files that changed. Callers
+    /// should snapshot first: this edits files in place, outside git.
+    public static func replace(_ query: String, with replacement: String, in root: URL,
+                               caseSensitive: Bool = false) -> Replacement {
+        guard !query.isEmpty else { return Replacement(files: 0, count: 0, skipped: []) }
+        let base = root.standardizedFileURL.resolvingSymlinksInPath()
+        let options: String.CompareOptions = caseSensitive ? [] : .caseInsensitive
+        var changed = 0, total = 0
+        var skipped: [String] = []
+        for path in files(in: base) {
+            let url = base.appending(path: path)
+            guard let data = try? Data(contentsOf: url), data.count < 4_000_000, !data.prefix(8192).contains(0) else { continue }
+            let text = String(decoding: data, as: UTF8.self)
+            let ns = text as NSString
+            var ranges: [NSRange] = []
+            var searchRange = NSRange(location: 0, length: ns.length)
+            while true {
+                let found = ns.range(of: query, options: options, range: searchRange)
+                guard found.location != NSNotFound else { break }
+                ranges.append(found)
+                searchRange = NSRange(location: NSMaxRange(found), length: ns.length - NSMaxRange(found))
+            }
+            guard !ranges.isEmpty else { continue }
+            let mutable = NSMutableString(string: text)
+            for range in ranges.reversed() { mutable.replaceCharacters(in: range, with: replacement) }
+            let updated = mutable as String
+            do {
+                try FileOperations.coordinate(writing: url, options: .forReplacing) { target in
+                    try Data(updated.utf8).write(to: target, options: .atomic)
+                }
+                changed += 1
+                total += ranges.count
+            } catch {
+                skipped.append(path)
+            }
+        }
+        return Replacement(files: changed, count: total, skipped: skipped)
+    }
 }

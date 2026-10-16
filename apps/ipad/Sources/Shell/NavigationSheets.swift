@@ -62,6 +62,10 @@ struct FindInProjectSheet: View {
     @State private var caseSensitive = false
     @State private var hits: [ProjectSearch.Hit] = []
     @State private var searching = false
+    @State private var replacement = ""
+    @State private var showingReplace = false
+    @State private var confirmingReplace = false
+    @State private var status: String?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -103,7 +107,40 @@ struct FindInProjectSheet: View {
                 ToolbarItem(placement: .primaryAction) {
                     Toggle(isOn: $caseSensitive) { Text("Aa") }.toggleStyle(.button).accessibilityLabel("Match case")
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showingReplace.toggle() } label: {
+                        Image(systemName: showingReplace ? "rectangle.and.pencil.and.ellipsis" : "arrow.2.squarepath")
+                    }
+                    .accessibilityLabel("Replace")
+                }
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if showingReplace {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Replace with", text: $replacement)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    HStack(spacing: 12) {
+                        Button("Replace All") { confirmingReplace = true }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(hits.isEmpty)
+                        if let status {
+                            Text(status).font(.footnote).foregroundStyle(palette.text.secondary.color)
+                        }
+                    }
+                }
+                .padding(12)
+                .background(palette.surface.raised.color)
+            }
+        }
+        .confirmationDialog("Replace \(hits.count)\(hits.count >= 1_000 ? "+" : "") \(hits.count == 1 ? "match" : "matches") in \(paths.count) \(paths.count == 1 ? "file" : "files")?",
+                            isPresented: $confirmingReplace, titleVisibility: .visible) {
+            Button("Replace All", role: .destructive) { Task { await replaceAll() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("A snapshot is taken first, so this can be undone.")
         }
         .onAppear {
             focused = true
@@ -117,10 +154,24 @@ struct FindInProjectSheet: View {
     private func search() async {
         guard let root = model.workspace.rootURL, !query.isEmpty else { hits = []; return }
         searching = true
+        status = nil
         let q = query, cs = caseSensitive
         model.workspace.saveCurrent()
         hits = await Task.detached { ProjectSearch.search(q, in: root, caseSensitive: cs) }.value
         searching = false
+    }
+
+    /// Snapshots first (so it can be undone), then replaces every match in the project.
+    private func replaceAll() async {
+        guard let root = model.workspace.rootURL, !query.isEmpty, !hits.isEmpty else { return }
+        let q = query, r = replacement, cs = caseSensitive
+        model.snapshots.take(reason: "Before replacing in project")
+        model.workspace.saveCurrent()
+        let result = await Task.detached { ProjectSearch.replace(q, with: r, in: root, caseSensitive: cs) }.value
+        model.workspace.reloadFromDisk()
+        await search()
+        status = "Replaced \(result.count) in \(result.files) \(result.files == 1 ? "file" : "files")"
+            + (result.skipped.isEmpty ? "." : "; skipped \(result.skipped.count).")
     }
 
     private func open(_ hit: ProjectSearch.Hit) {
