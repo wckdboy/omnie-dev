@@ -1,6 +1,6 @@
 # Omnie-dev
 
-A native, offline-first IDE for agent-assisted coding. On iPad it's the full IDE; on iPhone it's an agent-first vibecoding app. See [docs/PLAN.md](docs/PLAN.md).
+A native, offline-first IDE for agent-assisted coding. On iPad it's the full IDE; on iPhone it's an agent-first vibecoding app. See [docs/PLAN.md](docs/PLAN.md) for the architecture and [docs/POSITIONING.md](docs/POSITIONING.md) for the description, brand and audience.
 
 Bundle ID: `ai.wckd.omniedev` · iPadOS / iOS 26+
 
