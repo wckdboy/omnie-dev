@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import CryptoKit
 import Foundation
 import Testing
 @testable import PolicyKit
@@ -128,6 +129,20 @@ struct AuditLogTests {
 
         try original.write(to: url, atomically: true, encoding: .utf8)
         #expect(await log.verify() == .intact(entries: 4))
+    }
+
+    @Test func aKeylessLogIsReSignedWhenTheKeyArrives() async throws {
+        let keyless = AuditLog(url: url)
+        try await keyless.append(actor: .agent, action: .readProject(path: "a"), tier: .auto, outcome: .allowed, reasons: [])
+        try await keyless.append(actor: .agent, action: .readProject(path: "b"), tier: .auto, outcome: .allowed, reasons: [])
+        #expect(await keyless.verify() == .intact(entries: 2))
+
+        // Opening with a key re-signs the history instead of reporting it broken…
+        let keyed = AuditLog(url: url, key: SymmetricKey(size: .bits256))
+        #expect(await keyed.verify() == .intact(entries: 2))
+        #expect(await keyed.entries().map(\.seq) == [1, 2])
+        // …and the log now needs that key: a different one reports a break.
+        #expect(await AuditLog(url: url, key: SymmetricKey(size: .bits256)).verify() == .broken(atLine: 1))
     }
 }
 

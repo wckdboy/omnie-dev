@@ -10,7 +10,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class PolicyModel {
-    let audit = AuditLog(url: AppPaths.support.appending(path: "audit.jsonl"))
+    let audit = AuditLog(url: AppPaths.support.appending(path: "audit.jsonl"), key: AuditKey.current)
     @ObservationIgnored private var gate: Gate?
     /// The open project, whose `.omnie/policy.json` tightens agent actions.
     @ObservationIgnored var projectRoot: URL?

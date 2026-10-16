@@ -47,11 +47,18 @@ public actor AuditLog {
     public static let genesis = String(repeating: "0", count: 64)
 
     let url: URL
+    /// The HMAC key, when the app has one. With it the chain is tamper-evident even if the whole
+    /// file is replaced; without it (tests, and a first run before a key exists) it's a plain
+    /// SHA-256 hash chain.
+    private let key: SymmetricKey?
     private var lastSeq = 0
     private var lastHash = AuditLog.genesis
 
-    public init(url: URL) {
+    public init(url: URL, key: SymmetricKey? = nil) {
         self.url = url
+        self.key = key
+        // An existing keyless log is re-signed with the key once, so history survives the upgrade.
+        Self.upgradeIfNeeded(url: url, key: key)
         // The last entry that parses: a truncated final line must not reset the chain (the next
         // append would write a second `seq: 1`).
         if let last = Self.readEntries(url).compactMap({ $0 }).last {
@@ -65,7 +72,7 @@ public actor AuditLog {
                        reasons: [String], at date: Date = .now) throws -> AuditEntry {
         let unsigned = Unsigned(seq: lastSeq + 1, timeMs: Int64((date.timeIntervalSince1970 * 1000).rounded()),
                                 actor: actor, action: action, tier: tier, outcome: outcome, reasons: reasons, prev: lastHash)
-        let entry = unsigned.signed()
+        let entry = unsigned.signed(key: key)
         var line = try Self.encoder.encode(entry)
         line.append(0x0A)
         if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
@@ -97,7 +104,7 @@ public actor AuditLog {
         var count = 0
         for (i, entry) in Self.readEntries(url).enumerated() {
             guard let entry, entry.prev == prev, entry.seq == i + 1,
-                  Unsigned(entry).signed().hash == entry.hash else { return .broken(atLine: i + 1) }
+                  Unsigned(entry).signed(key: key).hash == entry.hash else { return .broken(atLine: i + 1) }
             prev = entry.hash
             count += 1
         }
@@ -134,12 +141,46 @@ public actor AuditLog {
                       outcome: e.outcome, reasons: e.reasons, prev: e.prev)
         }
 
-        func signed() -> AuditEntry {
+        func signed(key: SymmetricKey?) -> AuditEntry {
             // Encoding with sorted keys is deterministic for these value types.
-            let digest = SHA256.hash(data: (try? AuditLog.encoder.encode(self)) ?? Data())
-            let hash = digest.map { String(format: "%02x", $0) }.joined()
+            let data = (try? AuditLog.encoder.encode(self)) ?? Data()
+            let hash: String
+            if let key {
+                hash = HMAC<SHA256>.authenticationCode(for: data, using: key).map { String(format: "%02x", $0) }.joined()
+            } else {
+                hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            }
             return AuditEntry(seq: seq, timeMs: timeMs, actor: actor, action: action, tier: tier,
                               outcome: outcome, reasons: reasons, prev: prev, hash: hash)
         }
+    }
+
+    /// Whether the entries form a valid chain under `key`.
+    static func verifies(_ entries: [AuditEntry], key: SymmetricKey?) -> Bool {
+        var prev = genesis
+        for (i, entry) in entries.enumerated() {
+            guard entry.prev == prev, entry.seq == i + 1, Unsigned(entry).signed(key: key).hash == entry.hash else { return false }
+            prev = entry.hash
+        }
+        return true
+    }
+
+    /// A log written before the key existed is re-signed with it once, so upgrading to a keyed log
+    /// doesn't report the history as broken. A genuinely broken log is left alone.
+    static func upgradeIfNeeded(url: URL, key: SymmetricKey?) {
+        guard let key else { return }
+        let parsed = readEntries(url).compactMap { $0 }
+        guard !parsed.isEmpty, !verifies(parsed, key: key), verifies(parsed, key: nil) else { return }
+        var prev = genesis
+        var data = Data()
+        for (i, entry) in parsed.enumerated() {
+            let signed = Unsigned(seq: i + 1, timeMs: entry.timeMs, actor: entry.actor, action: entry.action,
+                                  tier: entry.tier, outcome: entry.outcome, reasons: entry.reasons, prev: prev).signed(key: key)
+            prev = signed.hash
+            guard let line = try? encoder.encode(signed) else { return }
+            data.append(line)
+            data.append(0x0A)
+        }
+        try? data.write(to: url, options: .atomic)
     }
 }
