@@ -94,6 +94,10 @@ final class AppModel {
     /// The docs sheet's starting query, or nil when it's closed.
     var docsQuery: String?
     var focusMode = false
+    /// Textastic-simple: a file list and the editor, without the workbench (View › Simple mode).
+    var simpleMode = UserDefaults.standard.bool(forKey: "view.simpleMode") {
+        didSet { UserDefaults.standard.set(simpleMode, forKey: "view.simpleMode") }
+    }
     /// Where the panels are (docks, groups, sizes); yours to rearrange, kept between launches.
     var panes: PaneLayout = AppModel.loadPanes() {
         didSet {
@@ -220,6 +224,8 @@ final class AppModel {
         // Fixtures and launch files set up the editor themselves; an earlier run's tabs would leak in.
         if args.contains(where: { $0.hasPrefix("-OmnieUI") || $0 == "-OmniePRFixture" || $0 == "-OmnieOpenFile" }), !args.contains("-OmnieRestoreSessions") {
             workspace.restoresSessions = false
+            // A UI test shouldn't inherit the previous run's Simple mode.
+            if !args.contains("-OmnieSimpleMode") { simpleMode = false }
         }
         #endif
         if !opensFolderAtLaunch { workspace.reopenLast() }
@@ -426,6 +432,15 @@ final class AppModel {
                     shortcut: Shortcut("f", [.command, .control]), surfaces: .ide, keywords: ["zen", "distraction", "full screen"]) { [weak self] in
                 guard let self else { return }
                 withAnimation(Motion.pane) { self.focusMode.toggle() }
+            },
+            Command(id: "view.simple", title: "Simple mode", menu: "View",
+                    shortcut: Shortcut("m", [.command, .control]), surfaces: .ide, keywords: ["textastic", "minimal", "plain", "basic", "beginner", "clean"]) { [weak self] in
+                guard let self else { return }
+                withAnimation(Motion.pane) {
+                    self.simpleMode.toggle()
+                    // Simple mode keeps one panel: the file list.
+                    if self.simpleMode { self.focusMode = false; self.show(.files) }
+                }
             },
             Command(id: "view.navigator", title: "Toggle left dock", menu: "View",
                     shortcut: Shortcut("1"), surfaces: .ide, keywords: ["sidebar", "files", "navigator"]) { [weak self] in

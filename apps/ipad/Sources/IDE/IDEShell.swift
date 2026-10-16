@@ -17,12 +17,16 @@ struct IDEShell: View {
         GeometryReader { geo in
             let layout = LayoutClass(width: geo.size.width)
             let width = Double(geo.size.width)
-            let sides = (model.focusMode || layout == .single) ? [] : model.panes.fittingSides(width: width, minEditor: Metrics.minEditorWidth)
+            let simple = model.simpleMode
+            // Simple mode (Textastic-like) keeps one panel: the file list beside the editor.
+            let sides: Set<PaneLayout.Dock> = simple
+                ? (model.panes.left.isEmpty ? [] : [.left])
+                : ((model.focusMode || layout == .single) ? [] : model.panes.fittingSides(width: width, minEditor: Metrics.minEditorWidth))
             // The bottom dock gives way before the editor does: the editor keeps at least
             // `minEditorHeight`, and a dock squeezed under 100 pt (the keyboard is up) steps aside.
             let bottomRoom = Double(geo.size.height) - Self.minEditorHeight - 40
             let bottomHeight = min(model.panes.bottomHeight, bottomRoom)
-            let showsBottom = !model.focusMode && model.panes.isVisible(.bottom) && bottomHeight >= 100
+            let showsBottom = !model.focusMode && !simple && model.panes.isVisible(.bottom) && bottomHeight >= 100
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     if sides.contains(.left) {
@@ -50,7 +54,7 @@ struct IDEShell: View {
                 }
                 .overlay {
                     // While a panel is dragged, each dock edge takes it as a new group.
-                    if model.draggingPanel != nil {
+                    if model.draggingPanel != nil && !simple {
                         ZStack {
                             HStack { DockDropZone(dock: .left); Spacer(); DockDropZone(dock: .right) }
                             VStack { Spacer(); DockDropZone(dock: .bottom).padding(.horizontal, 60) }

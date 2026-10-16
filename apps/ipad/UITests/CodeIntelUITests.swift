@@ -56,6 +56,15 @@ final class CodeIntelUITests: XCTestCase {
         shot("find-in-file")
     }
 
+    func testSimpleModeHidesWorkbenchChrome() {
+        // Textastic-like: the editor and the file list, no minimap.
+        launch(at: "main.ts:1:1", ["view.simple"])
+        XCTAssertTrue(editor.waitForExistence(timeout: 15))
+        let minimap = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Minimap'")).firstMatch
+        XCTAssertFalse(minimap.waitForExistence(timeout: 3), "Simple mode should hide the minimap")
+        shot("simple-mode")
+    }
+
     func testEditMenuGoesToDefinition() {
         launch(at: "main.ts:1:1", [])
         // A long press on `beta` in line 3 ("function gamma() { return beta; }") selects it and

@@ -32,23 +32,25 @@ struct EditorPane: View {
             }
 
             if workspace.openFile != nil {
-                Breadcrumbs(scopes: scopes)
+                if !model.simpleMode { Breadcrumbs(scopes: scopes) }
                 if model.find.isOpen { FindBar() }
                 HStack(spacing: 0) {
-                    if model.showsBlame && model.layout != .single {
+                    if model.showsBlame && model.layout != .single && !model.simpleMode {
                         BlameStrip(controller: workspace.editor)
                             .frame(width: 168)
                     }
                     CodeEditor(controller: workspace.editor)
                         .overlay(alignment: .top) {
-                            StickyScopes(scopes: Outline.enclosing(line: firstLine, in: scopes).filter { $0.startLine < firstLine && $0.endLine > firstLine })
+                            if !model.simpleMode {
+                                StickyScopes(scopes: Outline.enclosing(line: firstLine, in: scopes).filter { $0.startLine < firstLine && $0.endLine > firstLine })
+                            }
                         }
                         .overlay(alignment: .bottom) {
                             if let card = model.language.info { InfoCardView(card: card) }
                         }
                         .overlay { CompletionLayer() }
                     // The whole file at a glance, marks included; tap or drag to scroll (PLAN.md §5.1).
-                    if model.showsMinimap && model.layout != .single {
+                    if model.showsMinimap && model.layout != .single && !model.simpleMode {
                         MinimapStrip(controller: workspace.editor)
                             .frame(width: 72)
                     }
