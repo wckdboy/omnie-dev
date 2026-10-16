@@ -16,6 +16,10 @@ struct LanguageTests {
         .swift: "struct S { let x: Int }\nfunc f() async throws -> S { S(x: 1) }\n",
         .css: ".a > b { color: #fff; }\n",
         .html: "<p class=\"x\">Hi <b>there</b></p>\n",
+        .go: "package m\n\nfunc Add(a, b int) int { return a + b }\n\ntype Point struct{ X int }\n",
+        .rust: "pub struct P { x: i32 }\npub fn f(p: &P) -> i32 { p.x }\nenum E { A }\n",
+        .c: "static int add(int a, int b) { return a + b; }\nstruct P { int x; };\n",
+        .cpp: "#include <vector>\nclass P { public: int x; };\nint add(int a, int b) { return a + b; }\n",
     ]
 
     @Test("Each grammar loads in the tree-sitter runtime and parses without errors", arguments: Language.allCases)
@@ -45,6 +49,10 @@ struct LanguageTests {
         #expect(Language(fileExtension: "TS") == .typescript)
         #expect(Language(fileExtension: "tsx") == .tsx)
         #expect(Language(fileExtension: "mjs") == .javascript)
+        #expect(Language(fileExtension: "go") == .go)
+        #expect(Language(fileExtension: "rs") == .rust)
+        #expect(Language(fileExtension: "c") == .c && Language(fileExtension: "h") == .c)
+        #expect(Language(fileExtension: "cpp") == .cpp && Language(fileExtension: "hpp") == .cpp)
         #expect(Language(fileExtension: "md") == nil)
     }
 }

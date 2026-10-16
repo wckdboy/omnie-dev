@@ -41,12 +41,26 @@ GRAMMARS = {
     "html": ("tree-sitter/tree-sitter-html", "v0.23.2",
              "21fa4f2d4dcb890ef12d09f4979a0007814f67f1c7294a9b17b0108a09e45ef7",
              ["src"], {"html": ["highlights.scm"], "html.injections": ["injections.scm"]}),
+    "go": ("tree-sitter/tree-sitter-go", "v0.25.0",
+           "2dc241b97872c53195e01b86542b411a3c1a6201d9c946c78d5c60c063bba1ef",
+           ["src"], {"go": ["highlights.scm"]}),
+    "rust": ("tree-sitter/tree-sitter-rust", "v0.24.2",
+             "061e90a539a55a6aa65dceb0ad6425c50ab1a6e3e6d4ba430e2795ed4550f10e",
+             ["src"], {"rust": ["highlights.scm"]}),
+    "c": ("tree-sitter/tree-sitter-c", "v0.24.2",
+          "2eeb4db31f8fa0865e45488503d13403923bcb485a1bdb637abff8c42dd97364",
+          ["src"], {"c": ["highlights.scm"]}),
+    "cpp": ("tree-sitter/tree-sitter-cpp", "v0.23.4",
+            "7a2c55afe3028f4105f25762ea58cc16537d1f5a1dcd9cca90410b3cd5d46051",
+            ["src"], {}),
 }
 
-# TypeScript's highlights extend JavaScript's (per tree-sitter-typescript's tree-sitter.json).
+# TypeScript's highlights extend JavaScript's, and C++'s extend C's (per each grammar's
+# tree-sitter.json).
 COMPOSED = {
     "typescript": [("javascript", "highlights.scm"), ("typescript", "highlights.scm")],
     "tsx": [("javascript", "highlights.scm"), ("javascript", "highlights-jsx.scm"), ("typescript", "highlights.scm")],
+    "cpp": [("c", "highlights.scm"), ("cpp", "highlights.scm")],
 }
 
 # Files that are generated or unused and must not be compiled.

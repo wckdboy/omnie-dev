@@ -41,6 +41,17 @@ struct OutlineTests {
         #expect(names("<div id=\"app\"></div><canvas id='scene'>", .html) == ["element app @1", "element scene @1"])
     }
 
+    @Test func goRustCAndCpp() {
+        #expect(names("package m\n\nfunc Add(a, b int) int { return a + b }\n\ntype Point struct{ X int }\n", .go)
+                == ["function Add @3", "type Point @5"])
+        #expect(names("pub struct P { x: i32 }\npub fn f(p: &P) -> i32 { p.x }\nenum E { A }\n", .rust)
+                == ["class P @1", "function f @2", "enum E @3"])
+        #expect(names("static int add(int a, int b) { return a + b; }\nstruct P { int x; };\n", .c)
+                == ["function add @1", "class P @2"])
+        #expect(names("#include <vector>\nclass P { public: int x; };\nint add(int a, int b) { return a + b; }\n", .cpp)
+                == ["class P @2", "function add @3"])
+    }
+
     @Test func offsetsPointAtTheName() {
         let text = "let a = 1;\nfunction go() {}\n"
         let symbol = Outline.symbols(in: text, language: .javascript)[0]

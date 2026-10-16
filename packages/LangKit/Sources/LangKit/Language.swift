@@ -6,7 +6,7 @@ import TreeSitterGrammars
 
 /// A language Omnie-dev can highlight. Grammars are compiled into the app, so this works offline.
 public enum Language: String, CaseIterable, Sendable {
-    case javascript, typescript, tsx, json, python, swift, css, html
+    case javascript, typescript, tsx, json, python, swift, css, html, go, rust, c, cpp
 
     /// Picks a language by file extension; nil for plain text.
     public init?(fileExtension ext: String) {
@@ -19,6 +19,10 @@ public enum Language: String, CaseIterable, Sendable {
         case "swift": self = .swift
         case "css": self = .css
         case "html", "htm": self = .html
+        case "go": self = .go
+        case "rs": self = .rust
+        case "c", "h": self = .c
+        case "cpp", "cc", "cxx", "hpp", "hh", "hxx", "ipp": self = .cpp
         default: return nil
         }
     }
@@ -35,6 +39,10 @@ public enum Language: String, CaseIterable, Sendable {
         case .swift: "Swift"
         case .css: "CSS"
         case .html: "HTML"
+        case .go: "Go"
+        case .rust: "Rust"
+        case .c: "C"
+        case .cpp: "C++"
         }
     }
 
@@ -49,6 +57,10 @@ public enum Language: String, CaseIterable, Sendable {
         case .swift: tree_sitter_swift()
         case .css: tree_sitter_css()
         case .html: tree_sitter_html()
+        case .go: tree_sitter_go()
+        case .rust: tree_sitter_rust()
+        case .c: tree_sitter_c()
+        case .cpp: tree_sitter_cpp()
         }
     }
 

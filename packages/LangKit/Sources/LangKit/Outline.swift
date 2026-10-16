@@ -58,6 +58,32 @@ public enum Outline {
     static let css: [Rule] = [Rule(.selector, #"^([^\s{}@/][^{}\n]*?)[ \t]*\{"#)]
     static let html: [Rule] = [Rule(.element, #"\bid=["']([^"']+)["']"#)]
 
+    static let go: [Rule] = [
+        Rule(.function, #"^[ \t]*func[ \t]+(?:\([^)\n]*\)[ \t]*)?([A-Za-z_]\w*)"#),
+        Rule(.type, #"^[ \t]*type[ \t]+([A-Za-z_]\w*)"#),
+    ]
+
+    static let rust: [Rule] = [
+        Rule(.class, #"^[ \t]*(?:pub(?:\([^)\n]*\))?[ \t]+)?(?:struct|union)[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.interface, #"^[ \t]*(?:pub(?:\([^)\n]*\))?[ \t]+)?trait[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.enum, #"^[ \t]*(?:pub(?:\([^)\n]*\))?[ \t]+)?enum[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.type, #"^[ \t]*(?:pub(?:\([^)\n]*\))?[ \t]+)?mod[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.function, #"^[ \t]*(?:pub(?:\([^)\n]*\))?[ \t]+)?(?:async[ \t]+|unsafe[ \t]+|const[ \t]+|extern[ \t]+[^f\n]*)*fn[ \t]+([A-Za-z_]\w*)"#),
+    ]
+
+    static let c: [Rule] = [
+        Rule(.class, #"^[ \t]*(?:typedef[ \t]+)?(?:struct|union)[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.enum, #"^[ \t]*(?:typedef[ \t]+)?enum[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.function, #"^[ \t]*(?:static[ \t]+|inline[ \t]+|extern[ \t]+|const[ \t]+)*[A-Za-z_][\w \t*]*[ \t]+([A-Za-z_]\w*)[ \t]*\([^;\n]*\)[ \t]*\{"#),
+    ]
+
+    static let cpp: [Rule] = [
+        Rule(.class, #"^[ \t]*(?:template[ \t]*<[^>\n]*>[ \t]*)?(?:class|struct|union)[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.enum, #"^[ \t]*enum(?:[ \t]+class)?[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.type, #"^[ \t]*(?:inline[ \t]+)?namespace[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.function, #"^[ \t]*(?:static[ \t]+|inline[ \t]+|virtual[ \t]+|constexpr[ \t]+|extern[ \t]+|const[ \t]+)*[A-Za-z_][\w \t*&:<>]*[ \t]+([A-Za-z_]\w*)[ \t]*\([^;\n]*\)[ \t]*(?:const[ \t]*)?\{"#),
+    ]
+
     public static func symbols(in text: String, language: Language) -> [Symbol] {
         let rules: [Rule] = switch language {
         case .javascript, .typescript, .tsx: script
@@ -65,6 +91,10 @@ public enum Outline {
         case .swift: swift
         case .css: css
         case .html: html
+        case .go: go
+        case .rust: rust
+        case .c: c
+        case .cpp: cpp
         case .json: []
         }
         let ns = text as NSString
