@@ -81,6 +81,18 @@ final class CodeIntelUITests: XCTestCase {
         shot("snapshots")
     }
 
+    func testWorkspaceSymbols() {
+        // ⌘T: the fixture's `gamma`, `alpha` and `beta` are listed from main.ts.
+        launch(at: "main.ts:1:1", ["editor.workspaceSymbols"])
+        XCTAssertTrue(app.navigationBars["Go to symbol"].waitForExistence(timeout: 20))
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("gamma")
+        XCTAssertTrue(app.staticTexts["gamma"].waitForExistence(timeout: 10), "the symbol is listed")
+        shot("workspace-symbols")
+    }
+
     func testEditMenuGoesToDefinition() {
         launch(at: "main.ts:1:1", [])
         // A long press on `beta` in line 3 ("function gamma() { return beta; }") selects it and

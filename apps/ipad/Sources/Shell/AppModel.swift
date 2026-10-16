@@ -82,6 +82,7 @@ final class AppModel {
     var goToLineOpen = false
     var problemsOpen = false
     var snapshotsOpen = false
+    var workspaceSymbolOpen = false
     /// A command for the terminal to run (the palette's "Run task: …").
     var terminalRequest: String?
     /// A file for the diff tool's left side ("Compare open file with…").
@@ -501,6 +502,10 @@ final class AppModel {
                     shortcut: Shortcut("g", [.shift]), surfaces: .ide, keywords: ["search", "find"]) { [weak self] in
                 guard let self, self.find.isOpen else { return }
                 self.find.previous()
+            },
+            Command(id: "editor.workspaceSymbols", title: "Go to symbol in workspace…", menu: "Edit",
+                    shortcut: Shortcut("t"), surfaces: .ide, keywords: ["symbols", "outline", "navigate", "function", "class"]) { [weak self] in
+                self?.workspaceSymbolOpen = true
             },
             Command(id: "editor.rename", title: "Rename symbol…", menu: "Edit",
                     shortcut: Shortcut("e", [.command, .control]), surfaces: .ide, keywords: ["refactor", "f2"]) { [weak self] in
