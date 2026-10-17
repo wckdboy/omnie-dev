@@ -31,6 +31,7 @@ enum UtilityTab: String, CaseIterable, Identifiable {
     case preview = "Preview"
     case stage = "Stage"
     case tools = "Tools"
+    case tests = "Tests"
 
     var id: Self { self }
 
@@ -44,6 +45,7 @@ enum UtilityTab: String, CaseIterable, Identifiable {
         case .preview: "safari"
         case .stage: "cube"
         case .tools: "wrench.and.screwdriver"
+        case .tests: "testtube.2"
         }
     }
 }
@@ -172,6 +174,8 @@ final class AppModel {
     let find = FindModel()
     /// Local project snapshots (File › Snapshots).
     let snapshots = SnapshotsModel()
+    /// The test explorer (Tests panel).
+    let tests = TestsModel()
 
     var density: Density {
         if let densityOverride { return densityOverride }
@@ -214,6 +218,7 @@ final class AppModel {
         split.workspace = workspace
         find.workspace = workspace
         snapshots.workspace = workspace
+        tests.workspace = workspace
         registerCommands()
         #if DEBUG
         // `-OmnieLayout terminalBelow` starts from a preset (screenshots, UI tests), before any
@@ -507,6 +512,12 @@ final class AppModel {
             Command(id: "editor.workspaceSymbols", title: "Go to symbol in workspace…", menu: "Edit",
                     shortcut: Shortcut("t"), surfaces: .ide, keywords: ["symbols", "outline", "navigate", "function", "class"]) { [weak self] in
                 self?.workspaceSymbolOpen = true
+            },
+            Command(id: "test.runAll", title: "Run all tests", menu: "View",
+                    surfaces: .ide, keywords: ["test", "vitest", "pytest", "spec"]) { [weak self] in
+                guard let self else { return }
+                self.show(.tests)
+                Task { await self.tests.run() }
             },
             Command(id: "editor.rename", title: "Rename symbol…", menu: "Edit",
                     shortcut: Shortcut("e", [.command, .control]), surfaces: .ide, keywords: ["refactor", "f2"]) { [weak self] in
