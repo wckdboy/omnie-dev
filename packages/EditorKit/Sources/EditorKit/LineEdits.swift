@@ -11,6 +11,7 @@ public enum LineEdit: Sendable, Equatable {
     case copyUp, copyDown
     case delete
     case indent, outdent
+    case joinLines
     case sortAscending, sortDescending
     case trimTrailingWhitespace
 
@@ -107,6 +108,20 @@ public enum LineEdit: Sendable, Equatable {
             let shift = (belowEndsWithNewline ? belowText as NSString : (belowText + "\n") as NSString).length
             return Result(range: NSRange(location: lines.location, length: lines.length + below.length), replacement: moved,
                           selection: NSRange(location: selection.location + shift, length: selection.length))
+
+        case .joinLines:
+            // A caret or a single line joins with the line below, as VS Code does.
+            var joinRange = lines, joinRows = rows
+            if joinRows.count == 1, NSMaxRange(joinRange) < ns.length {
+                let next = ns.lineRange(for: NSRange(location: NSMaxRange(joinRange), length: 0))
+                joinRange = NSRange(location: joinRange.location, length: joinRange.length + next.length)
+                let nextText = ns.substring(with: next)
+                joinRows += (nextText.hasSuffix("\n") ? String(nextText.dropLast()) : nextText).components(separatedBy: "\n")
+            }
+            let joined = joinRows.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
+            let keptNewline = ns.substring(with: joinRange).hasSuffix("\n")
+            return Result(range: joinRange, replacement: joined + (keptNewline ? "\n" : ""),
+                          selection: NSRange(location: joinRange.location + (joined as NSString).length, length: 0))
 
         case .sortAscending, .sortDescending:
             // Reordering keeps every byte, so the selection can stay where it was.

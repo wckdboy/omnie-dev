@@ -759,6 +759,23 @@ final class WorkspaceModel {
         return end > start ? text.substring(with: NSRange(location: start, length: end - start)) : nil
     }
 
+    /// Moves the caret to the next (or previous) problem, wrapping around, opening its file when it's
+    /// not the one on screen. The order is by path then offset, so F8 walks the whole project.
+    func goToProblem(forward: Bool) {
+        let items = problems.diagnostics
+            .compactMap { d -> (path: String, start: Int, length: Int)? in
+                guard let path = d.path, let start = d.start else { return nil }
+                return (path, start, d.length ?? 0)
+            }
+            .sorted { ($0.path, $0.start) < ($1.path, $1.start) }
+        guard let root = rootURL, !items.isEmpty else { return }
+        let here = (relativePath ?? "", editor.selectedRange.location)
+        let after = items.first { ($0.path, $0.start) > here }
+        let before = items.last { ($0.path, $0.start) < here }
+        guard let target = forward ? (after ?? items.first) : (before ?? items.last) else { return }
+        open(file: root.appending(path: target.path), select: NSRange(location: target.start, length: target.length))
+    }
+
     func relativePath(of url: URL) -> String {
         guard let rootURL else { return url.lastPathComponent }
         let path = url.path(percentEncoded: false), base = rootURL.path(percentEncoded: false)

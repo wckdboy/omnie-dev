@@ -262,6 +262,10 @@ final class AppModel {
             // ⇧⌘\ and its chord for brackets don't reach the menu while the editor has focus.
             EditorKeyCommand(input: "\\", modifiers: [.command, .shift], id: "editor.goToBracket"),
             EditorKeyCommand(input: "\\", modifiers: [.command, .shift, .control], id: "editor.selectToBracket"),
+            // ⌃J joins lines, F8/⇧F8 walk the problems, all while the editor has focus.
+            EditorKeyCommand(input: "j", modifiers: .control, id: "editor.joinLines"),
+            EditorKeyCommand(input: UIKeyCommand.f8, modifiers: [], id: "editor.nextProblem"),
+            EditorKeyCommand(input: UIKeyCommand.f8, modifiers: .shift, id: "editor.previousProblem"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -643,6 +647,18 @@ final class AppModel {
             Command(id: "editor.trimTrailingWhitespace", title: "Trim trailing whitespace", menu: "Edit",
                     surfaces: .ide, keywords: ["whitespace", "clean", "trailing spaces", "trim"]) { [weak self] in
                 self?.workspace.perform(.trimTrailingWhitespace)
+            },
+            Command(id: "editor.joinLines", title: "Join lines", menu: "Edit",
+                    shortcut: Shortcut("j", [.control]), surfaces: .ide, keywords: ["merge lines", "combine", "reflow", "unwrap"]) { [weak self] in
+                self?.workspace.perform(.joinLines)
+            },
+            Command(id: "editor.nextProblem", title: "Go to next problem", menu: "View",
+                    surfaces: .ide, keywords: ["problem", "error", "warning", "diagnostic", "f8", "issues"]) { [weak self] in
+                self?.workspace.goToProblem(forward: true)
+            },
+            Command(id: "editor.previousProblem", title: "Go to previous problem", menu: "View",
+                    surfaces: .ide, keywords: ["problem", "error", "warning", "diagnostic", "f8", "issues"]) { [weak self] in
+                self?.workspace.goToProblem(forward: false)
             },
             Command(id: "editor.transformUpper", title: "Transform to uppercase", menu: "Edit",
                     surfaces: .ide, keywords: ["case", "upper", "capital"]) { [weak self] in

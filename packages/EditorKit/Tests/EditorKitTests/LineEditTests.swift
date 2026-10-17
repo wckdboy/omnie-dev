@@ -76,6 +76,19 @@ struct LineEditTests {
         #expect(partial == "z\na\nb\n")
     }
 
+    @Test func joinsLines() throws {
+        // A caret joins the line it's on with the line below.
+        let (joined, caret) = try #require(run(.joinLines, "const a = 1;\nconst b = 2;\n", NSRange(location: 4, length: 0)))
+        #expect(joined == "const a = 1; const b = 2;\n")
+        #expect(caret == NSRange(location: 25, length: 0))
+        // A leading indent on the next line is dropped.
+        let (indented, _) = try #require(run(.joinLines, "if (x) {\n  foo();\n}\n", NSRange(location: 3, length: 0)))
+        #expect(indented == "if (x) { foo();\n}\n")
+        // Selecting several lines joins them all; blank lines vanish.
+        let (block, _) = try #require(run(.joinLines, "a\n\nb\nc\n", NSRange(location: 0, length: 7)))
+        #expect(block == "a b c\n")
+    }
+
     @Test func trimsTrailingWhitespace() throws {
         let text = "let x = 1;   \n\tfoo\t \nbar\n"
         let (trimmed, _) = try #require(run(.trimTrailingWhitespace, text, NSRange(location: 0, length: (text as NSString).length)))
