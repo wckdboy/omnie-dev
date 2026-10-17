@@ -929,6 +929,12 @@ final class AppModel {
                     self.workspace.saveCurrent()
                 }
             },
+            Command(id: "file.saveAll", title: "Save all", menu: "File",
+                    shortcut: Shortcut("s", [.option, .command]), keywords: ["save everything", "write", "all files"]) { [weak self] in
+                guard let self else { return }
+                self.workspace.saveCurrent()
+                self.split.save()
+            },
             Command(id: "editor.format", title: "Format document", menu: "Edit",
                     shortcut: Shortcut("f", [.option, .shift]), surfaces: .ide, keywords: ["prettier", "beautify", "pretty print", "indent"]) { [weak self] in
                 guard let self else { return }
