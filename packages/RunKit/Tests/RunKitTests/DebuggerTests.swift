@@ -30,7 +30,6 @@ struct DebuggerTests {
                 }
                 console.log(`total ${total}`);
                 """,
-            "scripts/uses-package.ts": "import chalk from \"chalk\";\nconsole.log(chalk);\n",
         ]
         for (path, text) in files {
             let url = root.appendingPathComponent(path)
@@ -41,12 +40,12 @@ struct DebuggerTests {
 
     /// A debug run with a short timeout, retried once if the web view stalled (nothing happened at
     /// all), as the other WebKit suites do. `answer` gets the pause and how many have happened.
-    func run(_ entry: String, _ breakpoints: Set<Debugger.Breakpoint>, timeout: Double = 40,
+    func run(_ entry: String, _ breakpoints: Set<Debugger.Breakpoint>, timeout: Double = 40, project: URL? = nil,
              answer: @escaping @MainActor @Sendable (Debugger.Pause, Int) async -> Debugger.Answer) async throws -> (result: RunResult, pauses: [Debugger.Pause]) {
         var last: (RunResult, [Debugger.Pause])?
         for _ in 0..<2 {
             let box = Box<Debugger.Pause>()
-            let result = await (try JSRunner(root: root)).debug(entry, breakpoints: breakpoints, timeout: timeout) { pause in
+            let result = await (try JSRunner(root: project ?? root)).debug(entry, breakpoints: breakpoints, timeout: timeout) { pause in
                 let index = box.values.count
                 box.append(pause)
                 return await answer(pause, index)
@@ -173,9 +172,52 @@ struct DebuggerTests {
         #expect(result.ending == .finished)
     }
 
-    @Test func aPackageImportSaysSo() async throws {
-        let (result, _) = try await run("scripts/uses-package.ts", []) { _, _ in .resume }
-        #expect(result.output.contains { $0.stream == .err && $0.text.contains("npm packages") }, "\(result.report)")
+    /// A project whose entry imports a cached package: the package loads from the offline cache
+    /// (uninstrumented), and the project's own code still stops at its breakpoints.
+    @Test func debugsAProjectThatImportsAPackage() async throws {
+        let project = FileManager.default.temporaryDirectory.appendingPathComponent("dbgnpm-\(UUID().uuidString)")
+        let cache = FileManager.default.temporaryDirectory.appendingPathComponent("dbgnpm-cache-\(UUID().uuidString)")
+        for (path, text) in [
+            "package.json": #"{ "dependencies": { "tiny": "^1.0.0" } }"#,
+            "main.ts": """
+                import { shout } from "tiny";
+                const loud = shout("hi");
+                console.log(loud);
+                """,
+        ] {
+            let url = project.appending(path: path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        }
+        for (path, text) in [
+            "tiny/1.0.0/package.json": #"{ "name": "tiny", "version": "1.0.0", "exports": { ".": "./index.js" } }"#,
+            "tiny/1.0.0/index.js": "export const shout = (s) => s.toUpperCase() + \"!\";\n",
+            "tiny/1.0.0/.omnie-npm.json": #"{"integrity": "sha512-test", "name": "tiny", "version": "1.0.0"}"#,
+        ] {
+            let url = cache.appending(path: path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        }
+        NpmCache.sharedRoot = cache
+        defer { NpmCache.sharedRoot = nil }
+
+        let pauses = Box<Debugger.Pause>()
+        let result = await (try JSRunner(root: project)).debug("main.ts", breakpoints: [.init(file: "main.ts", line: 2)], timeout: 40) { pause in
+            pauses.append(pause)
+            return .resume
+        }
+        #expect(pauses.values.count == 1, "\(result.report)")
+        #expect(pauses.values.first?.file == "main.ts")
+        #expect(result.output.contains { $0.text == "HI!" }, "the package's code ran (\(result.report))")
+    }
+
+    @Test func anUnknownPackageSaysHowToGetIt() async throws {
+        let project = FileManager.default.temporaryDirectory.appendingPathComponent("dbgnpm2-\(UUID().uuidString)")
+        let url = project.appending(path: "main.ts")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try "import x from \"never-installed\";\nconsole.log(x);\n".write(to: url, atomically: true, encoding: .utf8)
+        let (result, _) = try await run("main.ts", [], project: project) { _, _ in .resume }
+        #expect(result.output.contains { $0.stream == .err && $0.text.contains("npm install") }, "\(result.report)")
     }
 }
 

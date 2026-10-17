@@ -31,6 +31,8 @@ let hit = null;                 // what the last __omnieH decided, for the snaps
 const breakpoints = new Set();  // "fileId:line"
 const breakpointsByFile = new Map();   // path -> Map<line, condition|null>, from the app
 let conditions = new Map();     // "fileId:line" -> condition expression
+let importMap = {};             // bare specifier -> cache-relative file
+let npmFiles = new Set();       // the cached packages' files
 let files = new Set();          // the project's files, for resolution
 const modules = new Map();      // path -> module record
 const ids = new Map();          // path -> fileId
@@ -152,6 +154,14 @@ function kind(path) {
   return ts.ScriptKind.TS;
 }
 
+/// TypeScript/JSX to CommonJS, without hooks (packages).
+function transpile(source, path) {
+  return ts.transpileModule(source, {
+    fileName: path,
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText;
+}
+
 /// Inserts a hook before every statement, and an enter/exit pair around every function body, on the
 /// statements' own lines so line numbers are unchanged.
 function instrument(source, path, id) {
@@ -222,10 +232,7 @@ function instrument(source, path, id) {
 
   let out = source;
   for (const { pos, text } of insertions.sort((a, b) => b.pos - a.pos)) out = out.slice(0, pos) + text + out.slice(pos);
-  return ts.transpileModule(out, {
-    fileName: path,
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText;
+  return transpile(out, path);
 }
 
 // MARK: The loader
@@ -240,6 +247,7 @@ const normal = (path) => {
   return parts.join("/");
 };
 
+/// A project-relative specifier to a project file.
 function resolve(spec, fromDir) {
   const target = spec.startsWith("/") ? normal(spec) : normal(fromDir + "/" + spec);
   const candidates = [target, `${target}.ts`, `${target}.tsx`, `${target}.js`, `${target}.mjs`, `${target}.jsx`, `${target}.json`,
@@ -256,10 +264,54 @@ function syncText(url) {
   return xhr.responseText;
 }
 
-function require(spec, fromDir) {
-  if (!spec.startsWith(".") && !spec.startsWith("/")) {
-    throw new Error(`Can't debug "${spec}": the debugger runs the project's own modules, not npm packages (run it instead of debugging).`);
+// MARK: npm packages (the offline cache)
+
+const npmModules = new Map();   // cache-relative path -> module record
+const packageOf = (spec) => (spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]);
+
+/// A bare specifier to a cached file: "react", "react/jsx-runtime", "@scope/pkg/sub".
+function resolvePackage(spec) {
+  if (importMap[spec]) return importMap[spec];
+  const name = packageOf(spec);
+  const folder = importMap[name + "/"];
+  if (!folder) return null;
+  const base = folder.replace(/\/$/, "");
+  const rest = spec.slice(name.length + 1);
+  const candidates = [rest, rest + ".js", rest + ".mjs", rest + ".cjs", rest + ".json",
+    rest + "/index.js", rest + "/index.mjs", rest + "/index.json"].map((p) => `${base}/${p}`);
+  return candidates.find((c) => npmFiles.has(c)) ?? null;
+}
+
+/// A relative import inside a package.
+function resolveInsidePackage(spec, fromDir) {
+  const target = normal(fromDir + "/" + spec);
+  const candidates = [target, target + ".js", target + ".mjs", target + ".cjs", target + ".json",
+    target + "/index.js", target + "/index.mjs", target + "/index.json"];
+  return candidates.find((c) => npmFiles.has(c)) ?? null;
+}
+
+/// Loads a cached package file. Packages aren't instrumented: they run as they are (a breakpoint in
+/// one won't stop), but the project's code around them can still be stepped through.
+function requirePackage(spec, fromDir) {
+  const path = spec.startsWith(".") || spec.startsWith("/") ? resolveInsidePackage(spec, fromDir) : resolvePackage(spec);
+  if (!path) throw new Error(`Can't find ${spec}: the debugger loads the project's files and the packages in the offline cache (run \`npm install ${packageOf(spec)}\` first).`);
+  if (npmModules.has(path)) return npmModules.get(path).exports;
+  const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+  const record = { exports: {} };
+  npmModules.set(path, record);
+  const text = syncText(base + "__omnie/npm-raw/" + path.split("/").map(encodeURIComponent).join("/"));
+  if (path.endsWith(".json")) {
+    record.exports = JSON.parse(text);
+    return record.exports;
   }
+  const code = transpile(text, path);
+  const run = new Function("exports", "require", "module", "__filename", "__dirname", code);
+  run(record.exports, (s) => requirePackage(s, dir), record, path, dir);
+  return record.exports;
+}
+
+function require(spec, fromDir) {
+  if (!spec.startsWith(".") && !spec.startsWith("/")) return requirePackage(spec, fromDir);
   const path = resolve(spec, fromDir);
   if (!path) throw new Error(`Can't find ${spec} (from ${fromDir}/) in the project.`);
   if (modules.has(path)) return modules.get(path).exports;
@@ -292,6 +344,9 @@ function require(spec, fromDir) {
 self.onmessage = async (event) => {
   const { entry, breakpoints: requested } = event.data;
   files = new Set(await (await fetch(base + "__omnie/manifest.json")).json());
+  const map = await (await fetch(base + "__omnie/importmap.json")).json();
+  for (const [name, url] of Object.entries(map)) importMap[name] = url.replace(base + "__omnie/npm/", "");
+  npmFiles = new Set(await (await fetch(base + "__omnie/npm-files.json")).json());
   for (const b of requested ?? []) {
     if (!breakpointsByFile.has(b.file)) breakpointsByFile.set(b.file, new Map());
     breakpointsByFile.get(b.file).set(b.line, b.condition ?? null);

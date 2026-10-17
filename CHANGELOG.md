@@ -8,11 +8,12 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 
 **Debugger (RunKit core, PLAN.md §5.3)**
 - RunKit's debugger runs a project's own JavaScript/TypeScript modules with a hook at the start of
-  every statement and around every function body: breakpoints (per file and line), step over / into /
-  out / continue / stop, the locals in scope at each stop, and the call stack. Stopping is
-  synchronous — the sandbox worker parks on a request the app holds open and reads the chosen action
-  back from its response, so the JavaScript stack and its locals are still live when the pause is
-  shown. A module that imports an npm package says so rather than loading it.
+  every statement and around every function body: breakpoints (per file and line, with conditions),
+  step over / into / out / continue / stop, the locals in scope at each stop, the call stack, and
+  evaluation in the paused frame (with a watch list). Stopping is synchronous — the sandbox worker
+  parks on a request the app holds open and reads the chosen action back from its response, so the
+  JavaScript stack and its locals are still live when the pause is shown. Imports of a package in the
+  offline npm cache load from there (uninstrumented: a breakpoint inside a package doesn't stop).
 - The editor draws a breakpoint as a dot in the gutter (tap the gutter, or F9), and F5 starts (or
   continues) a session on the open file. The Debug panel lists the call stack (tap a frame to open
   it) and the locals, with Continue / Step over / Step into / Step out / Stop and the console.

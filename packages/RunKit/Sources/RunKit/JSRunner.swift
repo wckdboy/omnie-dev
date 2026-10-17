@@ -352,6 +352,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if full == "__omnie/manifest.json" { area = "manifest" }
         if full == "__omnie/dirs.json" { area = "dirs" }
         if full == "__omnie/npm-types.json" { area = "npm-types" }
+        if full == "__omnie/importmap.json" { area = "importmap" }
+        if full == "__omnie/npm-files.json" { area = "npm-files" }
         if full == "__omnie/python-packages.json" { area = "python-packages" }
         if full.hasPrefix("__omnie/pypi/") { area = "pypi"; path = String(full.dropFirst("__omnie/pypi/".count)) }
         if full.hasPrefix("__omnie/npm-raw/") { area = "npm-raw"; path = String(full.dropFirst("__omnie/npm-raw/".count)) }
@@ -469,6 +471,14 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         }
         if area == "npm-types" {
             let list = NpmCache.sharedRoot.map { NpmModules.typeFiles(project: resolver.root, cache: $0) } ?? []
+            return (try JSONSerialization.data(withJSONObject: list), "application/json")
+        }
+        if area == "importmap" {
+            // The bare specifier → cached file map, for the debugger's loader.
+            return (try JSONSerialization.data(withJSONObject: npmImports), "application/json")
+        }
+        if area == "npm-files" {
+            let list = NpmCache.sharedRoot.map { NpmModules.files(project: resolver.root, cache: $0) } ?? []
             return (try JSONSerialization.data(withJSONObject: list), "application/json")
         }
         if area == "npm-raw" {

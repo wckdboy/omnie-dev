@@ -116,6 +116,24 @@ enum NpmModules {
     }
 
     /// A cached file's bytes untouched (declaration files and package.json for the type checker).
+    /// Every file in the chosen packages, cache-relative ("react/18.3.1/index.js"), for the
+    /// debugger's loader (it resolves a package's own relative imports against this).
+    static func files(project: URL, cache: URL) -> [String] {
+        var out: [String] = []
+        for pick in resolve(project: project, cache: cache) {
+            let folder = NpmCache.folder(cache, pick.name, pick.version).standardizedFileURL
+            let prefix = pick.name + "/" + pick.version + "/"
+            let enumerator = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.isRegularFileKey])
+            while let url = enumerator?.nextObject() as? URL, out.count < 20_000 {
+                guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+                let path = url.standardizedFileURL.path(percentEncoded: false)
+                guard path.hasPrefix(folder.path(percentEncoded: false) + "/") else { continue }
+                out.append(prefix + String(path.dropFirst(folder.path(percentEncoded: false).count + 1)))
+            }
+        }
+        return out.sorted()
+    }
+
     static func raw(path: String, cache: URL) -> Data? {
         let parts = path.split(separator: "/").map(String.init)
         let nameLength = parts.first?.hasPrefix("@") == true ? 2 : 1
