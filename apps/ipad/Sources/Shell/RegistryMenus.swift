@@ -51,6 +51,7 @@ extension Shortcut {
         case "\r": .return
         case "\t": .tab
         case "\u{1B}": .escape
+        case "\u{8}", "\u{7F}": .delete
         case "↑": .upArrow
         case "↓": .downArrow
         case "←": .leftArrow

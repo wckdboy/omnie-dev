@@ -76,6 +76,24 @@ struct LineEditTests {
         #expect(partial == "z\na\nb\n")
     }
 
+    @Test func deletesToLineBoundaries() throws {
+        let text = "hello world\nsecond\n"
+        // ⌘⌫ from before "world" clears back to the line's start.
+        let (left, leftCaret) = try #require(run(.deleteToLineStart, text, NSRange(location: 6, length: 0)))
+        #expect(left == "world\nsecond\n" && leftCaret == NSRange(location: 0, length: 0))
+        // ⌘⌫ at the line's start joins it with the line above.
+        let (joinLeft, _) = try #require(run(.deleteToLineStart, text, NSRange(location: 12, length: 0)))
+        #expect(joinLeft == "hello worldsecond\n")
+        // ⌘⌦ from before "world" clears forward to the line's end.
+        let (right, rightCaret) = try #require(run(.deleteToLineEnd, text, NSRange(location: 5, length: 0)))
+        #expect(right == "hello\nsecond\n" && rightCaret == NSRange(location: 5, length: 0))
+        // ⌘⌦ at the line's end joins it with the line below.
+        let (joinRight, _) = try #require(run(.deleteToLineEnd, text, NSRange(location: 11, length: 0)))
+        #expect(joinRight == "hello worldsecond\n")
+        // Nothing to do at the very end.
+        #expect(run(.deleteToLineEnd, text, NSRange(location: 19, length: 0)) == nil)
+    }
+
     @Test func insertsLinesAround() throws {
         let text = "  foo\nbar\n"
         let (below, belowCaret) = try #require(run(.insertLineBelow, text, NSRange(location: 3, length: 0)))

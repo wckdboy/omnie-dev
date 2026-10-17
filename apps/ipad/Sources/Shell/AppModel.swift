@@ -146,6 +146,14 @@ final class AppModel {
     var showsMinimap = UserDefaults.standard.object(forKey: "editor.minimap") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showsMinimap, forKey: "editor.minimap") }
     }
+    /// The folder › file › symbols strip above the code.
+    var showsBreadcrumbs = UserDefaults.standard.object(forKey: "editor.breadcrumbs") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showsBreadcrumbs, forKey: "editor.breadcrumbs") }
+    }
+    /// The enclosing scopes pinned at the top while scrolling.
+    var showsStickyScroll = UserDefaults.standard.object(forKey: "editor.stickyScroll") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showsStickyScroll, forKey: "editor.stickyScroll") }
+    }
     /// Under 700 pt the left dock slides over the editor instead.
     var leftOverlay = false
     /// The panel being dragged, while the dock edges offer themselves as drop targets.
@@ -273,6 +281,8 @@ final class AppModel {
             EditorKeyCommand(input: UIKeyCommand.inputLeftArrow, modifiers: [.control, .shift], id: "editor.shrinkSelection"),
             EditorKeyCommand(input: "-", modifiers: .control, id: "navigation.back"),
             EditorKeyCommand(input: "-", modifiers: [.control, .shift], id: "navigation.forward"),
+            EditorKeyCommand(input: "\u{8}", modifiers: .command, id: "editor.deleteToLineStart"),
+            EditorKeyCommand(input: "\u{7F}", modifiers: .command, id: "editor.deleteToLineStart"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -501,6 +511,14 @@ final class AppModel {
                     surfaces: .ide, keywords: ["overview", "scroll map"]) { [weak self] in
                 self?.showsMinimap.toggle()
             },
+            Command(id: "view.breadcrumbs", title: "Toggle breadcrumbs", menu: "View",
+                    surfaces: .ide, keywords: ["path", "symbols", "strip", "navigation"]) { [weak self] in
+                self?.showsBreadcrumbs.toggle()
+            },
+            Command(id: "view.stickyScroll", title: "Toggle sticky scroll", menu: "View",
+                    surfaces: .ide, keywords: ["pinned", "scopes", "headers", "context"]) { [weak self] in
+                self?.showsStickyScroll.toggle()
+            },
             Command(id: "view.bottom", title: "Toggle bottom dock", menu: "View",
                     shortcut: Shortcut("j"), surfaces: .ide, keywords: ["panel", "terminal"]) { [weak self] in
                 // An empty bottom dock gets the terminal, the usual thing to want there.
@@ -648,6 +666,14 @@ final class AppModel {
             Command(id: "editor.deleteLine", title: "Delete line", menu: "Edit",
                     shortcut: Shortcut("k", [.command, .shift]), surfaces: .ide, keywords: ["remove line"]) { [weak self] in
                 self?.workspace.perform(.delete)
+            },
+            Command(id: "editor.deleteToLineStart", title: "Delete all left", menu: "Edit",
+                    shortcut: Shortcut("\u{8}", [.command]), surfaces: .ide, keywords: ["delete to start of line", "backspace", "to beginning"]) { [weak self] in
+                self?.workspace.perform(.deleteToLineStart)
+            },
+            Command(id: "editor.deleteToLineEnd", title: "Delete all right", menu: "Edit",
+                    surfaces: .ide, keywords: ["delete to end of line", "forward delete", "to end"]) { [weak self] in
+                self?.workspace.perform(.deleteToLineEnd)
             },
             Command(id: "editor.indent", title: "Indent line", menu: "Edit",
                     shortcut: Shortcut("]"), surfaces: .ide, keywords: ["tab", "shift right"]) { [weak self] in

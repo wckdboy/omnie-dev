@@ -10,6 +10,7 @@ public enum LineEdit: Sendable, Equatable {
     case moveUp, moveDown
     case copyUp, copyDown
     case delete
+    case deleteToLineStart, deleteToLineEnd
     case indent, outdent
     case insertLineAbove, insertLineBelow
     case joinLines
@@ -109,6 +110,30 @@ public enum LineEdit: Sendable, Equatable {
             let shift = (belowEndsWithNewline ? belowText as NSString : (belowText + "\n") as NSString).length
             return Result(range: NSRange(location: lines.location, length: lines.length + below.length), replacement: moved,
                           selection: NSRange(location: selection.location + shift, length: selection.length))
+
+        case .deleteToLineStart:
+            // Back to the line's start; already at the start, the line break before it goes.
+            let line = ns.lineRange(for: NSRange(location: min(selection.location, ns.length), length: 0))
+            if selection.location > line.location {
+                return Result(range: NSRange(location: line.location, length: selection.location - line.location),
+                              replacement: "", selection: NSRange(location: line.location, length: 0))
+            }
+            guard line.location > 0, ns.character(at: line.location - 1) == 10 else { return nil }
+            return Result(range: NSRange(location: line.location - 1, length: 1), replacement: "",
+                          selection: NSRange(location: line.location - 1, length: 0))
+
+        case .deleteToLineEnd:
+            // Forward to the line's end; already at the end, the line break after it goes.
+            let from = NSMaxRange(selection)
+            guard from <= ns.length else { return nil }
+            let line = ns.lineRange(for: NSRange(location: min(from, ns.length), length: 0))
+            var contentEnd = NSMaxRange(line)
+            let hasNewline = contentEnd > line.location && ns.character(at: contentEnd - 1) == 10
+            if hasNewline { contentEnd -= 1 }
+            let end = from < contentEnd ? contentEnd : (hasNewline ? contentEnd + 1 : contentEnd)
+            guard end > from, end <= ns.length else { return nil }
+            return Result(range: NSRange(location: from, length: end - from), replacement: "",
+                          selection: NSRange(location: from, length: 0))
 
         case .insertLineAbove:
             // A blank line above with the line's own indentation, the caret on it.

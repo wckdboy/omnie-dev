@@ -56,6 +56,7 @@ public struct Shortcut: Sendable, Hashable, CustomStringConvertible {
         switch key {
         case "\r": s += "↩"
         case "\t": s += "⇥"
+        case "\u{8}", "\u{7F}": s += "⌫"
         case " ": s += "Space"
         default: s += key.uppercased()
         }
