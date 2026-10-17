@@ -49,13 +49,15 @@ function frames(id, line) {
   return out;
 }
 
-/// Blocks on the app: the request is held until the user chooses, and its response is the action.
-function pause(id, file, line, reason, atDepth, locals) {
+/// Blocks on the app: the request is held until the user chooses, and its response says what to do
+/// (a plain action, or an expression to evaluate in the paused frame).
+function pause(id, file, line, reason, atDepth, locals, evaluated) {
   const xhr = new XMLHttpRequest();
   xhr.open("POST", base + "__omnie/debug/pause", false);
   xhr.setRequestHeader("Content-Type", "application/json");
-  xhr.send(JSON.stringify({ file, line, reason, stack: frames(id, line), locals }));
-  return xhr.responseText || "continue";
+  xhr.send(JSON.stringify({ file, line, reason, stack: frames(id, line), locals, evaluated }));
+  const text = xhr.responseText || "";
+  try { return JSON.parse(text); } catch { return { action: text || "continue" }; }
 }
 
 function apply(action, atDepth) {
@@ -87,7 +89,17 @@ globalThis.__omnieH = function (id, line) {
   return false;
 };
 
-globalThis.__omnieSnap = function (id, line, localsThunk) {
+/// Runs an expression in the paused frame: `evalThunk` is `(e) => eval(e)` made where the statement
+/// is, so a direct eval sees the locals there.
+function evaluate(evalThunk, expression) {
+  try {
+    return { expression, result: format(evalThunk(expression)) };
+  } catch (e) {
+    return { expression, result: format(e), failed: true };
+  }
+}
+
+globalThis.__omnieSnap = function (id, line, evalThunk, localsThunk) {
   const decision = hit ?? { id, line, reason: "breakpoint", depth: depth() };
   hit = null;
   let locals = [];
@@ -95,7 +107,18 @@ globalThis.__omnieSnap = function (id, line, localsThunk) {
     const values = localsThunk();
     locals = Object.keys(values).map((name) => ({ name, value: format(values[name]) }));
   } catch (e) { /* a thunk that threw loses its locals, not the pause */ }
-  apply(pause(id, pathOf(id), line, decision.reason, decision.depth, locals), decision.depth);
+  let evaluated = null;
+  // Staying stopped to evaluate: the app asks again with the expression, and sees the result with
+  // the next stop.
+  for (;;) {
+    const answer = pause(id, pathOf(id), line, decision.reason, decision.depth, locals, evaluated);
+    if (answer.action === "eval" && typeof answer.expression === "string") {
+      evaluated = evaluate(evalThunk, answer.expression);
+      continue;
+    }
+    apply(answer.action, decision.depth);
+    return;
+  }
 };
 
 // MARK: Instrumentation
@@ -138,7 +161,7 @@ function instrument(source, path, id) {
     const body = inScope.length
       ? `{const v={};${inScope.map((n) => `try{v[${JSON.stringify(n)}]=${n}}catch(e){}`).join("")}return v}`
       : "({})";
-    insertions.push({ pos: start, text: `if(__omnieH(${id},${line}))__omnieSnap(${id},${line},()=>${body});` });
+    insertions.push({ pos: start, text: `if(__omnieH(${id},${line}))__omnieSnap(${id},${line},(e)=>eval(e),()=>${body});` });
   };
   const walk = (node) => {
     if (ts.isFunctionLike(node)) {

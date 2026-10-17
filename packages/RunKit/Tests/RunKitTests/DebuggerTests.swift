@@ -126,6 +126,38 @@ struct DebuggerTests {
         #expect(result.output.contains { $0.text == "sum 5" })
     }
 
+    @Test func evaluatesAnExpressionInThePausedFrame() async throws {
+        let pauses = Box<Debugger.Pause>()
+        let result = await (try JSRunner(root: root)).debug("scripts/debug.ts",
+                                                            breakpoints: [.init(file: "scripts/debug.ts", line: 3)]) { pause in
+            pauses.append(pause)
+            // The same stop is held open for the evaluation; its result arrives with the next one.
+            return pause.evaluated == nil ? .evaluate("a + 1") : .resume
+        }
+        try #require(pauses.values.count >= 2, "\(result.report)")
+        #expect(pauses.values[0].evaluated == nil)
+        let evaluated = try #require(pauses.values[1].evaluated)
+        #expect(evaluated.expression == "a + 1")
+        #expect(evaluated.result == "3")
+        #expect(!evaluated.failed)
+        #expect(pauses.values[1].line == 3, "it stays at the same stop")
+        #expect(pauses.values[1].locals.contains { $0.name == "a" })
+        #expect(result.output.contains { $0.text == "sum 5" })
+    }
+
+    @Test func evaluationErrorsComeBackAsText() async throws {
+        let pauses = Box<Debugger.Pause>()
+        let _ = await (try JSRunner(root: root)).debug("scripts/debug.ts",
+                                                       breakpoints: [.init(file: "scripts/debug.ts", line: 3)]) { pause in
+            pauses.append(pause)
+            return pause.evaluated == nil ? .evaluate("nope()") : .resume
+        }
+        try #require(pauses.values.count >= 2)
+        let evaluated = try #require(pauses.values[1].evaluated)
+        #expect(evaluated.failed)
+        #expect(evaluated.result.contains("Error"), "\(evaluated.result)")
+    }
+
     @Test func stoppingEndsTheRun() async throws {
         let pauses = Box<Debugger.Pause>()
         let result = await (try JSRunner(root: root)).debug("scripts/debug.ts",

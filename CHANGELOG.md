@@ -16,7 +16,9 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 - The editor draws a breakpoint as a dot in the gutter (tap the gutter, or F9), and F5 starts (or
   continues) a session on the open file. The Debug panel lists the call stack (tap a frame to open
   it) and the locals, with Continue / Step over / Step into / Step out / Stop and the console.
-  F10 steps over, F11 steps in, ⇧F11 steps out, ⇧F5 stops.
+  F10 steps over, F11 steps in, ⇧F11 steps out, ⇧F5 stops. The panel's Evaluate field runs an
+  expression in the paused frame — where the statement stopped, so it sees the locals — and shows
+  the result (the runtime holds the stop open while it evaluates).
 
 ## 1.7.0 — 202610171
 

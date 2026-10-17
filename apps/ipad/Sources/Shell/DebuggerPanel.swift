@@ -18,9 +18,12 @@ final class DebugModel {
     private(set) var output: [RunResult.Line] = []
     private(set) var entry: String?
     private(set) var failure: String?
+    /// Expressions evaluated at the current stop (newest last).
+    private(set) var evaluations: [Debugger.Pause.Evaluation] = []
+    @ObservationIgnored private var stopKey = ""
 
-    /// Resolved when the app picks an action at a stop; the runner waits on it.
-    @ObservationIgnored private var decision: CheckedContinuation<Debugger.Action, Never>?
+    /// Resolved when the app picks an answer at a stop; the runner waits on it.
+    @ObservationIgnored private var decision: CheckedContinuation<Debugger.Answer, Never>?
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored weak var workspace: WorkspaceModel?
 
@@ -57,20 +60,34 @@ final class DebugModel {
         }
     }
 
-    /// Waits at a stop until the app chooses (the buttons, or a key).
-    private func hold(_ pause: Debugger.Pause) async -> Debugger.Action {
+    /// Waits at a stop until the app answers (the buttons, an expression, or a key).
+    private func hold(_ pause: Debugger.Pause) async -> Debugger.Answer {
+        let key = "\(pause.file):\(pause.line)"
+        if key != stopKey {
+            stopKey = key
+            evaluations = []
+        }
+        if let evaluated = pause.evaluated, evaluations.last != evaluated { evaluations.append(evaluated) }
         self.pause = pause
         state = .paused
         return await withCheckedContinuation { continuation in decision = continuation }
     }
 
     /// Answers the stop in progress.
-    func send(_ action: Debugger.Action) {
+    func send(_ answer: Debugger.Answer) {
         let continuation = decision
         decision = nil
         pause = nil
-        state = action == .stop ? .ended : .running
-        continuation?.resume(returning: action)
+        state = answer == .stop ? .ended : .running
+        continuation?.resume(returning: answer)
+    }
+
+    /// Evaluates an expression in the paused frame; the result arrives with the next stop of the
+    /// same line, which is really the same stop held open.
+    func evaluate(_ expression: String) {
+        let text = expression.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, isPaused else { return }
+        send(.evaluate(text))
     }
 
     /// Stops the session (a stop while paused unwinds the worker).
@@ -80,6 +97,7 @@ final class DebugModel {
         task = nil
         if state != .idle { state = .ended }
         pause = nil
+        evaluations = []
     }
 
     /// The project-relative path of the file on screen, if it can be debugged.
@@ -93,6 +111,7 @@ final class DebugModel {
 struct DebugPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
+    @State private var expression = ""
 
     var body: some View {
         let debug = model.debug
@@ -156,6 +175,22 @@ struct DebugPanel: View {
     private func stop(_ pause: Debugger.Pause) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
+                evaluateField()
+                if !model.debug.evaluations.isEmpty {
+                    section("Evaluated") {
+                        ForEach(Array(model.debug.evaluations.enumerated()), id: \.offset) { _, item in
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text(item.expression).font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
+                                Text("→").font(.caption2).foregroundStyle(palette.text.tertiary.color)
+                                Text(item.result)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(item.failed ? palette.status.error.color : palette.text.primary.color)
+                                    .lineLimit(4)
+                                Spacer()
+                            }
+                        }
+                    }
+                }
                 section("Call stack") {
                     ForEach(Array(pause.stack.enumerated()), id: \.offset) { index, frame in
                         Button { model.workspace.open(path: frame.file, line: frame.line, column: frame.column) } label: {
@@ -187,6 +222,33 @@ struct DebugPanel: View {
             }
             .padding(12)
         }
+    }
+
+    /// The paused frame's REPL: the expression is evaluated where the statement stopped, so it sees
+    /// the locals, and the result comes back with the next (same) stop.
+    private func evaluateField() -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "chevron.right").font(.caption2).foregroundStyle(palette.text.tertiary.color)
+            TextField("Evaluate in the paused frame", text: $expression)
+                .textFieldStyle(.plain)
+                .font(.system(.caption, design: .monospaced))
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .onSubmit(runExpression)
+                .accessibilityLabel("Evaluate")
+            Button("Eval", action: runExpression)
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(palette.accent.ion.color)
+                .disabled(expression.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding(6)
+        .background(palette.surface.raised.color, in: RoundedRectangle(cornerRadius: Metrics.Radius.sm))
+    }
+
+    private func runExpression() {
+        model.debug.evaluate(expression)
+        expression = ""
     }
 
     @ViewBuilder

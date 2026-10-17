@@ -33,6 +33,16 @@ public enum Debugger {
 
         public enum Reason: String, Sendable { case breakpoint, step }
 
+        /// An expression the app evaluated while stopped, and what it was.
+        public struct Evaluation: Sendable, Equatable {
+            public var expression: String
+            public var result: String
+            public var failed: Bool
+            public init(expression: String, result: String, failed: Bool) {
+                self.expression = expression; self.result = result; self.failed = failed
+            }
+        }
+
         /// The file the stop is in (a project-relative path), and the line (1-based).
         public var file: String
         public var line: Int
@@ -40,16 +50,23 @@ public enum Debugger {
         /// Innermost first; the first frame is where the stop is.
         public var stack: [Frame]
         public var locals: [Variable]
+        /// The most recent expression the app evaluated at this stop, if any.
+        public var evaluated: Evaluation?
 
-        public init(file: String, line: Int, reason: Reason, stack: [Frame], locals: [Variable]) {
-            self.file = file; self.line = line; self.reason = reason; self.stack = stack; self.locals = locals
+        public init(file: String, line: Int, reason: Reason, stack: [Frame], locals: [Variable], evaluated: Evaluation? = nil) {
+            self.file = file; self.line = line; self.reason = reason; self.stack = stack; self.locals = locals; self.evaluated = evaluated
         }
     }
 
     /// What to do when the program stops.
-    public enum Action: String, Sendable, CaseIterable {
-        case resume = "continue"
-        case stepOver, stepInto, stepOut, stop
+    public enum Answer: Sendable, Equatable {
+        case resume
+        case stepOver
+        case stepInto
+        case stepOut
+        case stop
+        /// Evaluate an expression in the paused frame; the result comes with the next stop.
+        case evaluate(String)
 
         public var title: String {
             switch self {
@@ -58,6 +75,19 @@ public enum Debugger {
             case .stepInto: "Step into"
             case .stepOut: "Step out"
             case .stop: "Stop"
+            case .evaluate: "Evaluate"
+            }
+        }
+
+        /// The pause request's response: a JSON object the worker reads back.
+        var json: String {
+            switch self {
+            case .evaluate(let expression): #"{"action":"eval","expression":\#(Debugger.quoted(expression))}"#
+            case .resume: #"{"action":"continue"}"#
+            case .stepOver: #"{"action":"stepOver"}"#
+            case .stepInto: #"{"action":"stepInto"}"#
+            case .stepOut: #"{"action":"stepOut"}"#
+            case .stop: #"{"action":"stop"}"#
             }
         }
     }
@@ -80,20 +110,23 @@ public enum Debugger {
     struct Payload: Decodable {
         struct Frame: Decodable { var file: String; var line: Int; var column: Int; var name: String? }
         struct Variable: Decodable { var name: String; var value: String }
+        struct Evaluation: Decodable { var expression: String; var result: String; var failed: Bool? }
         var file: String
         var line: Int
         var reason: String
         var stack: [Frame]
         var locals: [Variable]
+        var evaluated: Evaluation?
 
         var pause: Pause {
             Pause(file: file, line: line, reason: Pause.Reason(rawValue: reason) ?? .breakpoint,
                   stack: stack.map { Pause.Frame(file: $0.file, line: $0.line, column: $0.column, name: $0.name ?? "") },
-                  locals: locals.map { Pause.Variable(name: $0.name, value: $0.value) })
+                  locals: locals.map { Pause.Variable(name: $0.name, value: $0.value) },
+                  evaluated: evaluated.map { Pause.Evaluation(expression: $0.expression, result: $0.result, failed: $0.failed ?? false) })
         }
     }
 
-    private static func quoted(_ text: String) -> String {
+    static func quoted(_ text: String) -> String {
         let data = try? JSONSerialization.data(withJSONObject: [text])
         return data.map { String(decoding: $0.dropFirst().dropLast(), as: UTF8.self) } ?? "\"\""
     }

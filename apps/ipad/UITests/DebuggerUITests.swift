@@ -23,6 +23,13 @@ final class DebuggerUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["alpha"].exists, "alpha should be in scope")
         XCTAssertTrue(app.staticTexts["main.ts:2"].exists, "the stop's frame should be listed")
 
+        // Evaluate in the paused frame: `alpha + 1` is 3.
+        let field = app.textFields["Evaluate"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("alpha + 1\n")
+        XCTAssertTrue(app.staticTexts["3"].waitForExistence(timeout: 10), "the expression's result didn't come back")
+
         app.buttons["Continue"].tap()
         XCTAssertTrue(app.staticTexts["Locals"].waitForNonExistence(timeout: 30), "continue didn't leave the stop")
     }

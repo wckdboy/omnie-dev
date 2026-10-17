@@ -155,11 +155,11 @@ public final class JSRunner {
     /// program's console, as a plain run's is.
     @discardableResult
     public func debug(_ entry: String, breakpoints: Set<Debugger.Breakpoint>, timeout: Double = 600,
-                      onPause: @escaping @MainActor @Sendable (Debugger.Pause) async -> Debugger.Action) async -> RunResult {
+                      onPause: @escaping @MainActor @Sendable (Debugger.Pause) async -> Debugger.Answer) async -> RunResult {
         let session = Session(root: root, transpiler: transpiler)
         session.handler.allowsEval = true
         session.onDebugPause = { pause, respond in
-            Task { @MainActor in respond((await onPause(pause)).rawValue) }
+            Task { @MainActor in respond((await onPause(pause)).json) }
         }
         let query = [URLQueryItem(name: "mode", value: "debug"),
                      URLQueryItem(name: "spec", value: Debugger.spec(entry: entry, breakpoints: breakpoints))]
