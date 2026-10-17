@@ -233,6 +233,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// Loads a file's text; `marks` (its diagnostics) replace the previous file's.
     public func load(_ text: String, language: Language?, marks: [EditorMark] = []) {
         self.language = language
+        // A new file: any snippet being filled in is gone with the old text.
+        snippet = nil
         // A reload keeps its folds (re-applied by header once the new text's blocks are known);
         // opening another file replaces them with its own through `restoreFolds`.
         if folding.pending.isEmpty { folding.pending = foldedHeaders }
@@ -314,6 +316,72 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     public var dynamicKeyCommands: (() -> [EditorKeyCommand])?
     public var onKeyCommand: ((String) -> Void)?
 
+    // MARK: Snippets
+
+    /// The snippet being filled in, if any (PLAN.md §11.1): Tab moves through its stops and edits
+    /// carry them along. nil once you Tab past the last one or press Esc.
+    public private(set) var snippet: SnippetSession?
+
+    /// Inserts a snippet body at the caret as one undo step and selects its first stop. The line's
+    /// indentation is added after each newline, so a block lands where the caret is.
+    @discardableResult
+    public func insertSnippet(_ body: String) -> Bool {
+        let selection = textView.selectedRange
+        let ns = textView.text as NSString
+        let location = min(selection.location, ns.length)
+        snippet = nil
+        let expansion = SnippetExpansion(body, indent: currentIndent(at: location))
+        guard replace(selection, with: expansion.text) else { return false }
+        guard !expansion.stops.isEmpty else { return true }
+        let base = location
+        let stops = expansion.stops.map { SnippetExpansion.Stop(index: $0.index, range: NSRange(location: $0.range.location + base, length: $0.range.length)) }
+        snippet = SnippetSession(stops: stops, trailingCaret: expansion.trailingCaret + base)
+        selectedRange = clamped(stops[0].range)
+        scrollRangeToVisible(selectedRange)
+        return true
+    }
+
+    /// Tab: the next stop, or the end of the snippet.
+    public func snippetNext() {
+        guard var session = snippet, let selection = session.next() else { endSnippet(); return }
+        selectedRange = clamped(selection)
+        scrollRangeToVisible(selectedRange)
+        snippet = session.isDone ? nil : session
+    }
+
+    /// Shift-Tab: the previous stop.
+    public func snippetPrevious() {
+        guard var session = snippet, let selection = session.previous() else { return }
+        selectedRange = clamped(selection)
+        scrollRangeToVisible(selectedRange)
+        snippet = session
+    }
+
+    /// Esc, or any reason to stop: the text stays, the caret stays, the stops go.
+    public func endSnippet() { snippet = nil }
+
+    /// Keeps a range inside the text (a stop can drift past the end when text is removed).
+    func clamped(_ range: NSRange) -> NSRange {
+        let length = (textView.text as NSString).length
+        let location = min(max(0, range.location), length)
+        return NSRange(location: location, length: min(range.length, length - location))
+    }
+
+    /// The leading whitespace of the line `location` is on.
+    func currentIndent(at location: Int) -> String {
+        let ns = textView.text as NSString
+        let line = ns.lineRange(for: NSRange(location: min(location, ns.length), length: 0))
+        var indent = ""
+        var i = line.location
+        while i < ns.length {
+            let c = ns.character(at: i)
+            guard c == 0x20 || c == 0x09 else { break }
+            indent.append(c == 0x20 ? " " : "\t")
+            i += 1
+        }
+        return indent
+    }
+
     /// A line command, applied through the text view so it's one undo step and the delegate hears it.
     public func perform(_ edit: LineEdit, comment: LineEdit.CommentStyle, indentUnit: String) {
         guard let result = edit.apply(to: textView.text, selection: textView.selectedRange, comment: comment, indentUnit: indentUnit),
@@ -377,14 +445,22 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
 
     /// Tab with a suggestion showing inserts the suggestion instead of a tab.
     public func textView(_ textView: TextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
-        guard text == "\t", let ghost = ghostText, range == NSRange(location: ghostLocation, length: 0) else { return true }
-        clearGhostText()
-        // Insert outside this callback; the engine is mid-edit.
-        DispatchQueue.main.async { [weak self] in
-            self?.textView.insertText(ghost)
-            self?.onGhostAccepted?(ghost)
+        if text == "\t", let ghost = ghostText, range == NSRange(location: ghostLocation, length: 0) {
+            clearGhostText()
+            // Insert outside this callback; the engine is mid-edit.
+            DispatchQueue.main.async { [weak self] in
+                self?.textView.insertText(ghost)
+                self?.onGhostAccepted?(ghost)
+            }
+            return false
         }
-        return false
+        // The snippet's stops move with the edit that's about to happen (Tab and Shift-Tab are
+        // claimed as key commands, so they never reach here).
+        if var session = snippet {
+            session.adjust(forEdit: range, replacementLength: (text as NSString).length)
+            snippet = session
+        }
+        return true
     }
 
     // MARK: Brackets
@@ -392,25 +468,57 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// How far either side of the caret the partner is looked for.
     static let bracketWindow = 20_000
 
-    /// Marks the bracket at the caret and its partner.
-    func highlightBrackets() {
+    /// The brackets at the caret and their partners (UTF-16 offsets in the document), or nil.
+    public func currentBracketPair() -> (Int, Int)? {
         let selection = textView.selectedRange
-        guard selection.length == 0 else {
-            if !textView.highlightedRanges.isEmpty { textView.highlightedRanges = [] }
-            return
-        }
+        guard selection.length == 0 else { return nil }
         let length = textView.offset(from: textView.beginningOfDocument, to: textView.endOfDocument)
         let start = max(0, selection.location - Self.bracketWindow), end = min(length, selection.location + Self.bracketWindow)
         guard let from = textView.position(from: textView.beginningOfDocument, offset: start),
               let to = textView.position(from: textView.beginningOfDocument, offset: end),
               let range = textView.textRange(from: from, to: to), let window = textView.text(in: range),
-              let (a, b) = Brackets.match(in: window as NSString, caret: selection.location - start) else {
+              let (a, b) = Brackets.match(in: window as NSString, caret: selection.location - start) else { return nil }
+        return (a + start, b + start)
+    }
+
+    /// The bracket pair around the caret and the one it is on: `partner` is the character to select
+    /// when selecting, `target` where the caret goes when jumping (just past an opening bracket, or
+    /// just before a closing one). nil when the caret isn't on a bracket.
+    func bracketAtCaret() -> (pair: (Int, Int), partner: Int, target: Int)? {
+        guard let (a, b) = currentBracketPair() else { return nil }
+        let caret = textView.selectedRange.location
+        // `a` is the opening bracket, `b` the closing one (Brackets.match returns min/max of the pair).
+        // The bracket just before the caret wins a tie, as VS Code chooses.
+        if abs(caret - (a + 1)) <= abs(caret - b) { return ((a, b), b, b) }
+        return ((a, b), a, a + 1)
+    }
+
+    /// "Go to matching bracket": the caret moves to just past the opening bracket, or just before the
+    /// closing one, as VS Code jumps.
+    public func goToMatchingBracket() {
+        guard let target = bracketAtCaret()?.target else { return }
+        selectedRange = clamped(NSRange(location: target, length: 0))
+        scrollRangeToVisible(selectedRange)
+    }
+
+    /// "Select to matching bracket": everything from the caret to its partner, partner included.
+    public func selectToMatchingBracket() {
+        guard let bracket = bracketAtCaret() else { return }
+        let caret = textView.selectedRange.location
+        let lower = min(caret, bracket.partner), upper = max(caret, bracket.partner)
+        selectedRange = clamped(NSRange(location: lower, length: upper - lower + 1))
+        scrollRangeToVisible(selectedRange)
+    }
+
+    /// Marks the bracket at the caret and its partner.
+    func highlightBrackets() {
+        guard let pair = currentBracketPair() else {
             if !textView.highlightedRanges.isEmpty { textView.highlightedRanges = [] }
             return
         }
         let color = theme.palette.accent.ion.uiColor.withAlphaComponent(0.28)
-        textView.highlightedRanges = [a, b].map {
-            HighlightedRange(id: "bracket-\($0 + start)", range: NSRange(location: $0 + start, length: 1), color: color, cornerRadius: 2)
+        textView.highlightedRanges = [pair.0, pair.1].map {
+            HighlightedRange(id: "bracket-\($0)", range: NSRange(location: $0, length: 1), color: color, cornerRadius: 2)
         }
     }
 

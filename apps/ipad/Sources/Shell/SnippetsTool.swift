@@ -121,7 +121,8 @@ struct SnippetsTool: View {
     private func insert(_ snippet: SnippetVault.Snippet) {
         let editor = model.workspace.editor
         guard model.workspace.openFile != nil else { return }
-        editor.textView.replace(editor.selectedRange, withText: snippet.body)
+        // Tab stops (`$1`, `${2:name}`, `$0`) become placeholders you Tab through.
+        editor.insertSnippet(snippet.body)
     }
 
     /// "Save selection as snippet" in the palette.

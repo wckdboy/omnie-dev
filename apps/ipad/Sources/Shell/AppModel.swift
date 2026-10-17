@@ -259,6 +259,9 @@ final class AppModel {
             EditorKeyCommand(input: "g", modifiers: .command, id: "editor.findNext"),
             EditorKeyCommand(input: "g", modifiers: [.command, .shift], id: "editor.findPrevious"),
             EditorKeyCommand(input: "d", modifiers: .command, id: "editor.selectNextOccurrence"),
+            // ⇧⌘\ and its chord for brackets don't reach the menu while the editor has focus.
+            EditorKeyCommand(input: "\\", modifiers: [.command, .shift], id: "editor.goToBracket"),
+            EditorKeyCommand(input: "\\", modifiers: [.command, .shift, .control], id: "editor.selectToBracket"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -283,6 +286,14 @@ final class AppModel {
                     EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "completion.dismiss"),
                 ]
             }
+            // A snippet being filled in takes Tab and Shift-Tab to walk its placeholders.
+            if self.workspace.editor.snippet != nil {
+                return [
+                    EditorKeyCommand(input: "\t", modifiers: [], id: "snippet.next"),
+                    EditorKeyCommand(input: "\t", modifiers: .shift, id: "snippet.previous"),
+                    EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "snippet.end"),
+                ]
+            }
             // Esc closes the find bar first, then goes back to one cursor.
             if self.find.isOpen {
                 return [EditorKeyCommand(input: UIKeyCommand.inputEscape, modifiers: [], id: "find.close")]
@@ -297,6 +308,9 @@ final class AppModel {
             case "completion.next": language.moveSelection(1)
             case "completion.accept": language.accept()
             case "completion.dismiss": language.dismiss()
+            case "snippet.next": workspace.editor.snippetNext()
+            case "snippet.previous": workspace.editor.snippetPrevious()
+            case "snippet.end": workspace.editor.endSnippet()
             case "carets.clear": workspace.clearExtraCarets()
             case "find.close": find.close()
             default: registry.run(CommandID(rawValue: id))
@@ -549,6 +563,26 @@ final class AppModel {
             Command(id: "editor.selectNextOccurrence", title: "Select next occurrence", menu: "Edit",
                     shortcut: Shortcut("d"), surfaces: .ide, keywords: ["multi-cursor", "add cursor", "next match", "occurrence"]) { [weak self] in
                 self?.workspace.selectNextOccurrence()
+            },
+            Command(id: "editor.goToBracket", title: "Go to matching bracket", menu: "Edit",
+                    shortcut: Shortcut("\\", [.command, .shift]), surfaces: .ide, keywords: ["jump", "parenthesis", "brace", "paren"]) { [weak self] in
+                self?.workspace.editor.goToMatchingBracket()
+            },
+            Command(id: "editor.selectToBracket", title: "Select to matching bracket", menu: "Edit",
+                    shortcut: Shortcut("\\", [.command, .shift, .control]), surfaces: .ide, keywords: ["select", "parenthesis", "brace"]) { [weak self] in
+                self?.workspace.editor.selectToMatchingBracket()
+            },
+            Command(id: "editor.nextSnippetStop", title: "Next snippet placeholder", menu: "Edit",
+                    surfaces: .ide, keywords: ["snippet", "tab stop", "placeholder", "tab"]) { [weak self] in
+                self?.workspace.editor.snippetNext()
+            },
+            Command(id: "editor.previousSnippetStop", title: "Previous snippet placeholder", menu: "Edit",
+                    surfaces: .ide, keywords: ["snippet", "tab stop", "placeholder", "shift tab"]) { [weak self] in
+                self?.workspace.editor.snippetPrevious()
+            },
+            Command(id: "editor.endSnippet", title: "Leave snippet", menu: "Edit",
+                    surfaces: .ide, keywords: ["snippet", "escape", "stop filling"]) { [weak self] in
+                self?.workspace.editor.endSnippet()
             },
             Command(id: "editor.fold", title: "Fold", menu: "Edit",
                     shortcut: Shortcut("[", [.option, .command]), surfaces: .ide, keywords: ["collapse", "code folding", "hide block"]) { [weak self] in
