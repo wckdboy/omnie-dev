@@ -20,7 +20,13 @@ final class DebugModel {
     private(set) var failure: String?
     /// Expressions evaluated at the current stop (newest last).
     private(set) var evaluations: [Debugger.Pause.Evaluation] = []
+    /// Watch expressions, re-evaluated at every stop; kept across launches.
+    private(set) var watches: [String] = UserDefaults.standard.stringArray(forKey: DebugModel.watchesKey) ?? []
+    /// The latest value of each watch, by expression.
+    private(set) var watchValues: [String: Debugger.Pause.Evaluation] = [:]
+    @ObservationIgnored private var pendingWatches: [String] = []
     @ObservationIgnored private var stopKey = ""
+    static let watchesKey = "debug.watches"
 
     /// Resolved when the app picks an answer at a stop; the runner waits on it.
     @ObservationIgnored private var decision: CheckedContinuation<Debugger.Answer, Never>?
@@ -66,10 +72,16 @@ final class DebugModel {
         if key != stopKey {
             stopKey = key
             evaluations = []
+            watchValues = [:]
+            pendingWatches = watches   // refreshed once per stop, before the app decides
         }
-        if let evaluated = pause.evaluated, evaluations.last != evaluated { evaluations.append(evaluated) }
+        if let evaluated = pause.evaluated {
+            if evaluations.last != evaluated { evaluations.append(evaluated) }
+            if watches.contains(evaluated.expression) { watchValues[evaluated.expression] = evaluated }
+        }
         self.pause = pause
         state = .paused
+        if !pendingWatches.isEmpty { return .evaluate(pendingWatches.removeFirst()) }
         return await withCheckedContinuation { continuation in decision = continuation }
     }
 
@@ -90,6 +102,21 @@ final class DebugModel {
         send(.evaluate(text))
     }
 
+    /// Adds a watch: it is evaluated now (if stopped) and at every stop after.
+    func addWatch(_ expression: String) {
+        let text = expression.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !watches.contains(text) else { return }
+        watches.append(text)
+        UserDefaults.standard.set(watches, forKey: Self.watchesKey)
+        evaluate(text)
+    }
+
+    func removeWatch(_ expression: String) {
+        watches.removeAll { $0 == expression }
+        watchValues[expression] = nil
+        UserDefaults.standard.set(watches, forKey: Self.watchesKey)
+    }
+
     /// Stops the session (a stop while paused unwinds the worker).
     func stop() {
         if decision != nil { send(.stop) }
@@ -98,6 +125,8 @@ final class DebugModel {
         if state != .idle { state = .ended }
         pause = nil
         evaluations = []
+        watchValues = [:]
+        pendingWatches = []
     }
 
     /// The project-relative path of the file on screen, if it can be debugged.
@@ -176,6 +205,7 @@ struct DebugPanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 evaluateField()
+                if !model.debug.watches.isEmpty { watchList() }
                 if !model.debug.evaluations.isEmpty {
                     section("Evaluated") {
                         ForEach(Array(model.debug.evaluations.enumerated()), id: \.offset) { _, item in
@@ -241,9 +271,39 @@ struct DebugPanel: View {
                 .font(.caption)
                 .foregroundStyle(palette.accent.ion.color)
                 .disabled(expression.trimmingCharacters(in: .whitespaces).isEmpty)
+            Button("Watch") {
+                model.debug.addWatch(expression)
+                expression = ""
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(palette.accent.agent.color)
+            .disabled(expression.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(6)
         .background(palette.surface.raised.color, in: RoundedRectangle(cornerRadius: Metrics.Radius.sm))
+    }
+
+    /// Watch expressions and their value at this stop; a "+" adds the field's expression to them.
+    private func watchList() -> some View {
+        section("Watch") {
+            ForEach(model.debug.watches, id: \.self) { expression in
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(expression).font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
+                    Text("→").font(.caption2).foregroundStyle(palette.text.tertiary.color)
+                    let value = model.debug.watchValues[expression]
+                    Text(value?.result ?? "…")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(value?.failed == true ? palette.status.error.color : palette.text.primary.color)
+                        .lineLimit(3)
+                    Spacer()
+                    Button { model.debug.removeWatch(expression) } label: { Image(systemName: "xmark").font(.caption2) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(palette.text.tertiary.color)
+                        .accessibilityLabel("Remove watch \(expression)")
+                }
+            }
+        }
     }
 
     private func runExpression() {

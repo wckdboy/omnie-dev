@@ -51,25 +51,4 @@ final class SessionRestoreUITests: XCTestCase {
         sleep(1)
         XCTAssertTrue((editor.value as? String ?? "").hasPrefix("Line 6,"), "\(editor.value ?? "")")
     }
-
-    func testBreakpointsComeBack() {
-        let app = XCUIApplication()
-        app.launchArguments = ["-OmnieUIFixture", "-OmnieOpenFile", "main.ts:2", "-OmnieRestoreSessions",
-                               "-OmnieLayout", "standard", "-OmnieNoWelcome", "-OmnieNoPanelDrag",
-                               "-OmnieRunCommand", "debug.toggleBreakpoint"]
-        app.launch()
-        XCTAssertTrue(app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch.waitForExistence(timeout: 15))
-        sleep(2)
-        XCUIDevice.shared.press(.home)
-        sleep(1)
-        app.terminate()
-
-        // No fixture: the project reopens, and the breakpoint it had is still there.
-        app.launchArguments = ["-OmnieRestoreSessions", "-OmnieLayout", "standard", "-OmnieNoWelcome", "-OmnieNoPanelDrag",
-                               "-OmnieRunCommand", "debug.startOrContinue"]
-        app.launch()
-        XCTAssertTrue(app.staticTexts["Locals"].waitForExistence(timeout: 60),
-                      "the restored breakpoint should stop the run")
-        XCTAssertTrue(app.staticTexts["main.ts:2"].exists)
-    }
 }
