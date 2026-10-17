@@ -249,10 +249,11 @@ final class AppModel {
             EditorKeyCommand(input: " ", modifiers: .control, id: "editor.suggest"),
             EditorKeyCommand(input: UIKeyCommand.f12, modifiers: [], id: "editor.goToDefinition"),
             EditorKeyCommand(input: UIKeyCommand.f12, modifiers: .shift, id: "editor.findReferences"),
-            // ⌘F/⌘G don't reach the menu while the editor has focus.
+            // ⌘F/⌘G/⌘D don't reach the menu while the editor has focus.
             EditorKeyCommand(input: "f", modifiers: .command, id: "editor.find"),
             EditorKeyCommand(input: "g", modifiers: .command, id: "editor.findNext"),
             EditorKeyCommand(input: "g", modifiers: [.command, .shift], id: "editor.findPrevious"),
+            EditorKeyCommand(input: "d", modifiers: .command, id: "editor.selectNextOccurrence"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -533,6 +534,10 @@ final class AppModel {
             Command(id: "editor.changeAllOccurrences", title: "Change all occurrences", menu: "Edit",
                     shortcut: Shortcut("l", [.command, .shift]), surfaces: .ide, keywords: ["multi-cursor", "select all occurrences", "edit all"]) { [weak self] in
                 self?.workspace.changeAllOccurrences()
+            },
+            Command(id: "editor.selectNextOccurrence", title: "Select next occurrence", menu: "Edit",
+                    shortcut: Shortcut("d"), surfaces: .ide, keywords: ["multi-cursor", "add cursor", "next match", "occurrence"]) { [weak self] in
+                self?.workspace.selectNextOccurrence()
             },
             Command(id: "editor.fold", title: "Fold", menu: "Edit",
                     shortcut: Shortcut("[", [.option, .command]), surfaces: .ide, keywords: ["collapse", "code folding", "hide block"]) { [weak self] in

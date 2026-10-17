@@ -487,6 +487,29 @@ final class WorkspaceModel {
         editor.textView.additionalCaretLocations = []
     }
 
+    /// ⌘D: select the word at the caret; press again to add a caret at the next whole-word
+    /// occurrence. (The engine's extra carets are zero-length, so this adds a *cursor* per match —
+    /// type to insert at each; ⇧⌘L replaces every occurrence in one step. See docs/engine-tickets.md
+    /// for real multi-selection.)
+    func selectNextOccurrence() {
+        guard openFile != nil else { return }
+        let text = editor.text
+        let selection = editor.selectedRange
+        guard let target = selection.length > 0 ? selection : MultiCaret.word(in: text, at: selection.location) else { return }
+        if selection.length == 0 {
+            editor.selectedRange = target
+            editor.scrollRangeToVisible(target)
+            return
+        }
+        let needle = (text as NSString).substring(with: target)
+        let taken = editor.textView.additionalCaretLocations + [target.location]
+        guard let next = MultiCaret.occurrences(of: needle, in: text).map(\.location).first(where: { !taken.contains($0) }) else {
+            banner = "No more “\(needle)”."
+            return
+        }
+        setExtraCarets(editor.textView.additionalCaretLocations + [next])
+    }
+
     private func setExtraCarets(_ locations: [Int]) {
         extraCaretsJustSet = true
         editor.textView.additionalCaretLocations = locations

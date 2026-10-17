@@ -28,6 +28,9 @@ Make the suite and the sandbox dependable before adding surface.
 |---|---|---|
 | **⌘D select-next occurrence**, real selections | engine fork `omnie-dev-editor-engine` → 0.7 | Needs selections, not just zero-length carets. Highest-value parity gap |
 | **Fold-all cost** (≈0.9 s for 2 000 folds) | engine fork | The perf harness shows it is entirely the engine's `foldedRanges` setter (layout); building the ranges is 0.4 ms. Worth an engine-side fix |
+
+> The two engine changes above are written up with APIs and replayable numbers in
+> [engine-tickets.md](engine-tickets.md).
 | Find/replace depth: **regex**, **whole word**, replace-in-selection, search history | `EditorKit/Search.swift`, `FindBar` | Builds on the find shipped in 1.6.0 |
 | Auto-close brackets/quotes, smart indent, matching-bracket jump | engine | Ergonomics that separate "editor" from "text box" |
 | Snippet placeholders with Tab stops | `ToolsKit` snippets + editor | The vault exists; make it interactive |
