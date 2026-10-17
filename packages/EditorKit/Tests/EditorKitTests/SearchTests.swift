@@ -54,4 +54,17 @@ struct SearchTests {
         #expect(editor.replaceAll(ranges, with: "baz") == 3)
         #expect(editor.text == "baz bar baz\nFoo baz\n")
     }
+
+    @Test func scopeLimitsMatchesToASelection() async {
+        let editor = await loadedEditor("foo bar foo\nfoo\n")
+        #expect(editor.searchRanges("foo", caseSensitive: true).count == 3)
+        // Find in Selection: only matches inside the scope count.
+        #expect(editor.searchRanges("foo", caseSensitive: true, scope: NSRange(location: 0, length: 3)).count == 1)
+        #expect(editor.searchRanges("foo", caseSensitive: true, scope: NSRange(location: 0, length: 9)).count == 2)
+        #expect(editor.searchRanges("foo", caseSensitive: true, scope: NSRange(location: 12, length: 3)).count == 1)
+        // Replace All then only touches the scoped matches.
+        let scoped = editor.searchRanges("foo", caseSensitive: true, scope: NSRange(location: 0, length: 3))
+        #expect(editor.replaceAll(scoped, with: "bar") == 1)
+        #expect(editor.text == "bar bar foo\nfoo\n")
+    }
 }

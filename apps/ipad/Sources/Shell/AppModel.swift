@@ -266,6 +266,7 @@ final class AppModel {
             EditorKeyCommand(input: "j", modifiers: .control, id: "editor.joinLines"),
             EditorKeyCommand(input: UIKeyCommand.f8, modifiers: [], id: "editor.nextProblem"),
             EditorKeyCommand(input: UIKeyCommand.f8, modifiers: .shift, id: "editor.previousProblem"),
+            EditorKeyCommand(input: "l", modifiers: [.alternate, .command], id: "editor.findInSelection"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -526,6 +527,12 @@ final class AppModel {
                     shortcut: Shortcut("g", [.shift]), surfaces: .ide, keywords: ["search", "find"]) { [weak self] in
                 guard let self, self.find.isOpen else { return }
                 self.find.previous()
+            },
+            Command(id: "editor.findInSelection", title: "Find in selection", menu: "Edit",
+                    shortcut: Shortcut("l", [.option, .command]), surfaces: .ide, keywords: ["scope", "within selection", "restrict", "find"]) { [weak self] in
+                guard let self else { return }
+                if !self.find.isOpen { self.find.open(seed: nil) }
+                self.find.toggleInSelection()
             },
             Command(id: "editor.workspaceSymbols", title: "Go to symbol in workspace…", menu: "Edit",
                     shortcut: Shortcut("t"), surfaces: .ide, keywords: ["symbols", "outline", "navigate", "function", "class"]) { [weak self] in

@@ -13,9 +13,15 @@ extension CodeEditorController {
 
     /// All matches of `query` in the text, as UTF-16 ranges, left to right. `wholeWord` rejects
     /// matches touching word characters; `regex` treats `query` as an ICU regular expression (an
-    /// invalid pattern finds nothing).
-    public func searchRanges(_ query: String, caseSensitive: Bool, wholeWord: Bool = false, regex: Bool = false) -> [NSRange] {
+    /// invalid pattern finds nothing). With `scope`, only matches inside it (Find in Selection).
+    public func searchRanges(_ query: String, caseSensitive: Bool, wholeWord: Bool = false, regex: Bool = false, scope: NSRange? = nil) -> [NSRange] {
         guard !query.isEmpty else { return [] }
+        let all = unscopedRanges(query, caseSensitive: caseSensitive, wholeWord: wholeWord, regex: regex)
+        guard let scope else { return all }
+        return all.filter { NSIntersectionRange($0, scope).length > 0 }
+    }
+
+    private func unscopedRanges(_ query: String, caseSensitive: Bool, wholeWord: Bool, regex: Bool) -> [NSRange] {
         let text = textView.text as NSString
         if regex {
             var options: NSRegularExpression.Options = []

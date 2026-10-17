@@ -11,6 +11,7 @@ the remaining app-side editor ergonomics, and the guarantees that make the sandb
 
 **Editor**
 - Find and replace in the open file, with whole-word and regular expressions, replace one/all.
+- Find in Selection (⌥⌘L) and a search history kept across launches.
 - Select next occurrence (⌘D), and Change all occurrences (⇧⌘L).
 - **Go to matching bracket** (⇧⌘\) and **Select to matching bracket** (⌃⇧⌘\).
 - **Snippet Tab stops**: `$1`, `${1:default}`, `${1|a,b|}` and `$0` become placeholders you Tab
