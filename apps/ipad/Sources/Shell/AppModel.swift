@@ -675,6 +675,14 @@ final class AppModel {
                     surfaces: .ide, keywords: ["delete to end of line", "forward delete", "to end"]) { [weak self] in
                 self?.workspace.perform(.deleteToLineEnd)
             },
+            Command(id: "editor.convertToSpaces", title: "Convert indentation to spaces", menu: "Edit",
+                    surfaces: .ide, keywords: ["tabs", "spaces", "indentation", "indent"]) { [weak self] in
+                self?.workspace.convertIndentation(toSpaces: true)
+            },
+            Command(id: "editor.convertToTabs", title: "Convert indentation to tabs", menu: "Edit",
+                    surfaces: .ide, keywords: ["spaces", "tabs", "indentation", "indent"]) { [weak self] in
+                self?.workspace.convertIndentation(toSpaces: false)
+            },
             Command(id: "editor.indent", title: "Indent line", menu: "Edit",
                     shortcut: Shortcut("]"), surfaces: .ide, keywords: ["tab", "shift right"]) { [weak self] in
                 self?.workspace.perform(.indent)

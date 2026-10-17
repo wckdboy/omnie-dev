@@ -715,6 +715,16 @@ final class WorkspaceModel {
         editor.perform(edit, comment: Self.commentStyle(for: openFile!), indentUnit: indent)
     }
 
+    /// Converts the whole file's indentation, using the project's indent unit (a tab-indented file
+    /// converts to two spaces, the editor's default).
+    func convertIndentation(toSpaces: Bool) {
+        guard openFile != nil else { return }
+        let detected = (try? String(contentsOf: rootURL?.appending(path: ".editorconfig") ?? URL(filePath: "/nonexistent"), encoding: .utf8))
+            .flatMap { $0.contains("indent_style = tab") ? "\t" : nil } ?? Self.indentUnit(in: editor.text)
+        let unit = detected == "\t" ? "  " : detected
+        editor.convertIndentation(toSpaces: toSpaces, unit: unit)
+    }
+
     /// How the file's language comments a line, from its extension (`//` when unknown).
     nonisolated static func commentStyle(for url: URL) -> LineEdit.CommentStyle {
         let name = url.lastPathComponent.lowercased()

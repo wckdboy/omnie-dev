@@ -7,8 +7,8 @@ import Testing
 
 struct LineEditTests {
     /// Applies an edit and returns the new text and selection.
-    func run(_ edit: LineEdit, _ text: String, _ selection: NSRange, comment: LineEdit.CommentStyle = .line("//")) -> (String, NSRange)? {
-        guard let result = edit.apply(to: text, selection: selection, comment: comment) else { return nil }
+    func run(_ edit: LineEdit, _ text: String, _ selection: NSRange, comment: LineEdit.CommentStyle = .line("//"), indentUnit: String = "  ") -> (String, NSRange)? {
+        guard let result = edit.apply(to: text, selection: selection, comment: comment, indentUnit: indentUnit) else { return nil }
         let out = (text as NSString).replacingCharacters(in: result.range, with: result.replacement)
         return (out, result.selection)
     }
@@ -74,6 +74,20 @@ struct LineEditTests {
         // Only the selected lines move.
         let (partial, _) = try #require(run(.sortAscending, "z\nb\na\n", NSRange(location: 2, length: 4)))
         #expect(partial == "z\na\nb\n")
+    }
+
+    @Test func convertsIndentation() throws {
+        let text = "if x:\n\tfoo\n\t\tbar\n"
+        let whole = NSRange(location: 0, length: (text as NSString).length)
+        let (spaces, _) = try #require(run(.convertIndentationToSpaces, text, whole))
+        #expect(spaces == "if x:\n  foo\n    bar\n")
+        let (tabs, _) = try #require(run(.convertIndentationToTabs, spaces, whole))
+        #expect(tabs == text)
+        // A caret after the indent shifts by the indent's change; one inside it lands at the new end.
+        let (one, caret) = try #require(run(.convertIndentationToTabs, "  foo", NSRange(location: 3, length: 0)))
+        #expect(one == "\tfoo" && caret == NSRange(location: 2, length: 0))
+        let (inside, insideCaret) = try #require(run(.convertIndentationToTabs, "  foo", NSRange(location: 1, length: 0)))
+        #expect(inside == "\tfoo" && insideCaret == NSRange(location: 1, length: 0))
     }
 
     @Test func deletesToLineBoundaries() throws {

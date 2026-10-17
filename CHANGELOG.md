@@ -20,6 +20,7 @@ the remaining app-side editor ergonomics, and the guarantees that make the sandb
   left/right, trim trailing whitespace, and Transform to uppercase/lowercase/title case (on the
   selection or the word at the caret). Copy path / Copy relative path for the open file.
 - Toggle breadcrumbs and sticky scroll (with word wrap and the minimap) in View.
+- Convert indentation to spaces or tabs over the whole file.
 - Expand Selection (⌃⇧→) and Shrink Selection (⌃⇧←): a caret grows to the word, the brackets around
   it, the line, then the document.
 - Go to next/previous problem (F8/⇧F8): walk the project's type-check and lint diagnostics in order,

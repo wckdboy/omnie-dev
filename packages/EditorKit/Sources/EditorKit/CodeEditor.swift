@@ -413,6 +413,17 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         return true
     }
 
+    /// Converts the whole file's indentation in one undo step, keeping the caret in place.
+    public func convertIndentation(toSpaces: Bool, unit: String) {
+        let ns = textView.text as NSString
+        let edit: LineEdit = toSpaces ? .convertIndentationToSpaces : .convertIndentationToTabs
+        guard let result = edit.apply(to: textView.text, selection: textView.selectedRange, comment: .line("//"),
+                                      indentUnit: unit, lines: NSRange(location: 0, length: ns.length)) else { return }
+        guard replace(result.range, with: result.replacement) else { return }
+        selectedRange = clamped(result.selection)
+        scrollRangeToVisible(selectedRange)
+    }
+
     // MARK: Selection
 
     /// The selection to grow into, as VS Code's Expand Selection does: the word at a caret, then the

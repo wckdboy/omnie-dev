@@ -87,6 +87,17 @@ struct EditorErgonomicsTests {
         #expect(!editor.transformCase(.lower))
     }
 
+    @Test func convertsTheWholeFileIndentation() async {
+        let editor = await loadedEditor("\tfoo\n\t\tbar\n")
+        editor.selectedRange = NSRange(location: 2, length: 0)   // after the tab
+        editor.convertIndentation(toSpaces: true, unit: "  ")
+        #expect(editor.text == "  foo\n    bar\n")
+        #expect(editor.selectedRange == NSRange(location: 3, length: 0), "the caret stays put")
+        editor.convertIndentation(toSpaces: false, unit: "  ")
+        #expect(editor.text == "\tfoo\n\t\tbar\n")
+        #expect(editor.selectedRange == NSRange(location: 2, length: 0))
+    }
+
     // MARK: Selection
 
     @Test func expandsAndShrinksSelection() async {

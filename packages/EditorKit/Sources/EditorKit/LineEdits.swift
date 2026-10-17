@@ -13,6 +13,7 @@ public enum LineEdit: Sendable, Equatable {
     case deleteToLineStart, deleteToLineEnd
     case indent, outdent
     case insertLineAbove, insertLineBelow
+    case convertIndentationToSpaces, convertIndentationToTabs
     case joinLines
     case sortAscending, sortDescending
     case trimTrailingWhitespace
@@ -32,12 +33,12 @@ public enum LineEdit: Sendable, Equatable {
     }
 
     /// nil when there's nothing to do (moving the first line up).
-    public func apply(to text: String, selection: NSRange, comment: CommentStyle = .line("//"), indentUnit: String = "  ") -> Result? {
+    public func apply(to text: String, selection: NSRange, comment: CommentStyle = .line("//"), indentUnit: String = "  ", lines overridingLines: NSRange? = nil) -> Result? {
         let ns = text as NSString
         // The whole lines the selection touches; a selection ending at a line's start leaves that line out.
         var end = NSMaxRange(selection)
         if selection.length > 0, end > selection.location, end <= ns.length, end > 0, ns.character(at: end - 1) == 10 { end -= 1 }
-        let lines = ns.lineRange(for: NSRange(location: selection.location, length: max(0, end - selection.location)))
+        let lines = overridingLines ?? ns.lineRange(for: NSRange(location: selection.location, length: max(0, end - selection.location)))
         let block = ns.substring(with: lines)
         let endsWithNewline = block.hasSuffix("\n")
         let body = endsWithNewline ? String(block.dropLast()) : block
@@ -134,6 +135,18 @@ public enum LineEdit: Sendable, Equatable {
             guard end > from, end <= ns.length else { return nil }
             return Result(range: NSRange(location: from, length: end - from), replacement: "",
                           selection: NSRange(location: from, length: 0))
+
+        case .convertIndentationToSpaces, .convertIndentationToTabs:
+            let toSpaces = self == .convertIndentationToSpaces
+            let newIndents = rows.map { row -> String in
+                let old = Self.indent(of: row)
+                return toSpaces ? old.replacingOccurrences(of: "\t", with: indentUnit) : Self.spacesToTabs(old, unit: indentUnit)
+            }
+            let rebuilt = zip(newIndents, rows).map { newIndent, row in newIndent + String(row.dropFirst(Self.indent(of: row).count)) }
+            let replacement = rebuilt.joined(separator: "\n") + (endsWithNewline ? "\n" : "")
+            let start = Self.shifted(selection.location, rows: rows, lineStart: lines.location, newIndents: newIndents)
+            let end = Self.shifted(NSMaxRange(selection), rows: rows, lineStart: lines.location, newIndents: newIndents)
+            return Result(range: lines, replacement: replacement, selection: NSRange(location: start, length: max(0, end - start)))
 
         case .insertLineAbove:
             // A blank line above with the line's own indentation, the caret on it.
@@ -244,6 +257,40 @@ public enum LineEdit: Sendable, Equatable {
             end = previous
         }
         return String(row[..<end])
+    }
+
+    /// A row's leading spaces and tabs.
+    static func indent(of row: String) -> String {
+        String(row.prefix { $0 == " " || $0 == "\t" })
+    }
+
+    /// Leading tabs first, then whole `unit`s of spaces, each tab's worth as one `\t`.
+    static func spacesToTabs(_ indent: String, unit: String) -> String {
+        guard !unit.isEmpty else { return indent }
+        var out = ""
+        var rest = Substring(indent)
+        while rest.hasPrefix("\t") { out += "\t"; rest = rest.dropFirst() }
+        while rest.hasPrefix(unit) { out += "\t"; rest = rest.dropFirst(unit.count) }
+        return out + rest
+    }
+
+    /// An offset after each row's leading indentation is rewritten to `newIndents`: it shifts by the
+    /// change of the rows above it, and lands at the new indent's end if it was inside the old one.
+    static func shifted(_ offset: Int, rows: [String], lineStart: Int, newIndents: [String]) -> Int {
+        var start = lineStart, accum = 0
+        for (index, row) in rows.enumerated() {
+            let oldLen = (Self.indent(of: row) as NSString).length
+            let newLen = (newIndents[index] as NSString).length
+            let rowEnd = start + (row as NSString).length
+            if offset < start { return offset + accum }
+            if offset <= rowEnd {
+                let column = offset - start
+                return start + accum + (column <= oldLen ? newLen : column + (newLen - oldLen))
+            }
+            accum += newLen - oldLen
+            start = rowEnd + 1
+        }
+        return offset + accum
     }
 
     /// The selection after a toggle: moved by what changed before it on its first line, and
