@@ -150,6 +150,25 @@ public final class JSRunner {
         await run(query: [URLQueryItem(name: "entry", value: entry)], timeout: timeout)
     }
 
+    /// Runs a project script under the debugger (PLAN.md §5.3). `onPause` is asked what to do at every
+    /// stop; it may take as long as it likes — the sandbox worker waits. The result's `output` is the
+    /// program's console, as a plain run's is.
+    @discardableResult
+    public func debug(_ entry: String, breakpoints: Set<Debugger.Breakpoint>, timeout: Double = 600,
+                      onPause: @escaping @MainActor @Sendable (Debugger.Pause) async -> Debugger.Action) async -> RunResult {
+        let session = Session(root: root, transpiler: transpiler)
+        session.handler.allowsEval = true
+        session.onDebugPause = { pause, respond in
+            Task { @MainActor in respond((await onPause(pause)).rawValue) }
+        }
+        let query = [URLQueryItem(name: "mode", value: "debug"),
+                     URLQueryItem(name: "spec", value: Debugger.spec(entry: entry, breakpoints: breakpoints))]
+        let start = Date()
+        var result = await session.start(query: query, timeout: timeout)
+        result.ms = Int(Date().timeIntervalSince(start) * 1000)
+        return result
+    }
+
     private func run(query: [URLQueryItem], timeout: Double) async -> RunResult {
         let session = Session(root: root, transpiler: transpiler)
         let start = Date()
@@ -166,13 +185,23 @@ public final class JSRunner {
         var continuation: CheckedContinuation<RunResult, Never>?
         /// Messages the session doesn't handle itself (the type checker's diagnostics).
         var onMessage: (([String: Any]) -> Void)?
+        /// A debug stop: the worker is blocked until the app answers with the action.
+        var onDebugPause: ((Debugger.Pause, @escaping (String) -> Void) -> Void)? {
+            get { handler.onDebugPause }
+            set { handler.onDebugPause = newValue }
+        }
+        /// The run's timeout, and its pending work item: a debug pause resets it, so thinking at a
+        /// breakpoint doesn't end the session.
+        var timeout: Double = 0
+        private var timeoutWork: DispatchWorkItem?
 
         init(root: URL, transpiler: Transpiler) {
             handler = SchemeHandler(resolver: ModuleResolver(root: root), transpiler: transpiler)
         }
 
         func start(query: [URLQueryItem], timeout: Double) async -> RunResult {
-            await withCheckedContinuation { continuation in
+            self.timeout = timeout
+            return await withCheckedContinuation { continuation in
                 self.continuation = continuation
                 let config = WKWebViewConfiguration()
                 config.websiteDataStore = .nonPersistent()
@@ -180,14 +209,31 @@ public final class JSRunner {
                 config.userContentController.add(self, name: "run")
                 let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 240), configuration: config)
                 self.webView = webView
+                // A debug pause may take a while: each stop (and each answer) restarts the clock.
+                let answer = handler.onDebugPause
+                handler.onDebugPause = { [weak self] pause, respond in
+                    self?.scheduleTimeout()
+                    answer?(pause) { action in
+                        self?.scheduleTimeout()
+                        respond(action)
+                    }
+                }
                 // One origin for the harness and the project, so module loads aren't cross-origin.
                 var components = URLComponents(string: "\(JSRunner.scheme)://local/__omnie/runtime/harness.html")!
                 components.setQueryForJS(query)
                 webView.load(URLRequest(url: components.url!))
-                DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-                    self?.finish(.timedOut(seconds: timeout))
-                }
+                scheduleTimeout()
             }
+        }
+
+        func scheduleTimeout() {
+            timeoutWork?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.finish(.timedOut(seconds: self.timeout))
+            }
+            timeoutWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: work)
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -212,9 +258,11 @@ public final class JSRunner {
         private func finish(_ ending: RunResult.Ending) {
             guard let continuation else { return }
             self.continuation = nil
+            timeoutWork?.cancel()
             result.ending = ending
             // WebKit's own message for a failed import doesn't name the file.
             for path in handler.missing { result.output.append(.init(stream: .err, text: "Uncaught Error: Can't find module \(path) in the project.")) }
+            handler.cancelDebugPauses()
             webView?.stopLoading()
             webView?.configuration.userContentController.removeScriptMessageHandler(forName: "run")
             webView = nil
@@ -233,6 +281,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     private(set) var missing: [String] = []
     /// Every request served (for the preview's network log); RunKit's own runtime files aren't reported.
     var onRequest: (@MainActor (Preview.NetworkEntry) -> Void)?
+    /// A debug stop: the worker is blocked on the request until the app answers with an action.
+    var onDebugPause: ((Debugger.Pause, @escaping (String) -> Void) -> Void)?
 
     private func report(_ url: URL, method: String?, status: Int, bytes: Int, started: Date, mock: Bool = false) {
         guard let onRequest, !url.path.hasPrefix("/__omnie/runtime/"), url.path != "/__omnie/manifest.json" else { return }
@@ -248,8 +298,15 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     /// Only this scheme, never the network: fetch can read the project and RunKit's files (Pyodide
-    /// loads its runtime that way), and WebAssembly may compile.
+    /// loads its runtime that way), and WebAssembly may compile. A debug session additionally allows
+    /// `eval` (the debugger evaluates the project's own modules in a worker); ordinary runs and
+    /// previews keep the strict policy.
     static let csp = "default-src omnie-run:; script-src omnie-run: blob: 'unsafe-inline' 'wasm-unsafe-eval'; connect-src omnie-run: data: blob:; img-src omnie-run: data: blob:; style-src omnie-run: 'unsafe-inline'; worker-src omnie-run: blob:"
+    static let debugCSP = "default-src omnie-run:; script-src omnie-run: blob: 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src omnie-run: data: blob:; img-src omnie-run: data: blob:; style-src omnie-run: 'unsafe-inline'; worker-src omnie-run: blob:"
+
+    /// Set for a debug session (Debugger.swift).
+    var allowsEval = false
+    var contentSecurityPolicy: String { allowsEval ? Self.debugCSP : Self.csp }
 
     /// The project's files for Pyodide's file system: under 2 MB each, at most 3,000, skipping
     /// version control, dependencies and build output.
@@ -299,11 +356,13 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if full.hasPrefix("__omnie/pypi/") { area = "pypi"; path = String(full.dropFirst("__omnie/pypi/".count)) }
         if full.hasPrefix("__omnie/npm-raw/") { area = "npm-raw"; path = String(full.dropFirst("__omnie/npm-raw/".count)) }
         if full.hasPrefix("__omnie/source/") { area = "source"; path = String(full.dropFirst("__omnie/source/".count)) }
+        // A debugger stop: held open until the app answers (see Debugger.swift).
+        if full == "__omnie/debug/pause" { handleDebugPause(task, url); return }
         let started = Date()
         do {
             let (data, mime) = try body(area: area, path: path, query: url.query() ?? "")
             report(url, method: task.request.httpMethod, status: 200, bytes: data.count, started: started)
-            let headers = ["Content-Type": mime, "Content-Length": String(data.count), "Content-Security-Policy": Self.csp,
+            let headers = ["Content-Type": mime, "Content-Length": String(data.count), "Content-Security-Policy": contentSecurityPolicy,
                            "Cache-Control": "no-store"]
             task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)
             task.didReceive(data)
@@ -323,19 +382,69 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             }
             missing.append(error.path)
             report(url, method: task.request.httpMethod, status: 404, bytes: 0, started: started)
-            task.didReceive(HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: ["Content-Security-Policy": Self.csp])!)
+            task.didReceive(HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: ["Content-Security-Policy": contentSecurityPolicy])!)
             task.didFinish()
         } catch {
             // A module that can't load surfaces as a console error with this text.
             let message = Data("throw new Error(\(Self.jsString((error as? LocalizedError)?.errorDescription ?? "\(error)")));".utf8)
             task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
-                                            headerFields: ["Content-Type": "text/javascript", "Content-Security-Policy": Self.csp])!)
+                                            headerFields: ["Content-Type": "text/javascript", "Content-Security-Policy": contentSecurityPolicy])!)
             task.didReceive(message)
             task.didFinish()
         }
     }
 
     func webView(_ webView: WKWebView, stop task: any WKURLSchemeTask) {}
+
+    /// Debug stops the worker is blocked on, until the app answers (or the session ends).
+    private var parkedPauses: [ObjectIdentifier: (task: any WKURLSchemeTask, url: URL)] = [:]
+
+    /// Holds the worker on a stop: the app's answer is the response, which unblocks it. Taking the
+    /// app's time is the point, so the task is completed by the answer rather than here.
+    private func handleDebugPause(_ task: any WKURLSchemeTask, _ url: URL) {
+        guard let onDebugPause else { answerDebug(task, url, "no-debugger"); return }
+        guard let body = Self.requestBody(task.request) else { answerDebug(task, url, "no-body"); return }
+        guard let payload = try? JSONDecoder().decode(Debugger.Payload.self, from: body) else {
+            answerDebug(task, url, "bad-payload:" + String(decoding: body.prefix(200), as: UTF8.self)); return
+        }
+        let key = ObjectIdentifier(task as AnyObject)
+        parkedPauses[key] = (task, url)
+        onDebugPause(payload.pause) { [weak self] action in
+            guard let self, let parked = parkedPauses.removeValue(forKey: key) else { return }
+            answerDebug(parked.task, parked.url, action)
+        }
+    }
+
+    /// A request's body: WebKit may hand a scheme handler a stream rather than `httpBody`.
+    private static func requestBody(_ request: URLRequest) -> Data? {
+        if let body = request.httpBody, !body.isEmpty { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        let size = 16 * 1024
+        var buffer = [UInt8](repeating: 0, count: size)
+        while stream.hasBytesAvailable {
+            let read = stream.read(&buffer, maxLength: size)
+            guard read > 0 else { break }
+            data.append(buffer, count: read)
+        }
+        return data.isEmpty ? nil : data
+    }
+
+    private func answerDebug(_ task: any WKURLSchemeTask, _ url: URL, _ action: String) {
+        let data = Data(action.utf8)
+        task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+                                        headerFields: ["Content-Type": "text/plain", "Content-Length": String(data.count)])!)
+        task.didReceive(data)
+        task.didFinish()
+    }
+
+    /// Answers every paused worker with "stop", so tearing a session down doesn't leave one blocked.
+    func cancelDebugPauses() {
+        for (_, parked) in parkedPauses { answerDebug(parked.task, parked.url, "stop") }
+        parkedPauses = [:]
+    }
 
     struct NotFound: LocalizedError {
         let path: String

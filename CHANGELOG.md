@@ -4,6 +4,16 @@ Omnie Dev ships as TestFlight builds; each entry is a marketing version with the
 Store Connect saw. Versions follow the plan in [docs/ROADMAP.md](docs/ROADMAP.md); what is built and
 measured today is in [docs/STATUS.md](docs/STATUS.md).
 
+## Unreleased
+
+**Debugger (RunKit core, PLAN.md §5.3)**
+- RunKit's debugger runs a project's own JavaScript/TypeScript modules with a hook at the start of
+  every statement and around every function body: breakpoints (per file and line), step over / into /
+  out / continue / stop, the locals in scope at each stop, and the call stack. Stopping is
+  synchronous — the sandbox worker parks on a request the app holds open and reads the chosen action
+  back from its response, so the JavaScript stack and its locals are still live when the pause is
+  shown. A module that imports an npm package says so rather than loading it. The Debug pane is next.
+
 ## 1.7.0 — 202610171
 
 The "editor parity and trust" release: the large-file editor held to budgets, find/replace depth,

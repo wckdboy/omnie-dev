@@ -70,6 +70,7 @@ Open: an agreed pass rate on a larger task set (the router can already send what
 - **Offline docs:** DevDocs bundles (MDN JavaScript, DOM, CSS, Python, Node, three.js, React, NumPy, pandas, git, and the rest of its 837) downloaded from Help › Search docs (⇧⌘D, which starts with the word at the caret), then searched and read with no connection; links between pages work, scripts don't run. The agent has `docs_lookup` when any are installed. DevDocs publishes no checksums, so the download's sha256 is recorded instead.
 - **Markdown + Mermaid preview** in the Preview tab for the open `.md` file; it follows the caret (each block knows its source line) and exports to a paginated A4 PDF beside the file.
 - **Type checking:** TypeScript 5.9 runs offline over the whole project (tsconfig.json honoured; without one, Vite-like defaults with every file a module; with the declarations of packages in the offline cache) when it opens and after saves: underlines in the editor, an error count in the status strip, a Problems list (⇧⌘M). The agent has `check_types` in TypeScript projects.
+- **Debugger (1.8, core):** RunKit runs a project's own JavaScript/TypeScript modules with a hook at every statement and around every function body, so the app can stop at a **breakpoint** (per file and line), **step over/into/out**, continue or stop, and show the **locals** in scope and the **call stack** at each stop. Stopping is synchronous: the sandbox worker parks on a request the app holds open (`__omnie/debug/pause`) and reads the action from its response, so the JavaScript stack is still live when the pause is shown; the call stack is kept by the runtime (JavaScriptCore reports one frame for `new Function` code). A debug session's sandbox gets `unsafe-eval`; ordinary runs and previews keep the strict CSP. A module that imports an npm package says so rather than loading it. `Debugger.swift`, `debug-worker.js`, `DebuggerTests`. The Debug pane is next.
 
 Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with compiled code that Pyodide doesn't build, a better local model for small structural edits.
 
@@ -101,7 +102,7 @@ Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with com
 - **Navigation history (1.7):** Go back (⌃-) and Go forward (⌃⇧-) walk the places you've been — a file switch or an in-file jump records where you left, and navigating again clears the forward path. `workspace.goBack/goForward`.
 - **Find depth (1.7):** Find in Selection (⌥⌘L) limits matches to the current selection (Replace All then only touches them), and the find field keeps a search history across launches (newest first; pick one from the clock button, or clear it there). `FindModel`, `FindBar`.
 
-Still behind VS Code: language intelligence for the rest (Swift, Go, Rust, …), multiple selections (⌘D uses the engine's carets today; the multi-selection API it wants is written up in [engine-tickets.md](engine-tickets.md)), a debugger, and extensions.
+Still behind VS Code: language intelligence for the rest (Swift, Go, Rust, …), multiple selections (⌘D uses the engine's carets today; the multi-selection API it wants is written up in [engine-tickets.md](engine-tickets.md)), the debugger's UI (its core runs offline now — see the Debugger bullet above), and extensions.
 
 ## P4 online power: HostKit started
 

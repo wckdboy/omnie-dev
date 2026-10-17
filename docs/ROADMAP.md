@@ -47,7 +47,7 @@ Make the suite and the sandbox dependable before adding surface.
 ## M3 — Run & debug
 | Deliverable | Where | Notes |
 |---|---|---|
-| JS/TS **debugger**: breakpoints, step, variables, console | `RunKit` (JSContext/WKWebView + CDP-style protocol) | The single biggest "IDE" gap |
+| JS/TS **debugger**: breakpoints, step, variables, console | `RunKit` (JSContext/WKWebView + CDP-style protocol) | The single biggest "IDE" gap. **Core landed**: `Debugger` (RunKit) pauses synchronously in a worker, with breakpoints, step over/into/out, locals, and the call stack, over the project's own modules (`DebuggerTests`). The Debug pane and npm-package loading are next |
 | Python debugger over Pyodide (`pdb`) | `RunKit` | Reuses the Python worker |
 | Test explorer: run/failed/rerun, per-test output | `RunKit` + a Problems-style pane | Vitest/pytest subsets already run |
 
