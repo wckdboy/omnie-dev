@@ -98,6 +98,28 @@ struct EditorErgonomicsTests {
         #expect(editor.selectedRange == NSRange(location: 2, length: 0))
     }
 
+    // MARK: Breakpoints
+
+    @Test func drawsAndTogglesBreakpoints() async {
+        let editor = await loadedEditor("one\ntwo\nthree\n")
+        editor.setBreakpoints([2])
+        #expect(editor.breakpointLines == [2])
+        #expect(editor.textView.decorations.contains { $0.id == "breakpoint-2" && $0.range.location == 4 })
+        var toggled: [(line: Int, added: Bool)] = []
+        editor.onToggleBreakpoint = { toggled.append(($0, $1)) }
+        editor.toggleBreakpoint(line: 3)
+        #expect(editor.breakpointLines == [2, 3])
+        #expect(editor.textView.decorations.contains { $0.id == "breakpoint-3" })
+        editor.toggleBreakpoint(line: 2)
+        #expect(editor.breakpointLines == [3])
+        #expect(!editor.textView.decorations.contains { $0.id == "breakpoint-2" })
+        #expect(toggled.map { $0.line } == [3, 2])
+        #expect(toggled.map { $0.added } == [true, false])
+        // A new file starts with none of the old dots.
+        editor.setBreakpoints([])
+        #expect(editor.textView.decorations.filter { $0.id.hasPrefix("breakpoint-") }.isEmpty)
+    }
+
     // MARK: Selection
 
     @Test func expandsAndShrinksSelection() async {

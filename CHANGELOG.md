@@ -12,7 +12,11 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
   out / continue / stop, the locals in scope at each stop, and the call stack. Stopping is
   synchronous — the sandbox worker parks on a request the app holds open and reads the chosen action
   back from its response, so the JavaScript stack and its locals are still live when the pause is
-  shown. A module that imports an npm package says so rather than loading it. The Debug pane is next.
+  shown. A module that imports an npm package says so rather than loading it.
+- The editor draws a breakpoint as a dot in the gutter (tap the gutter, or F9), and F5 starts (or
+  continues) a session on the open file. The Debug panel lists the call stack (tap a frame to open
+  it) and the locals, with Continue / Step over / Step into / Step out / Stop and the console.
+  F10 steps over, F11 steps in, ⇧F11 steps out, ⇧F5 stops.
 
 ## 1.7.0 — 202610171
 

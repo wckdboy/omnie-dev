@@ -20,7 +20,7 @@ public protocol EditorView: AnyObject {
 
 /// Runestone-engine implementation.
 @MainActor
-public final class CodeEditorController: NSObject, EditorView, @MainActor TextViewDelegate {
+public final class CodeEditorController: NSObject, EditorView, @MainActor TextViewDelegate, UIGestureRecognizerDelegate {
     public let textView = TextView()
     public var onChange: (() -> Void)?
     public var onSelectionChange: ((NSRange) -> Void)?
@@ -29,6 +29,10 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     private(set) public var language: Language?
     /// Markdown folds by headings; set by the app with the file (the editor has no Markdown mode).
     public var isMarkdown = false
+    /// The lines with a breakpoint, drawn as dots in the gutter (the debugger's).
+    public private(set) var breakpointLines: Set<Int> = []
+    /// Called when a gutter tap adds or removes a breakpoint: the line (1-based) and its new state.
+    public var onToggleBreakpoint: ((Int, Bool) -> Void)?
     let folding = FoldingState()
     private var loadGeneration = 0
     private var shownGeneration = 0
@@ -48,7 +52,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                 var recolored = mark
                 recolored.range = liveRanges[mark.id] ?? mark.range
                 return recolored.decoration(in: theme.palette)
-            } + searchDecorations
+            } + searchDecorations + breakpointDecorations
             applyFoldChevrons()
         }
     }
@@ -160,6 +164,19 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         textView.setContentOffset(CGPoint(x: textView.contentOffset.x, y: max(0, rect.minY - textView.textContainerInset.top)), animated: true)
     }
 
+    /// The caret's line, 1-based (breakpoints, the status strip). Read from the text, so it is right
+    /// even before the line index has been built.
+    public var currentLine: Int {
+        let ns = textView.text as NSString
+        let offset = min(textView.selectedRange.location, ns.length)
+        var line = 1, i = 0
+        while i < offset {
+            if ns.character(at: i) == 10 { line += 1 }
+            i += 1
+        }
+        return line
+    }
+
     /// Marks as last set; their live ranges are in `textView.decorations`.
     var marks: [EditorMark] = []
     /// Bumped by every setMarks, so a load doesn't apply marks that were replaced while it ran.
@@ -167,6 +184,40 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// Find & replace highlights ("find-…" decorations), kept apart from marks so a diagnostics
     /// refresh doesn't clear them.
     var searchDecorations: [Decoration] = []
+    /// Breakpoint dots ("breakpoint-…" decorations), kept apart like the search highlights.
+    var breakpointDecorations: [Decoration] = []
+
+    /// Sets the file's breakpoint lines and draws a dot on each.
+    public func setBreakpoints(_ lines: Set<Int>) {
+        breakpointLines = lines
+        let starts = FoldRegions.lineStarts(textView.text)
+        breakpointDecorations = lines.sorted().compactMap { line in
+            guard line >= 1, line <= starts.count else { return nil }
+            return Decoration(id: "breakpoint-\(line)", range: NSRange(location: starts[line - 1], length: 0),
+                              style: .gutterDot(theme.palette.status.error.uiColor), accessibilityLabel: "Breakpoint")
+        }
+        textView.decorations = textView.decorations.filter { !$0.id.hasPrefix("breakpoint-") } + breakpointDecorations
+    }
+
+    /// A tap in the gutter toggles that line's breakpoint (the fold chevrons keep their own taps).
+    @MainActor @objc func breakpointTapped(_ recognizer: UITapGestureRecognizer) {
+        let point = recognizer.location(in: textView)
+        guard point.x < textView.gutterWidth else { return }
+        if isFoldTarget(point) { return }
+        guard let position = textView.closestPosition(to: CGPoint(x: textView.gutterWidth + 4, y: point.y)) else { return }
+        let offset = textView.offset(from: textView.beginningOfDocument, to: position)
+        let line = FoldRegions.row(of: offset, lineStarts: FoldRegions.lineStarts(textView.text)) + 1
+        toggleBreakpoint(line: line)
+    }
+
+    /// Adds or removes a line's breakpoint, redraws it, and reports it.
+    public func toggleBreakpoint(line: Int) {
+        var lines = breakpointLines
+        let added = !lines.contains(line)
+        if added { lines.insert(line) } else { lines.remove(line) }
+        setBreakpoints(lines)
+        onToggleBreakpoint?(line, added)
+    }
 
     /// An inline suggestion drawn after the caret (PLAN.md §7 ghost text). It isn't part of the
     /// text: Tab inserts it, and any edit or caret move clears it.
@@ -210,6 +261,17 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             MainActor.assumeIsolated { self?.updateFirstVisibleLine() }
         }
         installFoldGesture()
+        let breakpointTap = UITapGestureRecognizer(target: self, action: #selector(breakpointTapped(_:)))
+        breakpointTap.delegate = self
+        textView.addGestureRecognizer(breakpointTap)
+    }
+
+    /// A gutter tap toggles a breakpoint; only gutter touches reach it, so text taps aren't delayed.
+    public nonisolated func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        MainActor.assumeIsolated {
+            guard let view = recognizer.view else { return false }
+            return touch.location(in: view).x < textView.gutterWidth
+        }
     }
 
     public var text: String { textView.text }

@@ -24,6 +24,7 @@ struct PanelContent: View {
         case .stage: StagePanel()
         case .tools: ToolsPanel()
         case .tests: TestsPanel()
+        case .debug: DebugPanel()
         }
     }
 }

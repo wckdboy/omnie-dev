@@ -68,7 +68,7 @@ extension CodeEditorController {
     public func setMarks(_ marks: [EditorMark]) {
         marksVersion += 1
         self.marks = marks
-        textView.decorations = marks.map { $0.decoration(in: theme.palette) } + searchDecorations + folding.chevrons
+        textView.decorations = marks.map { $0.decoration(in: theme.palette) } + searchDecorations + breakpointDecorations + folding.chevrons
         refreshMinimap()
     }
 }

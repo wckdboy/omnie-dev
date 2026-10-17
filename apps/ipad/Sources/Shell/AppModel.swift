@@ -32,6 +32,7 @@ enum UtilityTab: String, CaseIterable, Identifiable {
     case stage = "Stage"
     case tools = "Tools"
     case tests = "Tests"
+    case debug = "Debug"
 
     var id: Self { self }
 
@@ -46,6 +47,7 @@ enum UtilityTab: String, CaseIterable, Identifiable {
         case .stage: "cube"
         case .tools: "wrench.and.screwdriver"
         case .tests: "testtube.2"
+        case .debug: "ladybug"
         }
     }
 }
@@ -180,6 +182,8 @@ final class AppModel {
     let split = SplitEditorModel()
     /// Find & replace in the open file (⌘F).
     let find = FindModel()
+    /// The debug session (PLAN.md §5.3).
+    let debug = DebugModel()
     /// Local project snapshots (File › Snapshots).
     let snapshots = SnapshotsModel()
     /// The test explorer (Tests panel).
@@ -225,6 +229,7 @@ final class AppModel {
         }
         split.workspace = workspace
         find.workspace = workspace
+        debug.workspace = workspace
         snapshots.workspace = workspace
         tests.workspace = workspace
         registerCommands()
@@ -283,6 +288,13 @@ final class AppModel {
             EditorKeyCommand(input: "-", modifiers: [.control, .shift], id: "navigation.forward"),
             EditorKeyCommand(input: "\u{8}", modifiers: .command, id: "editor.deleteToLineStart"),
             EditorKeyCommand(input: "\u{7F}", modifiers: .command, id: "editor.deleteToLineStart"),
+            // The debugger's function keys, while the editor has focus.
+            EditorKeyCommand(input: UIKeyCommand.f5, modifiers: [], id: "debug.startOrContinue"),
+            EditorKeyCommand(input: UIKeyCommand.f5, modifiers: .shift, id: "debug.stop"),
+            EditorKeyCommand(input: UIKeyCommand.f9, modifiers: [], id: "debug.toggleBreakpoint"),
+            EditorKeyCommand(input: UIKeyCommand.f10, modifiers: [], id: "debug.stepOver"),
+            EditorKeyCommand(input: UIKeyCommand.f11, modifiers: [], id: "debug.stepInto"),
+            EditorKeyCommand(input: UIKeyCommand.f11, modifiers: .shift, id: "debug.stepOut"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -740,6 +752,38 @@ final class AppModel {
             Command(id: "navigation.forward", title: "Go forward", menu: "View",
                     shortcut: Shortcut("-", [.control, .shift]), surfaces: .ide, keywords: ["history", "next", "navigate"]) { [weak self] in
                 self?.workspace.goForward()
+            },
+            Command(id: "debug.startOrContinue", title: "Start debugging", menu: "Debug",
+                    surfaces: .ide, keywords: ["debug", "run", "breakpoint", "f5", "continue"]) { [weak self] in
+                guard let self else { return }
+                if self.debug.isPaused { self.debug.send(.resume); return }
+                guard let target = self.debug.openDebugTarget else {
+                    self.workspace.banner = "Open a JavaScript or TypeScript file to debug."
+                    return
+                }
+                self.show(.debug)
+                self.debug.start(entry: target)
+            },
+            Command(id: "debug.toggleBreakpoint", title: "Toggle breakpoint", menu: "Debug",
+                    surfaces: .ide, keywords: ["debug", "breakpoint", "f9", "stop here"]) { [weak self] in
+                guard let self, self.workspace.openFile != nil else { return }
+                self.workspace.editor.toggleBreakpoint(line: self.workspace.editor.currentLine)
+            },
+            Command(id: "debug.stepOver", title: "Step over", menu: "Debug",
+                    surfaces: .ide, keywords: ["debug", "f10", "next line"]) { [weak self] in
+                self?.debug.send(.stepOver)
+            },
+            Command(id: "debug.stepInto", title: "Step into", menu: "Debug",
+                    surfaces: .ide, keywords: ["debug", "f11", "into function"]) { [weak self] in
+                self?.debug.send(.stepInto)
+            },
+            Command(id: "debug.stepOut", title: "Step out", menu: "Debug",
+                    surfaces: .ide, keywords: ["debug", "return", "out of function"]) { [weak self] in
+                self?.debug.send(.stepOut)
+            },
+            Command(id: "debug.stop", title: "Stop debugging", menu: "Debug",
+                    surfaces: .ide, keywords: ["debug", "end session", "kill"]) { [weak self] in
+                self?.debug.stop()
             },
             Command(id: "editor.transformUpper", title: "Transform to uppercase", menu: "Edit",
                     surfaces: .ide, keywords: ["case", "upper", "capital"]) { [weak self] in

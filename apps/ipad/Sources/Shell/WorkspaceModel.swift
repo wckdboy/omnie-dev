@@ -29,6 +29,14 @@ final class WorkspaceModel {
     private var isAccessingRoot = false
     /// Type errors, for TypeScript projects.
     let problems = ProblemsModel()
+    /// Breakpoint lines per file (a project-relative path), for the session's debugger.
+    private(set) var breakpoints: [String: Set<Int>] = [:]
+    /// The lines for a project-relative path.
+    func breakpointLines(for path: String?) -> Set<Int> { path.flatMap { breakpoints[$0] } ?? [] }
+    /// Draws the open file's breakpoints; called after every load.
+    private func applyBreakpoints(of url: URL?) {
+        editor.setBreakpoints(url.map { breakpoints[relativePath(of: $0)] ?? [] } ?? [])
+    }
     @ObservationIgnored let recents = RecentProjects(fileURL: AppPaths.support.appendingPathComponent("recent-projects.json"))
     private(set) var recentProjects: [ProjectRef] = []
     /// Files opened in this project, newest first (quick open lists them first).
@@ -92,6 +100,13 @@ final class WorkspaceModel {
         problems.onUpdate = { [weak self] in
             guard let self, openFile != nil, !isDirty else { return }
             editor.setMarks(problems.marks(for: relativePath))
+        }
+        // Breakpoints, per file: the editor draws them and a gutter tap toggles one.
+        editor.onToggleBreakpoint = { [weak self] line, added in
+            guard let self, let path = relativePath else { return }
+            var lines = breakpoints[path] ?? []
+            if added { lines.insert(line) } else { lines.remove(line) }
+            breakpoints[path] = lines
         }
         editor.onChange = { [weak self] in
             guard let self else { return }
@@ -407,6 +422,7 @@ final class WorkspaceModel {
             language = Language(url: url)
             editor.isMarkdown = WorkspaceModel.isMarkdown(url)
             editor.load(loaded, language: language, marks: problems.marks(for: relativePath(of: url)))
+            applyBreakpoints(of: url)
             editor.restoreFolds(foldsByFile[url] ?? [])
             editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
             isDirty = false
@@ -599,6 +615,7 @@ final class WorkspaceModel {
         cursor = nil
         isDirty = false
         editor.load("", language: nil)
+        editor.setBreakpoints([])
     }
 
     /// Saves the open file, then checkpoints the project so nothing typed is ever lost (PLAN.md §9.3).
@@ -674,6 +691,7 @@ final class WorkspaceModel {
            let loaded = try? TextFile.load(openFile, presenter: watcher) {
             // The editor keeps the caret where it is now (clamped), not where it was when this began.
             editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
+            applyBreakpoints(of: openFile)
             isDirty = false
         } else {
             closeFile()
@@ -685,6 +703,7 @@ final class WorkspaceModel {
         guard let openFile, !isDirty, let loaded = try? TextFile.load(openFile, presenter: watcher), loaded != editor.text else { return }
         // The editor keeps the caret where it is now (clamped), not where it was when this began.
         editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
+        applyBreakpoints(of: openFile)
         changeCount += 1
     }
 
