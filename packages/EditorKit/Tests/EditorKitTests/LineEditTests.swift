@@ -62,4 +62,27 @@ struct LineEditTests {
         let (single, _) = try #require(run(.outdent, " x", NSRange(location: 1, length: 0)))
         #expect(single == "x")
     }
+
+    @Test func sortsLines() throws {
+        let text = "banana\napple\ncherry\n"
+        let whole = NSRange(location: 0, length: (text as NSString).length)
+        let (ascending, ascSel) = try #require(run(.sortAscending, text, whole))
+        #expect(ascending == "apple\nbanana\ncherry\n")
+        #expect(ascSel == whole, "reordering keeps the selection where it was")
+        let (descending, _) = try #require(run(.sortDescending, text, whole))
+        #expect(descending == "cherry\nbanana\napple\n")
+        // Only the selected lines move.
+        let (partial, _) = try #require(run(.sortAscending, "z\nb\na\n", NSRange(location: 2, length: 4)))
+        #expect(partial == "z\na\nb\n")
+    }
+
+    @Test func trimsTrailingWhitespace() throws {
+        let text = "let x = 1;   \n\tfoo\t \nbar\n"
+        let (trimmed, _) = try #require(run(.trimTrailingWhitespace, text, NSRange(location: 0, length: (text as NSString).length)))
+        #expect(trimmed == "let x = 1;\n\tfoo\nbar\n")
+        // A caret trims only its line.
+        let (one, caret) = try #require(run(.trimTrailingWhitespace, text, NSRange(location: 15, length: 0)))
+        #expect(one == "let x = 1;   \n\tfoo\nbar\n")
+        #expect(caret == NSRange(location: 15, length: 0))
+    }
 }

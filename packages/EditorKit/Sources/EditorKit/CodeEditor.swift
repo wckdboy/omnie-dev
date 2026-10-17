@@ -382,6 +382,36 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         return indent
     }
 
+    // MARK: Text transforms
+
+    /// VS Code's Transform to Uppercase / Lowercase / Title Case.
+    public enum TextCase: Sendable, Equatable { case upper, lower, title }
+
+    /// Transforms the selection, or the word at the caret when nothing is selected, as one undo step
+    /// with the transformed text left selected.
+    @discardableResult
+    public func transformCase(_ textCase: TextCase) -> Bool {
+        let ns = textView.text as NSString
+        var range = textView.selectedRange
+        if range.length == 0 {
+            guard let word = MultiCaret.word(in: textView.text, at: range.location) else { return false }
+            range = word
+        }
+        guard NSMaxRange(range) <= ns.length else { return false }
+        let original = ns.substring(with: range)
+        let changed: String
+        switch textCase {
+        case .upper: changed = original.uppercased()
+        case .lower: changed = original.lowercased()
+        case .title: changed = original.capitalized
+        }
+        guard changed != original, replace(range, with: changed) else { return false }
+        let length = (textView.text as NSString).length
+        let location = min(range.location, length)
+        selectedRange = clamped(NSRange(location: location, length: min((changed as NSString).length, length - location)))
+        return true
+    }
+
     /// A line command, applied through the text view so it's one undo step and the delegate hears it.
     public func perform(_ edit: LineEdit, comment: LineEdit.CommentStyle, indentUnit: String) {
         guard let result = edit.apply(to: textView.text, selection: textView.selectedRange, comment: comment, indentUnit: indentUnit),

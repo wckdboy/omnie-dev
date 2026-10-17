@@ -11,6 +11,8 @@ public enum LineEdit: Sendable, Equatable {
     case copyUp, copyDown
     case delete
     case indent, outdent
+    case sortAscending, sortDescending
+    case trimTrailingWhitespace
 
     /// How a language comments a line out: `//`, `#`, `--`, or a pair wrapped around it.
     public enum CommentStyle: Sendable, Equatable {
@@ -105,6 +107,32 @@ public enum LineEdit: Sendable, Equatable {
             let shift = (belowEndsWithNewline ? belowText as NSString : (belowText + "\n") as NSString).length
             return Result(range: NSRange(location: lines.location, length: lines.length + below.length), replacement: moved,
                           selection: NSRange(location: selection.location + shift, length: selection.length))
+
+        case .sortAscending, .sortDescending:
+            // Reordering keeps every byte, so the selection can stay where it was.
+            let ascending = self == .sortAscending
+            let sorted = rows.sorted { a, b in a == b ? false : (ascending ? a < b : a > b) }
+            let replacement = sorted.joined(separator: "\n") + (endsWithNewline ? "\n" : "")
+            return Result(range: lines, replacement: replacement, selection: selection)
+
+        case .trimTrailingWhitespace:
+            var edited: [String] = []
+            var rowStart = lines.location
+            var removedBeforeStart = 0, removedBeforeEnd = 0
+            let selectionStart = selection.location, selectionEnd = NSMaxRange(selection)
+            for row in rows {
+                let rowLength = (row as NSString).length
+                let trimmed = Self.trimTrailing(row)
+                let trimmedEnd = rowStart + (trimmed as NSString).length
+                // Only whitespace at the line's end is removed; it shifts the caret when it's before it.
+                removedBeforeStart += max(0, min(rowStart + rowLength, selectionStart) - trimmedEnd)
+                removedBeforeEnd += max(0, min(rowStart + rowLength, selectionEnd) - trimmedEnd)
+                edited.append(trimmed)
+                rowStart += rowLength + 1
+            }
+            let replacement = edited.joined(separator: "\n") + (endsWithNewline ? "\n" : "")
+            let start = selectionStart - removedBeforeStart, end = selectionEnd - removedBeforeEnd
+            return Result(range: lines, replacement: replacement, selection: NSRange(location: start, length: max(0, end - start)))
         }
     }
 
@@ -151,6 +179,17 @@ public enum LineEdit: Sendable, Equatable {
         if row.hasPrefix("\t") { return String(row.dropFirst()) }
         let spaces = row.prefix { $0 == " " }.count
         return String(row.dropFirst(min(spaces, unit.count)))
+    }
+
+    /// The row without its trailing spaces and tabs.
+    static func trimTrailing(_ row: String) -> String {
+        var end = row.endIndex
+        while end > row.startIndex {
+            let previous = row.index(before: end)
+            guard row[previous] == " " || row[previous] == "\t" else { break }
+            end = previous
+        }
+        return String(row[..<end])
     }
 
     /// The selection after a toggle: moved by what changed before it on its first line, and

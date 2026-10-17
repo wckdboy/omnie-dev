@@ -632,6 +632,30 @@ final class AppModel {
                     shortcut: Shortcut("["), surfaces: .ide, keywords: ["untab", "shift left", "dedent"]) { [weak self] in
                 self?.workspace.perform(.outdent)
             },
+            Command(id: "editor.sortLinesAscending", title: "Sort lines ascending", menu: "Edit",
+                    surfaces: .ide, keywords: ["sort", "order", "alphabetical", "a-z"]) { [weak self] in
+                self?.workspace.perform(.sortAscending)
+            },
+            Command(id: "editor.sortLinesDescending", title: "Sort lines descending", menu: "Edit",
+                    surfaces: .ide, keywords: ["sort", "order", "reverse", "z-a"]) { [weak self] in
+                self?.workspace.perform(.sortDescending)
+            },
+            Command(id: "editor.trimTrailingWhitespace", title: "Trim trailing whitespace", menu: "Edit",
+                    surfaces: .ide, keywords: ["whitespace", "clean", "trailing spaces", "trim"]) { [weak self] in
+                self?.workspace.perform(.trimTrailingWhitespace)
+            },
+            Command(id: "editor.transformUpper", title: "Transform to uppercase", menu: "Edit",
+                    surfaces: .ide, keywords: ["case", "upper", "capital"]) { [weak self] in
+                self?.workspace.editor.transformCase(.upper)
+            },
+            Command(id: "editor.transformLower", title: "Transform to lowercase", menu: "Edit",
+                    surfaces: .ide, keywords: ["case", "lower", "small"]) { [weak self] in
+                self?.workspace.editor.transformCase(.lower)
+            },
+            Command(id: "editor.transformTitle", title: "Transform to title case", menu: "Edit",
+                    surfaces: .ide, keywords: ["case", "title", "capitalize"]) { [weak self] in
+                self?.workspace.editor.transformCase(.title)
+            },
             Command(id: "view.zoomIn", title: "Zoom in (editor text)", menu: "View",
                     shortcut: Shortcut("="), surfaces: .ide, keywords: ["font size", "bigger", "larger"]) { [weak self] in
                 self?.workspace.fontScale += 0.1

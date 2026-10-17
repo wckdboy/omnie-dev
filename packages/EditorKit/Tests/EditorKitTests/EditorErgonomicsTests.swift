@@ -68,6 +68,25 @@ struct EditorErgonomicsTests {
         #expect(editor.snippet == nil)
     }
 
+    // MARK: Text transforms
+
+    @Test func transformsTheSelectionOrTheWordAtTheCaret() async {
+        let editor = await loadedEditor("let alpha = 1;\n")
+        // Nothing selected: the word at the caret, left selected after the change.
+        editor.selectedRange = NSRange(location: 6, length: 0)
+        #expect(editor.transformCase(.upper))
+        #expect(editor.text == "let ALPHA = 1;\n")
+        #expect(editor.selectedRange == NSRange(location: 4, length: 5))
+        // A selection is transformed in place.
+        editor.selectedRange = NSRange(location: 0, length: 3)
+        #expect(editor.transformCase(.title))
+        #expect(editor.text == "Let ALPHA = 1;\n")
+        #expect(editor.selectedRange == NSRange(location: 0, length: 3))
+        // Nothing to do on punctuation.
+        editor.selectedRange = NSRange(location: 10, length: 0)
+        #expect(!editor.transformCase(.lower))
+    }
+
     // MARK: Brackets
 
     @Test func jumpsToTheMatchingBracketBothWays() async {

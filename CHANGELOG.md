@@ -15,6 +15,8 @@ the remaining app-side editor ergonomics, and the guarantees that make the sandb
 - **Go to matching bracket** (⇧⌘\) and **Select to matching bracket** (⌃⇧⌘\).
 - **Snippet Tab stops**: `$1`, `${1:default}`, `${1|a,b|}` and `$0` become placeholders you Tab
   through — typing fills the stop and carries the rest of the snippet along; Esc leaves it.
+- Sort lines (ascending/descending), trim trailing whitespace, and Transform to
+  uppercase/lowercase/title case (on the selection or the word at the caret).
 - Go, Rust, C and C++ highlighting and outlines, alongside Swift/TypeScript/JavaScript/Python.
 - Go to symbol in the workspace (⌘T).
 - Replace in project (⇧⌘F), which takes a snapshot first.
