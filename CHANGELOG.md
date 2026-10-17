@@ -18,7 +18,8 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
   it) and the locals, with Continue / Step over / Step into / Step out / Stop and the console.
   F10 steps over, F11 steps in, ⇧F11 steps out, ⇧F5 stops. The panel's Evaluate field runs an
   expression in the paused frame — where the statement stopped, so it sees the locals — and shows
-  the result (the runtime holds the stop open while it evaluates).
+  the result (the runtime holds the stop open while it evaluates). Breakpoints are kept with the
+  session, so a project reopens with them.
 
 ## 1.7.0 — 202610171
 

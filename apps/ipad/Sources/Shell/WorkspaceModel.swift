@@ -107,6 +107,7 @@ final class WorkspaceModel {
             var lines = breakpoints[path] ?? []
             if added { lines.insert(line) } else { lines.remove(line) }
             breakpoints[path] = lines
+            saveSession()
         }
         editor.onChange = { [weak self] in
             guard let self else { return }
@@ -151,6 +152,8 @@ final class WorkspaceModel {
             var location: Int
             /// Folded blocks, by header row.
             var folds: [Int]? = nil
+            /// Breakpoint lines (the debugger's).
+            var breakpoints: [Int]? = nil
         }
         var tabs: [Tab]
         var open: String?
@@ -165,8 +168,10 @@ final class WorkspaceModel {
         let session = Session(
             tabs: tabs.map { tab in
                 let folds = tab.url == openFile ? editor.foldedHeaders : foldsByFile[tab.url] ?? []
+                let lines = tab.url == openFile ? Array(editor.breakpointLines) : Array(breakpoints[relativePath(of: tab.url)] ?? [])
                 return Session.Tab(path: relativePath(of: tab.url), isPreview: tab.isPreview,
-                                   location: carets[tab.url] ?? tab.selection.location, folds: folds.isEmpty ? nil : folds)
+                                   location: carets[tab.url] ?? tab.selection.location, folds: folds.isEmpty ? nil : folds,
+                                   breakpoints: lines.isEmpty ? nil : lines.sorted())
             },
             open: openFile.map(relativePath(of:)))
         if let data = try? JSONEncoder().encode(session) { UserDefaults.standard.set(data, forKey: Self.sessionKey(for: rootURL)) }
@@ -186,6 +191,7 @@ final class WorkspaceModel {
         tabs = restored
         for tab in restored { carets[tab.url] = tab.selection.location }
         for tab in session.tabs where !(tab.folds ?? []).isEmpty { foldsByFile[root.appending(path: tab.path)] = tab.folds }
+        for tab in session.tabs where !(tab.breakpoints ?? []).isEmpty { breakpoints[tab.path] = Set(tab.breakpoints ?? []) }
         let current = session.open.flatMap { path in restored.first { relativePath(of: $0.url) == path } } ?? restored.last!
         open(file: current.url, preview: current.isPreview)
     }
@@ -197,6 +203,7 @@ final class WorkspaceModel {
         defer { savesSession = true }
         carets = [:]
         foldsByFile = [:]
+        breakpoints = [:]
         watcher?.stop()
         if isAccessingRoot { rootURL?.stopAccessingSecurityScopedResource() }
         // Folders inside the app container need no grant, so false here is not an error by itself;
@@ -593,6 +600,7 @@ final class WorkspaceModel {
         closedTabs = []
         carets = [:]
         foldsByFile = [:]
+        breakpoints = [:]
         savesSession = true
         rootURL = nil
         root = nil
