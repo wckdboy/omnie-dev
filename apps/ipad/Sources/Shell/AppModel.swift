@@ -271,6 +271,8 @@ final class AppModel {
             EditorKeyCommand(input: "\r", modifiers: [.command, .shift], id: "editor.insertLineAbove"),
             EditorKeyCommand(input: UIKeyCommand.inputRightArrow, modifiers: [.control, .shift], id: "editor.expandSelection"),
             EditorKeyCommand(input: UIKeyCommand.inputLeftArrow, modifiers: [.control, .shift], id: "editor.shrinkSelection"),
+            EditorKeyCommand(input: "-", modifiers: .control, id: "navigation.back"),
+            EditorKeyCommand(input: "-", modifiers: [.control, .shift], id: "navigation.forward"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -696,6 +698,14 @@ final class AppModel {
             Command(id: "editor.previousProblem", title: "Go to previous problem", menu: "View",
                     surfaces: .ide, keywords: ["problem", "error", "warning", "diagnostic", "f8", "issues"]) { [weak self] in
                 self?.workspace.goToProblem(forward: false)
+            },
+            Command(id: "navigation.back", title: "Go back", menu: "View",
+                    shortcut: Shortcut("-", [.control]), surfaces: .ide, keywords: ["history", "previous", "navigate", "return"]) { [weak self] in
+                self?.workspace.goBack()
+            },
+            Command(id: "navigation.forward", title: "Go forward", menu: "View",
+                    shortcut: Shortcut("-", [.control, .shift]), surfaces: .ide, keywords: ["history", "next", "navigate"]) { [weak self] in
+                self?.workspace.goForward()
             },
             Command(id: "editor.transformUpper", title: "Transform to uppercase", menu: "Edit",
                     surfaces: .ide, keywords: ["case", "upper", "capital"]) { [weak self] in

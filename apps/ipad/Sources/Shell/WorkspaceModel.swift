@@ -274,7 +274,8 @@ final class WorkspaceModel {
     /// Opens a file and, once it's loaded, selects `range` and scrolls to it.
     func open(file url: URL, select range: NSRange) {
         if openFile == url, !editor.isLoading {
-            // Already loaded: select now.
+            // Already loaded: remember this spot, then select now.
+            rememberLocation()
             let length = (editor.text as NSString).length
             let clamped = NSRange(location: min(range.location, length), length: min(range.length, max(0, length - range.location)))
             editor.selectedRange = clamped
@@ -395,6 +396,8 @@ final class WorkspaceModel {
             if !preview, let i = tabs.firstIndex(where: { $0.url == url }) { tabs[i].isPreview = false }
             return
         }
+        // Leaving a file: remember where we were for Go Back.
+        if openFile != nil { rememberLocation() }
         if let current = openFile, let i = tabs.firstIndex(where: { $0.url == current }) { tabs[i].selection = editor.selectedRange }
         // Its folds come back when the tab does.
         if let current = openFile { foldsByFile[current] = editor.foldedHeaders }
@@ -757,6 +760,47 @@ final class WorkspaceModel {
         while isWord(start - 1) { start -= 1 }
         while isWord(end) { end += 1 }
         return end > start ? text.substring(with: NSRange(location: start, length: end - start)) : nil
+    }
+
+    // MARK: Navigation history
+
+    /// Places Go Back walks through: the file and caret each jump left behind. Recorded when a file
+    /// switch or an in-file jump happens, and cleared forward when you navigate again.
+    private var backStack: [(url: URL, range: NSRange)] = []
+    private var forwardStack: [(url: URL, range: NSRange)] = []
+    /// True while Go Back/Forward is moving, so those moves aren't recorded as new history.
+    private var navigating = false
+    private static let historyLimit = 100
+
+    private func makeLocation() -> (url: URL, range: NSRange)? {
+        guard let openFile else { return nil }
+        return (openFile, editor.selectedRange)
+    }
+
+    private func rememberLocation() {
+        guard !navigating, let location = makeLocation() else { return }
+        if backStack.last?.url == location.url, backStack.last?.range == location.range { return }
+        backStack.append(location)
+        if backStack.count > Self.historyLimit { backStack.removeFirst() }
+        forwardStack = []
+    }
+
+    /// VS Code's ⌃-: the previous place you were editing.
+    func goBack() {
+        guard let target = backStack.popLast() else { return }
+        if let current = makeLocation() { forwardStack.append(current) }
+        navigating = true
+        defer { navigating = false }
+        open(file: target.url, select: target.range)
+    }
+
+    /// VS Code's ⌃⇧-: the place you left with Go Back.
+    func goForward() {
+        guard let target = forwardStack.popLast() else { return }
+        if let current = makeLocation() { backStack.append(current) }
+        navigating = true
+        defer { navigating = false }
+        open(file: target.url, select: target.range)
     }
 
     /// Moves the caret to the next (or previous) problem, wrapping around, opening its file when it's

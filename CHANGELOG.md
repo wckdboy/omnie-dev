@@ -23,6 +23,7 @@ the remaining app-side editor ergonomics, and the guarantees that make the sandb
   it, the line, then the document.
 - Go to next/previous problem (F8/⇧F8): walk the project's type-check and lint diagnostics in order,
   opening the file when the problem isn't the one on screen.
+- Go back / Go forward (⌃- / ⌃⇧-): the navigation history of file switches and in-file jumps.
 - Go, Rust, C and C++ highlighting and outlines, alongside Swift/TypeScript/JavaScript/Python.
 - Go to symbol in the workspace (⌘T).
 - Replace in project (⇧⌘F), which takes a snapshot first.
