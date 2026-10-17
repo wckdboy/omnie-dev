@@ -31,9 +31,9 @@ Make the suite and the sandbox dependable before adding surface.
 
 > The two engine changes above are written up with APIs and replayable numbers in
 > [engine-tickets.md](engine-tickets.md).
-| Find/replace depth: **regex**, **whole word**, replace-in-selection, search history | `EditorKit/Search.swift`, `FindBar` | Builds on the find shipped in 1.6.0 |
-| Auto-close brackets/quotes, smart indent, matching-bracket jump | engine | Ergonomics that separate "editor" from "text box" |
-| Snippet placeholders with Tab stops | `ToolsKit` snippets + editor | The vault exists; make it interactive |
+| Find/replace depth: **regex**, **whole word**, replace-in-selection, search history | `EditorKit/Search.swift`, `FindBar` | Builds on the find shipped in 1.6.0. Regex and whole word shipped in 1.7.0 |
+| Auto-close brackets/quotes, smart indent, matching-bracket jump | engine | Ergonomics that separate "editor" from "text box". Matching-bracket jump (go and select) shipped in 1.7.0; auto-close and smart indent are engine-side, in the queue |
+| Snippet placeholders with Tab stops | `ToolsKit` snippets + editor | The vault exists; make it interactive. Shipped in 1.7.0 (`SnippetExpansion`, `SnippetSession`) |
 | Word-wrap / whitespace / indent-guide toggles, editor ruler | `EditorKit` | Mostly presentation |
 
 ## M2 — Languages

@@ -20,6 +20,8 @@ Follows PLAN §27.3: one monorepo for the app and every Kit.
 | `brand/` | Design tokens (and, later, icon sources) |
 | `scripts/` | `build-git-deps.sh` (native deps), `gen-theme.swift` |
 | `docs/PLAN.md` | Architecture and plan |
+| `docs/ROADMAP.md` | The milestone plan; `docs/STATUS.md` is what's built and measured |
+| `CHANGELOG.md` | What shipped in each release |
 | `project.yml` | XcodeGen spec. The `.xcodeproj` is generated and not committed |
 
 ## Build
@@ -36,6 +38,8 @@ for k in packages/*; do (cd "$k" && swift test); done
 ```
 
 Debug builds accept `-OmnieOpenFolder /path` to open a folder at launch and `-OmnieRunCommand <command id>` (repeatable) to run commands, which is handy in the simulator.
+
+If a long-lived checkout fills the disk, `scripts/clean.sh` removes the derived data (the monorepo's `.build`, each package's, and Xcode's).
 
 GitKit tests are differential: each operation is checked against the `git` CLI on the same repo.
 
