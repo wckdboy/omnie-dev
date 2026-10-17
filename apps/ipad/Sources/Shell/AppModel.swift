@@ -84,6 +84,13 @@ final class AppModel {
     var prepareOfflineOpen = false
     var findOpen = false
     var goToLineOpen = false
+    /// The breakpoint condition being edited (the debugger's "Edit breakpoint condition…").
+    struct BreakpointPrompt: Identifiable, Equatable {
+        var line: Int
+        var text: String
+        var id: Int { line }
+    }
+    var breakpointPrompt: BreakpointPrompt?
     var problemsOpen = false
     var snapshotsOpen = false
     var workspaceSymbolOpen = false
@@ -768,6 +775,13 @@ final class AppModel {
                     surfaces: .ide, keywords: ["debug", "breakpoint", "f9", "stop here"]) { [weak self] in
                 guard let self, self.workspace.openFile != nil else { return }
                 self.workspace.editor.toggleBreakpoint(line: self.workspace.editor.currentLine)
+            },
+            Command(id: "debug.editCondition", title: "Edit breakpoint condition…", menu: "Debug",
+                    surfaces: .ide, keywords: ["debug", "conditional", "when", "breakpoint", "expression"]) { [weak self] in
+                guard let self, self.workspace.openFile != nil else { return }
+                let line = self.workspace.editor.currentLine
+                let existing = self.workspace.breakpointConditions[self.workspace.relativePath ?? ""]?[line] ?? ""
+                self.breakpointPrompt = .init(line: line, text: existing)
             },
             Command(id: "debug.stepOver", title: "Step over", menu: "Debug",
                     surfaces: .ide, keywords: ["debug", "f10", "next line"]) { [weak self] in

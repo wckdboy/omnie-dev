@@ -31,11 +31,30 @@ final class WorkspaceModel {
     let problems = ProblemsModel()
     /// Breakpoint lines per file (a project-relative path), for the session's debugger.
     private(set) var breakpoints: [String: Set<Int>] = [:]
+    /// Breakpoint conditions, per file and line (a line with one stops only when it holds).
+    private(set) var breakpointConditions: [String: [Int: String]] = [:]
     /// The lines for a project-relative path.
     func breakpointLines(for path: String?) -> Set<Int> { path.flatMap { breakpoints[$0] } ?? [] }
     /// Draws the open file's breakpoints; called after every load.
     private func applyBreakpoints(of url: URL?) {
-        editor.setBreakpoints(url.map { breakpoints[relativePath(of: $0)] ?? [] } ?? [])
+        guard let url else { editor.setBreakpoints([]); return }
+        let path = relativePath(of: url)
+        editor.setBreakpoints(breakpoints[path] ?? [], conditions: breakpointConditions[path] ?? [:])
+    }
+
+    /// Sets (or clears, when empty) the condition of a line's breakpoint, adding the breakpoint if
+    /// it isn't there. The palette's "Edit breakpoint condition…".
+    func setBreakpointCondition(_ condition: String, line: Int) {
+        guard let path = relativePath else { return }
+        var lines = breakpoints[path] ?? []
+        lines.insert(line)
+        breakpoints[path] = lines
+        let text = condition.trimmingCharacters(in: .whitespacesAndNewlines)
+        var conditions = breakpointConditions[path] ?? [:]
+        conditions[line] = text.isEmpty ? nil : text
+        breakpointConditions[path] = conditions.isEmpty ? nil : conditions
+        editor.setBreakpoints(lines, conditions: breakpointConditions[path] ?? [:])
+        saveSession()
     }
     @ObservationIgnored let recents = RecentProjects(fileURL: AppPaths.support.appendingPathComponent("recent-projects.json"))
     private(set) var recentProjects: [ProjectRef] = []
@@ -105,7 +124,10 @@ final class WorkspaceModel {
         editor.onToggleBreakpoint = { [weak self] line, added in
             guard let self, let path = relativePath else { return }
             var lines = breakpoints[path] ?? []
-            if added { lines.insert(line) } else { lines.remove(line) }
+            if added { lines.insert(line) } else {
+                lines.remove(line)
+                breakpointConditions[path]?[line] = nil   // a removed breakpoint takes its condition
+            }
             breakpoints[path] = lines
             saveSession()
         }
@@ -152,8 +174,9 @@ final class WorkspaceModel {
             var location: Int
             /// Folded blocks, by header row.
             var folds: [Int]? = nil
-            /// Breakpoint lines (the debugger's).
+            /// Breakpoint lines (the debugger's), and their conditions by line.
             var breakpoints: [Int]? = nil
+            var conditions: [Int: String]? = nil
         }
         var tabs: [Tab]
         var open: String?
@@ -169,9 +192,12 @@ final class WorkspaceModel {
             tabs: tabs.map { tab in
                 let folds = tab.url == openFile ? editor.foldedHeaders : foldsByFile[tab.url] ?? []
                 let lines = tab.url == openFile ? Array(editor.breakpointLines) : Array(breakpoints[relativePath(of: tab.url)] ?? [])
-                return Session.Tab(path: relativePath(of: tab.url), isPreview: tab.isPreview,
+                let path = relativePath(of: tab.url)
+                let conditions = tab.url == openFile ? editor.breakpointConditions : breakpointConditions[path] ?? [:]
+                return Session.Tab(path: path, isPreview: tab.isPreview,
                                    location: carets[tab.url] ?? tab.selection.location, folds: folds.isEmpty ? nil : folds,
-                                   breakpoints: lines.isEmpty ? nil : lines.sorted())
+                                   breakpoints: lines.isEmpty ? nil : lines.sorted(),
+                                   conditions: conditions.isEmpty ? nil : conditions)
             },
             open: openFile.map(relativePath(of:)))
         if let data = try? JSONEncoder().encode(session) { UserDefaults.standard.set(data, forKey: Self.sessionKey(for: rootURL)) }
@@ -192,6 +218,7 @@ final class WorkspaceModel {
         for tab in restored { carets[tab.url] = tab.selection.location }
         for tab in session.tabs where !(tab.folds ?? []).isEmpty { foldsByFile[root.appending(path: tab.path)] = tab.folds }
         for tab in session.tabs where !(tab.breakpoints ?? []).isEmpty { breakpoints[tab.path] = Set(tab.breakpoints ?? []) }
+        for tab in session.tabs where !(tab.conditions ?? [:]).isEmpty { breakpointConditions[tab.path] = tab.conditions }
         let current = session.open.flatMap { path in restored.first { relativePath(of: $0.url) == path } } ?? restored.last!
         open(file: current.url, preview: current.isPreview)
     }
@@ -204,6 +231,7 @@ final class WorkspaceModel {
         carets = [:]
         foldsByFile = [:]
         breakpoints = [:]
+        breakpointConditions = [:]
         watcher?.stop()
         if isAccessingRoot { rootURL?.stopAccessingSecurityScopedResource() }
         // Folders inside the app container need no grant, so false here is not an error by itself;
@@ -601,6 +629,7 @@ final class WorkspaceModel {
         carets = [:]
         foldsByFile = [:]
         breakpoints = [:]
+        breakpointConditions = [:]
         savesSession = true
         rootURL = nil
         root = nil

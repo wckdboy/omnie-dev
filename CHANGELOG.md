@@ -19,7 +19,9 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
   F10 steps over, F11 steps in, ⇧F11 steps out, ⇧F5 stops. The panel's Evaluate field runs an
   expression in the paused frame — where the statement stopped, so it sees the locals — and shows
   the result (the runtime holds the stop open while it evaluates). **Watch** expressions are
-  re-evaluated at every stop. Breakpoints are kept with the session, so a project reopens with them.
+  re-evaluated at every stop, and a breakpoint can carry a **condition** (Debug › Edit breakpoint
+  condition…), which is evaluated in the frame and stops only when it holds (a conditional dot is
+  amber). Breakpoints and their conditions are kept with the session, so a project reopens with them.
 
 ## 1.7.0 — 202610171
 

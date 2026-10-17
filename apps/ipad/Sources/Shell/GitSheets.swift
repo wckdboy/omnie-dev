@@ -221,6 +221,7 @@ extension View {
                 DocsSheet(query: model.docsQuery ?? "").presentationSizing(.page)
             }
             .modifier(FileOperationPrompts())
+            .modifier(BreakpointConditionPrompt())
             .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }

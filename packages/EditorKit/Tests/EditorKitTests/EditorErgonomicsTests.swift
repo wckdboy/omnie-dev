@@ -120,6 +120,21 @@ struct EditorErgonomicsTests {
         #expect(editor.textView.decorations.filter { $0.id.hasPrefix("breakpoint-") }.isEmpty)
     }
 
+    @Test func aConditionalBreakpointIsMarked() async {
+        let editor = await loadedEditor("one\ntwo\nthree\n")
+        editor.setBreakpoints([1, 2], conditions: [2: "i > 3"])
+        #expect(editor.breakpointConditions == [2: "i > 3"])
+        let plain = editor.textView.decorations.first { $0.id == "breakpoint-1" }
+        let conditional = editor.textView.decorations.first { $0.id == "breakpoint-2" }
+        #expect(plain?.accessibilityLabel == "Breakpoint")
+        #expect(conditional?.accessibilityLabel == "Conditional breakpoint, i > 3")
+        #expect(plain?.style != conditional?.style, "a conditional breakpoint is drawn differently")
+        // Removing it drops the condition too.
+        editor.toggleBreakpoint(line: 2)
+        #expect(editor.breakpointLines == [1])
+        #expect(editor.breakpointConditions.isEmpty)
+    }
+
     // MARK: Selection
 
     @Test func expandsAndShrinksSelection() async {

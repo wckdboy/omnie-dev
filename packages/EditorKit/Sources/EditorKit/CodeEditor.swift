@@ -31,6 +31,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     public var isMarkdown = false
     /// The lines with a breakpoint, drawn as dots in the gutter (the debugger's).
     public private(set) var breakpointLines: Set<Int> = []
+    /// Each breakpoint's condition, if it has one (a conditional breakpoint is drawn differently).
+    public private(set) var breakpointConditions: [Int: String] = [:]
     /// Called when a gutter tap adds or removes a breakpoint: the line (1-based) and its new state.
     public var onToggleBreakpoint: ((Int, Bool) -> Void)?
     let folding = FoldingState()
@@ -187,14 +189,19 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// Breakpoint dots ("breakpoint-…" decorations), kept apart like the search highlights.
     var breakpointDecorations: [Decoration] = []
 
-    /// Sets the file's breakpoint lines and draws a dot on each.
-    public func setBreakpoints(_ lines: Set<Int>) {
+    /// Sets the file's breakpoint lines and draws a dot on each; a line with a condition is amber and
+    /// says so to VoiceOver.
+    public func setBreakpoints(_ lines: Set<Int>, conditions: [Int: String] = [:]) {
         breakpointLines = lines
+        breakpointConditions = conditions
         let starts = FoldRegions.lineStarts(textView.text)
         breakpointDecorations = lines.sorted().compactMap { line in
             guard line >= 1, line <= starts.count else { return nil }
+            let condition = conditions[line]
+            let color = condition == nil ? theme.palette.status.error.uiColor : theme.palette.status.warn.uiColor
             return Decoration(id: "breakpoint-\(line)", range: NSRange(location: starts[line - 1], length: 0),
-                              style: .gutterDot(theme.palette.status.error.uiColor), accessibilityLabel: "Breakpoint")
+                              style: .gutterDot(color),
+                              accessibilityLabel: condition.map { "Conditional breakpoint, \($0)" } ?? "Breakpoint")
         }
         textView.decorations = textView.decorations.filter { !$0.id.hasPrefix("breakpoint-") } + breakpointDecorations
     }
@@ -210,12 +217,14 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         toggleBreakpoint(line: line)
     }
 
-    /// Adds or removes a line's breakpoint, redraws it, and reports it.
+    /// Adds or removes a line's breakpoint (and its condition), redraws it, and reports it.
     public func toggleBreakpoint(line: Int) {
         var lines = breakpointLines
         let added = !lines.contains(line)
         if added { lines.insert(line) } else { lines.remove(line) }
-        setBreakpoints(lines)
+        var conditions = breakpointConditions
+        if !added { conditions[line] = nil }
+        setBreakpoints(lines, conditions: conditions)
         onToggleBreakpoint?(line, added)
     }
 

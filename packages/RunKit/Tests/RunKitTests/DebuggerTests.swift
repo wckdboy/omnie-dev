@@ -5,8 +5,9 @@ import Foundation
 import Testing
 @testable import RunKit
 
-/// The debugger (PLAN.md §5.3): breakpoints, stepping, locals and the call stack, over the project's
-/// own modules. The worker blocks on the app's answer, so a test is just a closure returning actions.
+/// The debugger (PLAN.md §5.3): breakpoints (with conditions), stepping, locals, evaluation and the
+/// call stack, over the project's own modules. The worker blocks on the app's answer, so a test is
+/// just a closure returning answers.
 extension WebKitSuites {
 @MainActor
 struct DebuggerTests {
@@ -38,15 +39,29 @@ struct DebuggerTests {
         }
     }
 
-    @Test func stopsAtABreakpointAndShowsLocals() async throws {
-        let pauses = Box<Debugger.Pause>()
-        let result = await (try JSRunner(root: root)).debug("scripts/debug.ts",
-                                                            breakpoints: [.init(file: "scripts/debug.ts", line: 3)]) { pause in
-            pauses.append(pause)
-            return .resume
+    /// A debug run with a short timeout, retried once if the web view stalled (nothing happened at
+    /// all), as the other WebKit suites do. `answer` gets the pause and how many have happened.
+    func run(_ entry: String, _ breakpoints: Set<Debugger.Breakpoint>, timeout: Double = 40,
+             answer: @escaping @MainActor @Sendable (Debugger.Pause, Int) async -> Debugger.Answer) async throws -> (result: RunResult, pauses: [Debugger.Pause]) {
+        var last: (RunResult, [Debugger.Pause])?
+        for _ in 0..<2 {
+            let box = Box<Debugger.Pause>()
+            let result = await (try JSRunner(root: root)).debug(entry, breakpoints: breakpoints, timeout: timeout) { pause in
+                let index = box.values.count
+                box.append(pause)
+                return await answer(pause, index)
+            }
+            last = (result, box.values)
+            let stalled = box.values.isEmpty && result.output.isEmpty && result.ending != .finished
+            if !stalled { return last! }
         }
-        #expect(pauses.values.count == 1, "REPORT: \(result.report)")
-        let pause = try #require(pauses.values.first)
+        return last!
+    }
+
+    @Test func stopsAtABreakpointAndShowsLocals() async throws {
+        let (result, pauses) = try await run("scripts/debug.ts", [.init(file: "scripts/debug.ts", line: 3)]) { _, _ in .resume }
+        #expect(pauses.count == 1, "\(result.report)")
+        let pause = try #require(pauses.first)
         #expect(pause.file == "scripts/debug.ts")
         #expect(pause.line == 3)
         #expect(pause.reason == .breakpoint)
@@ -60,15 +75,12 @@ struct DebuggerTests {
     }
 
     @Test func stepsIntoAnImportedFunction() async throws {
-        let pauses = Box<Debugger.Pause>()
-        let result = await (try JSRunner(root: root)).debug("scripts/debug.ts",
-                                                            breakpoints: [.init(file: "scripts/debug.ts", line: 3)]) { pause in
-            pauses.append(pause)
-            return pauses.values.count == 1 ? .stepInto : .resume
+        let (result, pauses) = try await run("scripts/debug.ts", [.init(file: "scripts/debug.ts", line: 3)]) { _, index in
+            index == 0 ? .stepInto : .resume
         }
-        try #require(pauses.values.count >= 2, "\(result.report)")
-        #expect(pauses.values[0].file == "scripts/debug.ts")
-        let inside = pauses.values[1]
+        try #require(pauses.count >= 2, "\(result.report)")
+        #expect(pauses[0].file == "scripts/debug.ts")
+        let inside = pauses[1]
         #expect(inside.file == "scripts/math.ts", "step in lands in the callee \(inside.stack)")
         #expect(inside.line == 2)
         #expect(inside.reason == .step)
@@ -80,45 +92,24 @@ struct DebuggerTests {
     }
 
     @Test func stepsOverToTheNextStatement() async throws {
-        let pauses = Box<Debugger.Pause>()
-        let result = await (try JSRunner(root: root)).debug("scripts/debug.ts",
-                                                            breakpoints: [.init(file: "scripts/debug.ts", line: 2)]) { pause in
-            pauses.append(pause)
-            return pauses.values.count == 1 ? .stepOver : .resume
+        let (result, pauses) = try await run("scripts/debug.ts", [.init(file: "scripts/debug.ts", line: 2)]) { _, index in
+            index == 0 ? .stepOver : .resume
         }
-        try #require(pauses.values.count >= 2, "\(result.report)")
-        #expect(pauses.values[0].line == 2)
-        #expect(pauses.values[1].file == "scripts/debug.ts")
-        #expect(pauses.values[1].line == 3, "step over stops on the next statement, not inside the call")
+        try #require(pauses.count >= 2, "\(result.report)")
+        #expect(pauses[0].line == 2)
+        #expect(pauses[1].file == "scripts/debug.ts")
+        #expect(pauses[1].line == 3, "step over stops on the next statement, not inside the call")
         #expect(result.output.contains { $0.text == "sum 5" })
-    }
-
-    @Test func stepsThroughALoop() async throws {
-        // A breakpoint inside the loop body; each iteration is a separate stop.
-        let pauses = Box<Debugger.Pause>()
-        let result = await (try JSRunner(root: root)).debug("scripts/loop.ts",
-                                                            breakpoints: [.init(file: "scripts/loop.ts", line: 3)]) { pause in
-            pauses.append(pause)
-            return .resume
-        }
-        // The loop runs three times, and the body is one statement.
-        #expect(pauses.values.count == 3, "\(result.report)")
-        #expect(pauses.values.map(\.line) == [3, 3, 3])
-        #expect(pauses.values.last?.locals.contains { $0.name == "i" && $0.value == "3" } == true)
-        #expect(result.output.contains { $0.text == "total 6" })
     }
 
     @Test func stepsOutOfAFunction() async throws {
         // A breakpoint inside the callee; Step Out returns to the next statement in the caller.
-        let pauses = Box<Debugger.Pause>()
-        let result = await (try JSRunner(root: root)).debug("scripts/debug.ts",
-                                                            breakpoints: [.init(file: "scripts/math.ts", line: 2)]) { pause in
-            pauses.append(pause)
-            return pauses.values.count == 1 ? .stepOut : .resume
+        let (result, pauses) = try await run("scripts/debug.ts", [.init(file: "scripts/math.ts", line: 2)]) { _, index in
+            index == 0 ? .stepOut : .resume
         }
-        try #require(pauses.values.count >= 2, "\(result.report)")
-        #expect(pauses.values[0].file == "scripts/math.ts")
-        let back = pauses.values[1]
+        try #require(pauses.count >= 2, "\(result.report)")
+        #expect(pauses[0].file == "scripts/math.ts")
+        let back = pauses[1]
         #expect(back.file == "scripts/debug.ts", "step out returns to the caller \(back.stack)")
         #expect(back.line == 4)
         #expect(back.reason == .step)
@@ -126,52 +117,64 @@ struct DebuggerTests {
         #expect(result.output.contains { $0.text == "sum 5" })
     }
 
+    @Test func stepsThroughALoop() async throws {
+        // A breakpoint inside the loop body; each iteration is a separate stop.
+        let (result, pauses) = try await run("scripts/loop.ts", [.init(file: "scripts/loop.ts", line: 3)]) { _, _ in .resume }
+        #expect(pauses.count == 3, "\(result.report)")
+        #expect(pauses.map(\.line) == [3, 3, 3])
+        #expect(pauses.last?.locals.contains { $0.name == "i" && $0.value == "3" } == true)
+        #expect(result.output.contains { $0.text == "total 6" })
+    }
+
     @Test func evaluatesAnExpressionInThePausedFrame() async throws {
-        let pauses = Box<Debugger.Pause>()
-        let result = await (try JSRunner(root: root)).debug("scripts/debug.ts",
-                                                            breakpoints: [.init(file: "scripts/debug.ts", line: 3)]) { pause in
-            pauses.append(pause)
+        let (result, pauses) = try await run("scripts/debug.ts", [.init(file: "scripts/debug.ts", line: 3)]) { pause, _ in
             // The same stop is held open for the evaluation; its result arrives with the next one.
-            return pause.evaluated == nil ? .evaluate("a + 1") : .resume
+            pause.evaluated == nil ? .evaluate("a + 1") : .resume
         }
-        try #require(pauses.values.count >= 2, "\(result.report)")
-        #expect(pauses.values[0].evaluated == nil)
-        let evaluated = try #require(pauses.values[1].evaluated)
+        try #require(pauses.count >= 2, "\(result.report)")
+        #expect(pauses[0].evaluated == nil)
+        let evaluated = try #require(pauses[1].evaluated)
         #expect(evaluated.expression == "a + 1")
         #expect(evaluated.result == "3")
         #expect(!evaluated.failed)
-        #expect(pauses.values[1].line == 3, "it stays at the same stop")
-        #expect(pauses.values[1].locals.contains { $0.name == "a" })
+        #expect(pauses[1].line == 3, "it stays at the same stop")
+        #expect(pauses[1].locals.contains { $0.name == "a" })
         #expect(result.output.contains { $0.text == "sum 5" })
     }
 
     @Test func evaluationErrorsComeBackAsText() async throws {
-        let pauses = Box<Debugger.Pause>()
-        let _ = await (try JSRunner(root: root)).debug("scripts/debug.ts",
-                                                       breakpoints: [.init(file: "scripts/debug.ts", line: 3)]) { pause in
-            pauses.append(pause)
-            return pause.evaluated == nil ? .evaluate("nope()") : .resume
+        let (_, pauses) = try await run("scripts/debug.ts", [.init(file: "scripts/debug.ts", line: 3)]) { pause, _ in
+            pause.evaluated == nil ? .evaluate("nope()") : .resume
         }
-        try #require(pauses.values.count >= 2)
-        let evaluated = try #require(pauses.values[1].evaluated)
+        try #require(pauses.count >= 2)
+        let evaluated = try #require(pauses[1].evaluated)
         #expect(evaluated.failed)
         #expect(evaluated.result.contains("Error"), "\(evaluated.result)")
     }
 
+    @Test func aConditionalBreakpointStopsOnlyWhenTrue() async throws {
+        // In the loop (`i` from 1 to 3), stop only when `i === 2`.
+        let (result, pauses) = try await run("scripts/loop.ts", [.init(file: "scripts/loop.ts", line: 3, condition: "i === 2")]) { _, _ in .resume }
+        #expect(pauses.count == 1, "only the second iteration should stop (\(pauses.count) stops)")
+        #expect(pauses.first?.locals.contains { $0.name == "i" && $0.value == "2" } == true)
+        #expect(result.output.contains { $0.text == "total 6" })
+    }
+
+    @Test func aConditionalBreakpointThatNeverHoldsRunsToTheEnd() async throws {
+        let (result, pauses) = try await run("scripts/loop.ts", [.init(file: "scripts/loop.ts", line: 3, condition: "i > 99")]) { _, _ in .resume }
+        #expect(pauses.isEmpty, "a false condition never stops")
+        #expect(result.output.contains { $0.text == "total 6" })
+    }
+
     @Test func stoppingEndsTheRun() async throws {
-        let pauses = Box<Debugger.Pause>()
-        let result = await (try JSRunner(root: root)).debug("scripts/debug.ts",
-                                                            breakpoints: [.init(file: "scripts/debug.ts", line: 2)]) { pause in
-            pauses.append(pause)
-            return .stop
-        }
-        #expect(pauses.values.count == 1)
+        let (result, pauses) = try await run("scripts/debug.ts", [.init(file: "scripts/debug.ts", line: 2)]) { _, _ in .stop }
+        #expect(pauses.count == 1)
         #expect(!result.output.contains { $0.text == "sum 5" }, "stopping shouldn't finish the program")
         #expect(result.ending == .finished)
     }
 
     @Test func aPackageImportSaysSo() async throws {
-        let result = await (try JSRunner(root: root)).debug("scripts/uses-package.ts", breakpoints: []) { _ in .resume }
+        let (result, _) = try await run("scripts/uses-package.ts", []) { _, _ in .resume }
         #expect(result.output.contains { $0.stream == .err && $0.text.contains("npm packages") }, "\(result.report)")
     }
 }

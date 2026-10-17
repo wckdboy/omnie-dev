@@ -46,7 +46,7 @@ final class DebugModel {
         failure = nil
         state = .running
         let breakpoints = Set((workspace?.breakpoints ?? [:]).flatMap { file, lines in
-            lines.map { Debugger.Breakpoint(file: file, line: $0) }
+            lines.map { Debugger.Breakpoint(file: file, line: $0, condition: workspace?.breakpointConditions[file]?[$0]) }
         })
         task = Task { [weak self] in
             guard let runner = try? JSRunner(root: root) else {

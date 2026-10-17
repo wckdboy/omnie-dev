@@ -29,7 +29,8 @@ let stepMode = null;            // "into" | "over" | "out"
 let stepDepth = 0;
 let hit = null;                 // what the last __omnieH decided, for the snapshot that follows
 const breakpoints = new Set();  // "fileId:line"
-const breakpointsByFile = new Map();   // path -> Set<line>, from the app
+const breakpointsByFile = new Map();   // path -> Map<line, condition|null>, from the app
+let conditions = new Map();     // "fileId:line" -> condition expression
 let files = new Set();          // the project's files, for resolution
 const modules = new Map();      // path -> module record
 const ids = new Map();          // path -> fileId
@@ -99,9 +100,30 @@ function evaluate(evalThunk, expression) {
   }
 }
 
+/// The raw value of an expression, for a breakpoint's condition.
+function evalRaw(evalThunk, expression) {
+  try {
+    return { ok: true, value: evalThunk(expression) };
+  } catch (e) {
+    return { ok: false, error: e };
+  }
+}
+
 globalThis.__omnieSnap = function (id, line, evalThunk, localsThunk) {
   const decision = hit ?? { id, line, reason: "breakpoint", depth: depth() };
   hit = null;
+  // A conditional breakpoint stops only when its condition is truthy in this frame.
+  if (decision.reason === "breakpoint") {
+    const condition = conditions.get(`${id}:${line}`);
+    if (condition) {
+      const result = evalRaw(evalThunk, condition);
+      if (!result.ok) {
+        console.warn(`Breakpoint condition failed (${condition}): ${format(result.error)}`);
+        return;
+      }
+      if (!result.value) return;
+    }
+  }
   let locals = [];
   try {
     const values = localsThunk();
@@ -245,7 +267,10 @@ function require(spec, fromDir) {
   const id = nextId++;
   ids.set(path, id);
   names.set(id, path);
-  for (const line of breakpointsByFile.get(path) ?? []) breakpoints.add(`${id}:${line}`);
+  for (const [line, condition] of breakpointsByFile.get(path) ?? []) {
+    breakpoints.add(`${id}:${line}`);
+    if (condition) conditions.set(`${id}:${line}`, condition);
+  }
 
   const record = { exports: {} };
   modules.set(path, record);
@@ -268,8 +293,8 @@ self.onmessage = async (event) => {
   const { entry, breakpoints: requested } = event.data;
   files = new Set(await (await fetch(base + "__omnie/manifest.json")).json());
   for (const b of requested ?? []) {
-    if (!breakpointsByFile.has(b.file)) breakpointsByFile.set(b.file, new Set());
-    breakpointsByFile.get(b.file).add(b.line);
+    if (!breakpointsByFile.has(b.file)) breakpointsByFile.set(b.file, new Map());
+    breakpointsByFile.get(b.file).set(b.line, b.condition ?? null);
   }
   try {
     require("./" + entry.replace(/^\.\//, ""), "");

@@ -92,17 +92,28 @@ public enum Debugger {
         }
     }
 
-    /// A breakpoint: a project-relative file and a 1-based line.
+    /// A breakpoint: a project-relative file and a 1-based line, with an optional condition
+    /// (an expression evaluated in the frame; the stop happens only when it is truthy).
     public struct Breakpoint: Sendable, Hashable {
         public var file: String
         public var line: Int
-        public init(file: String, line: Int) { self.file = file; self.line = line }
+        public var condition: String?
+
+        public init(file: String, line: Int, condition: String? = nil) {
+            self.file = file
+            self.line = line
+            self.condition = condition
+        }
     }
 
     /// The JSON the debug worker is started with: the entry path and the breakpoints.
     static func spec(entry: String, breakpoints: Set<Breakpoint>) -> String {
         let list = breakpoints.sorted { ($0.file, $0.line) < ($1.file, $1.line) }
-            .map { #"{"file":\#(quoted($0.file)),"line":\#($0.line)}"# }.joined(separator: ",")
+            .map { breakpoint -> String in
+                let condition = breakpoint.condition.map { #","condition":\#(quoted($0))"# } ?? ""
+                return #"{"file":\#(quoted(breakpoint.file)),"line":\#(breakpoint.line)\#(condition)}"#
+            }
+            .joined(separator: ",")
         return #"{"entry":\#(quoted(entry)),"breakpoints":[\#(list)]}"#
     }
 

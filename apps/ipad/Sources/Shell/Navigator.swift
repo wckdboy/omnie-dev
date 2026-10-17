@@ -162,9 +162,33 @@ struct EmptyProject: View {
     }
 }
 
-/// Attaches the folder picker that `file.openFolder` triggers.
-struct FolderPicker: ViewModifier {
+/// The breakpoint-condition prompt (the debugger's "Edit breakpoint condition…"): empty means stop
+/// every time.
+struct BreakpointConditionPrompt: ViewModifier {
     @Environment(AppModel.self) private var model
+    @State private var condition = ""
+
+    func body(content: Content) -> some View {
+        let prompt = model.breakpointPrompt
+        content
+            .alert("Breakpoint condition", isPresented: Binding(get: { model.breakpointPrompt != nil },
+                                                                 set: { if !$0 { model.breakpointPrompt = nil } })) {
+                TextField("i > 3", text: $condition)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button("Cancel", role: .cancel) { model.breakpointPrompt = nil }
+                Button("Save") {
+                    if let prompt { model.workspace.setBreakpointCondition(condition, line: prompt.line) }
+                    model.breakpointPrompt = nil
+                }
+            } message: {
+                Text("The breakpoint stops only when this expression is true where it stopped. Leave it empty to stop every time.")
+            }
+            .onChange(of: prompt?.id) { condition = prompt?.text ?? "" }
+    }
+}
+
+/// Attaches the folder picker that `file.openFolder` triggers.
+struct FolderPicker: ViewModifier {    @Environment(AppModel.self) private var model
 
     func body(content: Content) -> some View {
         @Bindable var workspace = model.workspace
