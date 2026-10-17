@@ -11,6 +11,7 @@ public enum LineEdit: Sendable, Equatable {
     case copyUp, copyDown
     case delete
     case indent, outdent
+    case insertLineAbove, insertLineBelow
     case joinLines
     case sortAscending, sortDescending
     case trimTrailingWhitespace
@@ -108,6 +109,19 @@ public enum LineEdit: Sendable, Equatable {
             let shift = (belowEndsWithNewline ? belowText as NSString : (belowText + "\n") as NSString).length
             return Result(range: NSRange(location: lines.location, length: lines.length + below.length), replacement: moved,
                           selection: NSRange(location: selection.location + shift, length: selection.length))
+
+        case .insertLineAbove:
+            // A blank line above with the line's own indentation, the caret on it.
+            let above = String(rows[0].prefix { $0 == " " || $0 == "\t" })
+            return Result(range: NSRange(location: lines.location, length: 0), replacement: above + "\n",
+                          selection: NSRange(location: lines.location + (above as NSString).length, length: 0))
+
+        case .insertLineBelow:
+            // A blank line below with the line's indentation; the existing line is untouched.
+            let below = String(rows[0].prefix { $0 == " " || $0 == "\t" })
+            let insertAt = endsWithNewline ? NSMaxRange(lines) - 1 : NSMaxRange(lines)
+            return Result(range: NSRange(location: insertAt, length: 0), replacement: "\n" + below,
+                          selection: NSRange(location: insertAt + 1 + (below as NSString).length, length: 0))
 
         case .joinLines:
             // A caret or a single line joins with the line below, as VS Code does.

@@ -28,4 +28,18 @@ struct BracketTests {
         #expect(match("s = \"(|\"") == nil)          // a bracket inside a string doesn't match
         #expect(match("g(`[`)|") == "1,5")
     }
+
+    func enclosing(_ marked: String) -> String? {
+        let caret = (marked as NSString).range(of: "|").location
+        let text = marked.replacingOccurrences(of: "|", with: "") as NSString
+        guard let (a, b) = Brackets.enclosing(in: text, range: NSRange(location: caret, length: 0)) else { return nil }
+        return "\(a),\(b)"
+    }
+
+    @Test func findsTheEnclosingPair() {
+        #expect(enclosing("a = f(b, g(c|))\n") == "10,12", "the innermost pair wins")
+        #expect(enclosing("a = f(b|, g(c))\n") == "5,13")
+        #expect(enclosing("plain| text") == nil)
+        #expect(enclosing("f(a)|") == nil, "a caret after the closing bracket isn't inside the pair")
+    }
 }

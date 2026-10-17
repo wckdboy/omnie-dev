@@ -16,8 +16,11 @@ the remaining app-side editor ergonomics, and the guarantees that make the sandb
 - **Go to matching bracket** (⇧⌘\) and **Select to matching bracket** (⌃⇧⌘\).
 - **Snippet Tab stops**: `$1`, `${1:default}`, `${1|a,b|}` and `$0` become placeholders you Tab
   through — typing fills the stop and carries the rest of the snippet along; Esc leaves it.
-- Sort lines (ascending/descending), join lines (⌃J), trim trailing whitespace, and Transform to
-  uppercase/lowercase/title case (on the selection or the word at the caret).
+- Sort lines (ascending/descending), join lines (⌃J), insert line above/below (⇧⌘↩ / ⌘↩), trim trailing
+  whitespace, and Transform to uppercase/lowercase/title case (on the selection or the word at the
+  caret). Copy path / Copy relative path for the open file.
+- Expand Selection (⌃⇧→) and Shrink Selection (⌃⇧←): a caret grows to the word, the brackets around
+  it, the line, then the document.
 - Go to next/previous problem (F8/⇧F8): walk the project's type-check and lint diagnostics in order,
   opening the file when the problem isn't the one on screen.
 - Go, Rust, C and C++ highlighting and outlines, alongside Swift/TypeScript/JavaScript/Python.

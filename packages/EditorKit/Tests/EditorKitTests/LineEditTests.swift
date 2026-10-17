@@ -76,6 +76,19 @@ struct LineEditTests {
         #expect(partial == "z\na\nb\n")
     }
 
+    @Test func insertsLinesAround() throws {
+        let text = "  foo\nbar\n"
+        let (below, belowCaret) = try #require(run(.insertLineBelow, text, NSRange(location: 3, length: 0)))
+        #expect(below == "  foo\n  \nbar\n")
+        #expect(belowCaret == NSRange(location: 8, length: 0))
+        let (above, aboveCaret) = try #require(run(.insertLineAbove, text, NSRange(location: 3, length: 0)))
+        #expect(above == "  \n  foo\nbar\n")
+        #expect(aboveCaret == NSRange(location: 2, length: 0))
+        // The last line, with no newline after it.
+        let (last, lastCaret) = try #require(run(.insertLineBelow, "foo", NSRange(location: 1, length: 0)))
+        #expect(last == "foo\n" && lastCaret == NSRange(location: 4, length: 0))
+    }
+
     @Test func joinsLines() throws {
         // A caret joins the line it's on with the line below.
         let (joined, caret) = try #require(run(.joinLines, "const a = 1;\nconst b = 2;\n", NSRange(location: 4, length: 0)))

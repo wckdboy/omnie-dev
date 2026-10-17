@@ -267,6 +267,10 @@ final class AppModel {
             EditorKeyCommand(input: UIKeyCommand.f8, modifiers: [], id: "editor.nextProblem"),
             EditorKeyCommand(input: UIKeyCommand.f8, modifiers: .shift, id: "editor.previousProblem"),
             EditorKeyCommand(input: "l", modifiers: [.alternate, .command], id: "editor.findInSelection"),
+            EditorKeyCommand(input: "\r", modifiers: .command, id: "editor.insertLineBelow"),
+            EditorKeyCommand(input: "\r", modifiers: [.command, .shift], id: "editor.insertLineAbove"),
+            EditorKeyCommand(input: UIKeyCommand.inputRightArrow, modifiers: [.control, .shift], id: "editor.expandSelection"),
+            EditorKeyCommand(input: UIKeyCommand.inputLeftArrow, modifiers: [.control, .shift], id: "editor.shrinkSelection"),
         ]
         // A long press on code offers what VS Code's context menu does (TypeScript, JavaScript, Python).
         workspace.editor.textView.additionalEditMenuElements = { [weak self] _ in
@@ -575,6 +579,14 @@ final class AppModel {
                     shortcut: Shortcut("d"), surfaces: .ide, keywords: ["multi-cursor", "add cursor", "next match", "occurrence"]) { [weak self] in
                 self?.workspace.selectNextOccurrence()
             },
+            Command(id: "editor.expandSelection", title: "Expand selection", menu: "Edit",
+                    shortcut: Shortcut("→", [.control, .shift]), surfaces: .ide, keywords: ["grow", "smart select", "word", "brackets"]) { [weak self] in
+                self?.workspace.editor.expandSelection()
+            },
+            Command(id: "editor.shrinkSelection", title: "Shrink selection", menu: "Edit",
+                    shortcut: Shortcut("←", [.control, .shift]), surfaces: .ide, keywords: ["shrink", "smaller", "smart select"]) { [weak self] in
+                self?.workspace.editor.shrinkSelection()
+            },
             Command(id: "editor.goToBracket", title: "Go to matching bracket", menu: "Edit",
                     shortcut: Shortcut("\\", [.command, .shift]), surfaces: .ide, keywords: ["jump", "parenthesis", "brace", "paren"]) { [weak self] in
                 self?.workspace.editor.goToMatchingBracket()
@@ -658,6 +670,24 @@ final class AppModel {
             Command(id: "editor.joinLines", title: "Join lines", menu: "Edit",
                     shortcut: Shortcut("j", [.control]), surfaces: .ide, keywords: ["merge lines", "combine", "reflow", "unwrap"]) { [weak self] in
                 self?.workspace.perform(.joinLines)
+            },
+            Command(id: "editor.insertLineAbove", title: "Insert line above", menu: "Edit",
+                    shortcut: Shortcut("\r", [.command, .shift]), surfaces: .ide, keywords: ["new line", "above", "blank line"]) { [weak self] in
+                self?.workspace.perform(.insertLineAbove)
+            },
+            Command(id: "editor.insertLineBelow", title: "Insert line below", menu: "Edit",
+                    shortcut: Shortcut("\r", [.command]), surfaces: .ide, keywords: ["new line", "below", "blank line"]) { [weak self] in
+                self?.workspace.perform(.insertLineBelow)
+            },
+            Command(id: "file.copyPath", title: "Copy path", menu: "File",
+                    surfaces: .ide, keywords: ["clipboard", "absolute path", "full path", "location"]) { [weak self] in
+                guard let url = self?.workspace.openFile else { return }
+                UIPasteboard.general.string = url.path(percentEncoded: false)
+            },
+            Command(id: "file.copyRelativePath", title: "Copy relative path", menu: "File",
+                    surfaces: .ide, keywords: ["clipboard", "project path", "relative"]) { [weak self] in
+                guard let path = self?.workspace.relativePath else { return }
+                UIPasteboard.general.string = path
             },
             Command(id: "editor.nextProblem", title: "Go to next problem", menu: "View",
                     surfaces: .ide, keywords: ["problem", "error", "warning", "diagnostic", "f8", "issues"]) { [weak self] in

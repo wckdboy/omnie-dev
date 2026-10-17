@@ -64,4 +64,32 @@ public enum Brackets {
         }
         return open != nil
     }
+
+    /// The innermost bracket pair that strictly contains `range` — its opening before it and its
+    /// closing at or after its end — or nil. Finds what Select to Expand Selection grows into.
+    /// Quoted runs on one line are skipped; comments are not.
+    public static func enclosing(in text: NSString, range: NSRange) -> (Int, Int)? {
+        var stack: [(partner: UInt16, at: Int)] = []
+        var best: (Int, Int)?
+        var i = 0
+        while i < text.length {
+            let c = text.character(at: i)
+            if c == 0x22 || c == 0x27 || c == 0x60 {
+                if let end = closingQuote(text, from: i, quote: c, forwards: true) { i = end + 1; continue }
+                i += 1
+                continue
+            }
+            guard let (partner, forwards) = pairs[c] else { i += 1; continue }
+            if forwards {
+                stack.append((partner, i))
+            } else if let last = stack.last, last.partner == c {
+                stack.removeLast()
+                if last.at < range.location, i >= NSMaxRange(range) {
+                    if best == nil || (i - last.at) < (best!.1 - best!.0) { best = (last.at, i) }
+                }
+            }
+            i += 1
+        }
+        return best
+    }
 }

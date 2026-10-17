@@ -235,6 +235,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         self.language = language
         // A new file: any snippet being filled in is gone with the old text.
         snippet = nil
+        selectionStack = []
         // A reload keeps its folds (re-applied by header once the new text's blocks are known);
         // opening another file replaces them with its own through `restoreFolds`.
         if folding.pending.isEmpty { folding.pending = foldedHeaders }
@@ -410,6 +411,50 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         let location = min(range.location, length)
         selectedRange = clamped(NSRange(location: location, length: min((changed as NSString).length, length - location)))
         return true
+    }
+
+    // MARK: Selection
+
+    /// The selection to grow into, as VS Code's Expand Selection does: the word at a caret, then the
+    /// brackets around the selection (contents, then the brackets themselves), then the line, then
+    /// the document. nil when nothing larger contains the selection.
+    public nonisolated static func nextSelection(after current: NSRange, in text: String) -> NSRange? {
+        let ns = text as NSString
+        var options: [NSRange] = []
+        if current.length == 0, let word = MultiCaret.word(in: text, at: current.location) { options.append(word) }
+        if let (a, b) = Brackets.enclosing(in: ns, range: current) {
+            options.append(NSRange(location: a + 1, length: max(0, b - a - 1)))
+            options.append(NSRange(location: a, length: b - a + 1))
+        }
+        options.append(ns.lineRange(for: current))
+        options.append(NSRange(location: 0, length: ns.length))
+        let end = NSMaxRange(current)
+        return options
+            .filter { $0.location <= current.location && NSMaxRange($0) >= end && ($0.length > current.length || $0.location < current.location) }
+            .min { $0.length < $1.length }
+    }
+
+    /// Selections Expand Selection passed through, for Shrink Selection to walk back.
+    private var selectionStack: [NSRange] = []
+
+    /// "Expand Selection": grow to the next word, brackets, line or the document.
+    public func expandSelection() {
+        guard let next = Self.nextSelection(after: textView.selectedRange, in: textView.text) else { return }
+        selectionStack.append(textView.selectedRange)
+        selectedRange = clamped(next)
+        scrollRangeToVisible(selectedRange)
+    }
+
+    /// "Shrink Selection": back through what Expand Selection did, else collapse to a caret.
+    public func shrinkSelection() {
+        if let previous = selectionStack.popLast() {
+            selectedRange = clamped(previous)
+            scrollRangeToVisible(selectedRange)
+            return
+        }
+        let current = textView.selectedRange
+        guard current.length > 0 else { return }
+        selectedRange = clamped(NSRange(location: current.location, length: 0))
     }
 
     /// A line command, applied through the text view so it's one undo step and the delegate hears it.

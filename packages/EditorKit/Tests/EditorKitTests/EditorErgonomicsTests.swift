@@ -87,6 +87,28 @@ struct EditorErgonomicsTests {
         #expect(!editor.transformCase(.lower))
     }
 
+    // MARK: Selection
+
+    @Test func expandsAndShrinksSelection() async {
+        let editor = await loadedEditor("a = f(b, g(c))\n")
+        // A caret inside "b" walks out: word, the outer brackets' contents, the brackets, the line.
+        editor.selectedRange = NSRange(location: 6, length: 0)
+        editor.expandSelection()
+        #expect(editor.selectedRange == NSRange(location: 6, length: 1), "the word")
+        editor.expandSelection()
+        #expect(editor.selectedRange == NSRange(location: 6, length: 7), "b, g(c")
+        editor.expandSelection()
+        #expect(editor.selectedRange == NSRange(location: 5, length: 9), "f(b, g(c))")
+        editor.expandSelection()
+        #expect(editor.selectedRange == NSRange(location: 0, length: 15), "the line")
+        editor.expandSelection()
+        #expect(editor.selectedRange == NSRange(location: 0, length: 15), "nothing larger")
+        editor.shrinkSelection()
+        #expect(editor.selectedRange == NSRange(location: 5, length: 9))
+        editor.shrinkSelection()
+        #expect(editor.selectedRange == NSRange(location: 6, length: 7))
+    }
+
     // MARK: Brackets
 
     @Test func jumpsToTheMatchingBracketBothWays() async {
