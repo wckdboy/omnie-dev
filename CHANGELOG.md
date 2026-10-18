@@ -14,7 +14,8 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
   parks on a request the app holds open and reads the chosen action back from its response, so the
   JavaScript stack and its locals are still live when the pause is shown. Imports of a package in the
   offline npm cache load from there (uninstrumented: a breakpoint inside a package doesn't stop).
-- The editor draws a breakpoint as a dot in the gutter (tap the gutter, or F9), and F5 starts (or
+- The editor draws a breakpoint as a dot in the gutter (tap the gutter, or F9; a fold chevron in
+  the same strip still folds — the two gutter taps run beside each other), and F5 starts (or
   continues) a session on the open file. The Debug panel lists the call stack (tap a frame to open
   it) and the locals, with Continue / Step over / Step into / Step out / Stop and the console.
   F10 steps over, F11 steps in, ⇧F11 steps out, ⇧F5 stops. The panel's Evaluate field runs an

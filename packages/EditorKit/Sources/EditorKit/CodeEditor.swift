@@ -208,13 +208,19 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
 
     /// A tap in the gutter toggles that line's breakpoint (the fold chevrons keep their own taps).
     @MainActor @objc func breakpointTapped(_ recognizer: UITapGestureRecognizer) {
-        let point = recognizer.location(in: textView)
-        guard point.x < textView.gutterWidth else { return }
-        if isFoldTarget(point) { return }
-        guard let position = textView.closestPosition(to: CGPoint(x: textView.gutterWidth + 4, y: point.y)) else { return }
+        handleBreakpointTap(at: recognizer.location(in: textView))
+    }
+
+    /// Toggles the breakpoint of the line under a gutter tap, returning whether one was toggled. A
+    /// chevron (or a fold's "⋯") belongs to the fold gesture — it folds instead — so it's left alone.
+    @discardableResult
+    func handleBreakpointTap(at point: CGPoint) -> Bool {
+        guard point.x < textView.gutterWidth, !isFoldTarget(point),
+              let position = textView.closestPosition(to: CGPoint(x: textView.gutterWidth + 4, y: point.y)) else { return false }
         let offset = textView.offset(from: textView.beginningOfDocument, to: position)
         let line = FoldRegions.row(of: offset, lineStarts: FoldRegions.lineStarts(textView.text)) + 1
         toggleBreakpoint(line: line)
+        return true
     }
 
     /// Adds or removes a line's breakpoint (and its condition), redraws it, and reports it.
@@ -281,6 +287,12 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             guard let view = recognizer.view else { return false }
             return touch.location(in: view).x < textView.gutterWidth
         }
+    }
+
+    /// It runs beside the fold gesture (and the editor's own tap): each ignores what isn't its own, so
+    /// a chevron still folds and a gutter tap still toggles a breakpoint.
+    public nonisolated func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
     }
 
     public var text: String { textView.text }

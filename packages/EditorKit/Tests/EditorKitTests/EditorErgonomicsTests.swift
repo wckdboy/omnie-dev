@@ -135,6 +135,47 @@ struct EditorErgonomicsTests {
         #expect(editor.breakpointConditions.isEmpty)
     }
 
+    @Test func aGutterTapTogglesThatLinesBreakpoint() async {
+        let editor = await loadedEditor("one\ntwo\nthree\n")
+        editor.textView.layoutIfNeeded()
+        let lineY = editor.textView.caretRect(for: editor.textView.beginningOfDocument).midY
+        var toggled: [Int] = []
+        editor.onToggleBreakpoint = { line, _ in toggled.append(line) }
+        #expect(editor.handleBreakpointTap(at: CGPoint(x: 4, y: lineY)), "a plain gutter tap is the breakpoint gesture's")
+        #expect(editor.breakpointLines == [1])
+        #expect(toggled == [1])
+        // Tapping the same line again removes it.
+        #expect(editor.handleBreakpointTap(at: CGPoint(x: 4, y: lineY)))
+        #expect(editor.breakpointLines.isEmpty)
+    }
+
+    /// The gutter's two taps (fold chevron, breakpoint dot) share a strip, so each must ignore what
+    /// isn't its own: a chevron folds and leaves breakpoints alone, and they run beside each other.
+    @Test func aGutterChevronFoldsInsteadOfTogglingABreakpoint() async {
+        let editor = CodeEditorController(theme: EditorTheme(palette: .dark, density: .regular))
+        editor.textView.frame = CGRect(x: 0, y: 0, width: 600, height: 400)
+        var loaded = false
+        editor.onLoaded = { loaded = true }
+        editor.load("function f() {\n  return 1;\n}\nconst x = 2;\n", language: nil)
+        for _ in 0..<200 where !loaded || editor.foldRegions.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        editor.textView.layoutIfNeeded()
+        let headerY = editor.textView.caretRect(for: editor.textView.beginningOfDocument).midY
+        let chevron = CGPoint(x: editor.textView.gutterWidth - 9, y: headerY)
+        #expect(editor.isFoldTarget(chevron))
+        // The breakpoint gesture leaves a chevron alone...
+        #expect(!editor.handleBreakpointTap(at: chevron))
+        #expect(editor.breakpointLines.isEmpty)
+        // ...and the fold gesture still folds it.
+        #expect(editor.handleGutterTap(at: chevron))
+        #expect(editor.textView.foldedRanges.count == 1)
+    }
+
+    @Test func theGutterGesturesRecognizeTogether() {
+        let editor = CodeEditorController(theme: EditorTheme(palette: .dark, density: .regular))
+        // Without this the two taps cancel each other, so a chevron stops folding.
+        #expect(editor.gestureRecognizer(UITapGestureRecognizer(), shouldRecognizeSimultaneouslyWith: UITapGestureRecognizer()))
+    }
+
     // MARK: Selection
 
     @Test func expandsAndShrinksSelection() async {
