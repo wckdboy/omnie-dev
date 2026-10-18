@@ -21,6 +21,8 @@ struct LanguageTests {
         .c: "static int add(int a, int b) { return a + b; }\nstruct P { int x; };\n",
         .cpp: "#include <vector>\nclass P { public: int x; };\nint add(int a, int b) { return a + b; }\n",
         .java: "package p;\n\npublic class C {\n    private final int x = 1;\n    int add(int a, int b) { return a + b; }\n}\n",
+        .markdown: "# Title\n\nSome *text* with `code`.\n\n```java\nint x = 1;\n```\n",
+        .markdownInline: "Some **bold** and a [link](x) with `code`.\n",
     ]
 
     @Test("Each grammar loads in the tree-sitter runtime and parses without errors", arguments: Language.allCases)
@@ -55,6 +57,15 @@ struct LanguageTests {
         #expect(Language(fileExtension: "c") == .c && Language(fileExtension: "h") == .c)
         #expect(Language(fileExtension: "cpp") == .cpp && Language(fileExtension: "hpp") == .cpp)
         #expect(Language(fileExtension: "java") == .java)
-        #expect(Language(fileExtension: "md") == nil)
+        #expect(Language(fileExtension: "md") == .markdown && Language(fileExtension: "markdown") == .markdown)
+        #expect(Language(fileExtension: "txt") == nil)
+    }
+
+    @Test func detectsInjectedLanguagesByName() {
+        #expect(Language(injectionName: "java") == .java)
+        #expect(Language(injectionName: "js") == .javascript && Language(injectionName: "JavaScript") == .javascript)
+        #expect(Language(injectionName: "c++") == .cpp && Language(injectionName: "python") == .python)
+        #expect(Language(injectionName: "markdown_inline") == .markdownInline)
+        #expect(Language(injectionName: "yaml") == nil, "no grammar for it; the fence stays plain")
     }
 }

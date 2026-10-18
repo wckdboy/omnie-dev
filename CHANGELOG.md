@@ -8,6 +8,7 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 
 **Languages**
 - **Java**: tree-sitter-java highlighting and outlines for `.java`, joining Swift/TypeScript/JavaScript/Python/Go/Rust/C/C++ (vendored and hash-pinned by `scripts/vendor-grammars.py`).
+- **Markdown**: `.md` files highlight with tree-sitter-markdown (headings, code fences, links), and a fenced block is highlighted as the language it names (```` ```java ````, ```` ```python ````, …). This is the editor's first use of the engine's injected-language path, so an HTML document's CSS and `<script>` highlight too.
 
 **Debugger (RunKit core, PLAN.md §5.3)**
 - RunKit's debugger runs a project's own JavaScript/TypeScript modules with a hook at the start of

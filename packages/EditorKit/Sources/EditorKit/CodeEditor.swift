@@ -362,7 +362,8 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
                     self.onHighlighted?()
                     return
                 }
-                let mode = TreeSitterLanguageMode(language: Self.treeSitterLanguage(language))
+                let mode = TreeSitterLanguageMode(language: Self.treeSitterLanguage(language),
+                                                  languageProvider: InjectedLanguages.shared)
                 self.textView.setLanguageMode(mode) { _ in
                     guard generation == self.loadGeneration else { return }
                     self.onHighlighted?()
@@ -696,10 +697,29 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     static let pairs: [CharacterPair] = [("(", ")"), ("[", "]"), ("{", "}"), ("\"", "\""), ("'", "'"), ("`", "`")]
         .map { SimplePair(leading: $0.0, trailing: $0.1) }
 
-    static func treeSitterLanguage(_ language: Language) -> TreeSitterLanguage {
+    nonisolated static func treeSitterLanguage(_ language: Language) -> TreeSitterLanguage {
         TreeSitterLanguage(language.grammar,
                            highlightsQuery: language.highlightsQuery.map { .init(string: $0) },
                            injectionsQuery: language.injectionsQuery.map { .init(string: $0) })
+    }
+}
+
+/// Supplies the engine with embedded languages by tree-sitter name: a fenced code block's language in
+/// Markdown, Markdown's inline grammar, and an HTML document's CSS and JavaScript. The engine parses
+/// off the main thread, so the built languages are cached behind a lock.
+final class InjectedLanguages: TreeSitterLanguageProvider, @unchecked Sendable {
+    static let shared = InjectedLanguages()
+    private let lock = NSLock()
+    private var cache: [String: TreeSitterLanguage] = [:]
+
+    func treeSitterLanguage(named languageName: String) -> TreeSitterLanguage? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = cache[languageName] { return cached }
+        guard let language = Language(injectionName: languageName) else { return nil }
+        let built = CodeEditorController.treeSitterLanguage(language)
+        cache[languageName] = built
+        return built
     }
 }
 

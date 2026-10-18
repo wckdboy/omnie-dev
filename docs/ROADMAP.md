@@ -39,7 +39,7 @@ Make the suite and the sandbox dependable before adding surface.
 ## M2 — Languages
 | Deliverable | Where | Notes |
 |---|---|---|
-| Go, Rust, C/C++, Java **highlighting + fences** | `LangKit` + `scripts/vendor-grammars.py` | Vendoring is scripted; Swift already ships. **Landed**: Go, Rust, C, C++ and Java highlighting and outlines. Markdown fences (highlighting fenced code in `.md`) still open — it needs the engine's injected-language provider
+| Go, Rust, C/C++, Java **highlighting + fences** | `LangKit` + `scripts/vendor-grammars.py` | Vendoring is scripted; Swift already ships. **Landed**: Go, Rust, C, C++ and Java highlighting and outlines, and Markdown (tree-sitter-markdown) whose fenced code highlights as its language via EditorKit's new injected-language provider (which also turns on HTML's CSS/`<script>`) |
 | **Workspace symbol search** (⇧⌘T) across all files | `LangKit/Outline` + a project index | Reuses the type-checker walk |
 | **LSP-over-WASM bridge** for one language | `RunKit` sandbox + a wasm LSP (e.g. rust-analyzer) | The realistic path past "textmate grammar" |
 | Python: Pyright-grade diagnostics (optional), keep Ruff | `RunKit` | Ruff covers lint; keep it |

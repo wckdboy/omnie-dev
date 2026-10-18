@@ -23,6 +23,15 @@ struct SyntaxRoleTests {
             }
         }
     }
+
+    /// Markdown highlights fenced code by injecting the fenced language: the mode carries the
+    /// injection query, and the provider hands the engine a language for a fence's info string.
+    @Test func markdownInjectsFencedLanguages() {
+        #expect(CodeEditorController.treeSitterLanguage(.markdown).injectionsQuery != nil)
+        #expect(InjectedLanguages.shared.treeSitterLanguage(named: "java") != nil)
+        #expect(InjectedLanguages.shared.treeSitterLanguage(named: "markdown_inline") != nil)
+        #expect(InjectedLanguages.shared.treeSitterLanguage(named: "yaml") == nil, "no grammar; the fence stays plain")
+    }
 }
 
 @MainActor

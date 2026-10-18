@@ -6,7 +6,7 @@ import TreeSitterGrammars
 
 /// A language Omnie-dev can highlight. Grammars are compiled into the app, so this works offline.
 public enum Language: String, CaseIterable, Sendable {
-    case javascript, typescript, tsx, json, python, swift, css, html, go, rust, c, cpp, java
+    case javascript, typescript, tsx, json, python, swift, css, html, go, rust, c, cpp, java, markdown, markdownInline
 
     /// Picks a language by file extension; nil for plain text.
     public init?(fileExtension ext: String) {
@@ -24,11 +24,36 @@ public enum Language: String, CaseIterable, Sendable {
         case "c", "h": self = .c
         case "cpp", "cc", "cxx", "hpp", "hh", "hxx", "ipp": self = .cpp
         case "java": self = .java
+        case "md", "markdown": self = .markdown
         default: return nil
         }
     }
 
     public init?(url: URL) { self.init(fileExtension: url.pathExtension) }
+
+    /// A language by the name a grammar's injection names it — tree-sitter grammar names and the
+    /// common aliases a Markdown fence's info string uses ("js", "py", "c++", …). `nil` when we
+    /// ship no grammar for it (the fenced text then stays unhighlighted).
+    public init?(injectionName name: String) {
+        switch name.lowercased() {
+        case "javascript", "js", "jsx", "mjs", "cjs": self = .javascript
+        case "typescript", "ts": self = .typescript
+        case "tsx": self = .tsx
+        case "json", "jsonc": self = .json
+        case "python", "py": self = .python
+        case "swift": self = .swift
+        case "css": self = .css
+        case "html": self = .html
+        case "go": self = .go
+        case "rust", "rs": self = .rust
+        case "c": self = .c
+        case "cpp", "c++", "cc", "cxx": self = .cpp
+        case "java": self = .java
+        case "markdown", "md": self = .markdown
+        case "markdown_inline": self = .markdownInline
+        default: return nil
+        }
+    }
 
     public var displayName: String {
         switch self {
@@ -45,6 +70,8 @@ public enum Language: String, CaseIterable, Sendable {
         case .c: "C"
         case .cpp: "C++"
         case .java: "Java"
+        case .markdown: "Markdown"
+        case .markdownInline: "Markdown (inline)"
         }
     }
 
@@ -64,6 +91,8 @@ public enum Language: String, CaseIterable, Sendable {
         case .c: tree_sitter_c()
         case .cpp: tree_sitter_cpp()
         case .java: tree_sitter_java()
+        case .markdown: tree_sitter_markdown()
+        case .markdownInline: tree_sitter_markdown_inline()
         }
     }
 

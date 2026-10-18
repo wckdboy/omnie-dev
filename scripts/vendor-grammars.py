@@ -18,7 +18,7 @@ LANGKIT = ROOT / "packages" / "LangKit"
 C_DIR = LANGKIT / "Sources" / "TreeSitterGrammars"
 QUERY_DIR = LANGKIT / "Sources" / "LangKit" / "Resources" / "queries"
 
-# name: (github repo, tag, sha256 of the tag tarball, [source dirs], {language: [query files to concatenate]})
+# name: (github repo, tag, sha256 of the tag tarball, [source dirs], {language: [query files to concatenate]}, query dir)
 GRAMMARS = {
     "javascript": ("tree-sitter/tree-sitter-javascript", "v0.25.0",
                    "9712fc283d3dc01d996d20b6392143445d05867a7aad76fdd723824468428b86",
@@ -56,6 +56,15 @@ GRAMMARS = {
     "java": ("tree-sitter/tree-sitter-java", "v0.23.5",
              "cb199e0faae4b2c08425f88cbb51c1a9319612e7b96315a174a624db9bf3d9f0",
              ["src"], {"java": ["highlights.scm"]}),
+    # Markdown is two grammars in one repo: the block grammar, and the inline one its injections use.
+    "markdown": ("tree-sitter-grammars/tree-sitter-markdown", "v0.5.3",
+                 "df845b1ab7c7c163ec57d7fa17170c92b04be199bddab02523636efec5224ab6",
+                 ["tree-sitter-markdown/src"], {"markdown": ["highlights.scm"], "markdown.injections": ["injections.scm"]},
+                 "tree-sitter-markdown/queries"),
+    "markdowninline": ("tree-sitter-grammars/tree-sitter-markdown", "v0.5.3",
+                       "df845b1ab7c7c163ec57d7fa17170c92b04be199bddab02523636efec5224ab6",
+                       ["tree-sitter-markdown-inline/src"], {"markdownInline": ["highlights.scm"]},
+                       "tree-sitter-markdown-inline/queries"),
 }
 
 # TypeScript's highlights extend JavaScript's, and C++'s extend C's (per each grammar's
@@ -89,7 +98,10 @@ def main() -> None:
     QUERY_DIR.mkdir(parents=True)
     raw_queries: dict[tuple[str, str], str] = {}
 
-    for name, (repo, tag, sha, dirs, queries) in GRAMMARS.items():
+    for name, spec in GRAMMARS.items():
+        repo, tag, sha, dirs, queries = spec[:5]
+        # Most grammars keep their queries in a root "queries/" folder; a few (Markdown) nest them.
+        query_dir = spec[5] if len(spec) > 5 else "queries"
         tar = fetch(repo, tag, sha)
         prefix = tar.getnames()[0].split("/")[0] + "/"
         out = C_DIR / name
@@ -107,7 +119,7 @@ def main() -> None:
                 dest = out / rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_bytes(tar.extractfile(member).read())
-            elif rel.startswith("queries/") and fname.endswith(".scm"):
+            elif rel.startswith(query_dir + "/") and fname.endswith(".scm"):
                 raw_queries[(name, fname)] = tar.extractfile(member).read().decode()
         for target, files in queries.items():
             lang, _, kind = target.partition(".")

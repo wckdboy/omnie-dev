@@ -102,6 +102,7 @@ Open: more bundled WASI tools (a shell's coreutils next), PyPI packages with com
 - **Navigation history (1.7):** Go back (⌃-) and Go forward (⌃⇧-) walk the places you've been — a file switch or an in-file jump records where you left, and navigating again clears the forward path. `workspace.goBack/goForward`.
 - **Find depth (1.7):** Find in Selection (⌥⌘L) limits matches to the current selection (Replace All then only touches them), and the find field keeps a search history across launches (newest first; pick one from the clock button, or clear it there). `FindModel`, `FindBar`.
 - **Java (1.8):** tree-sitter-java highlighting and outlines for `.java`, alongside Swift/TypeScript/JavaScript/Python/Go/Rust/C/C++ (vendored by `scripts/vendor-grammars.py`, pinned at v0.23.5). `LanguageTests`, `OutlineTests`.
+- **Markdown (1.8):** `.md` highlights with tree-sitter-markdown, and a fenced code block is highlighted as its language (```` ```java ```` etc.) through the engine's injected-language path — EditorKit now supplies a `TreeSitterLanguageProvider` (`InjectedLanguages`), so an HTML document's CSS and `<script>` highlight too. `LanguageTests`, `SyntaxRoleTests`.
 
 Still behind VS Code: language intelligence for the rest (Swift, Go, Rust, …), multiple selections (⌘D uses the engine's carets today; the multi-selection API it wants is written up in [engine-tickets.md](engine-tickets.md)), the debugger's UI (its core runs offline now — see the Debugger bullet above), and extensions.
 

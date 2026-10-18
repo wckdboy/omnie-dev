@@ -17,7 +17,7 @@ libgit2 is linked unmodified, as its linking exception allows. Fixes to it go up
 
 The app also bundles, built from source:
 
-  tree-sitter grammars (JavaScript, TypeScript/TSX, JSON, Python, Swift, CSS, HTML, Go, Rust, C, C++, Java)
+  tree-sitter grammars (JavaScript, TypeScript/TSX, JSON, Python, Swift, CSS, HTML, Go, Rust, C, C++, Java, Markdown)
                    MIT, vendored by scripts/vendor-grammars.py from hash-pinned releases;
                    each grammar's LICENSE is kept next to its sources
   tree-sitter 0.26.13   MIT   https://github.com/tree-sitter/tree-sitter

@@ -91,6 +91,10 @@ public enum Outline {
         Rule(.function, #"^[ \t]*(?:(?:public|private|protected|static|final|abstract|synchronized|native|default|strictfp)[ \t]+)*(?:<[^>\n]*>[ \t]*)?[A-Za-z_][\w.<>\[\], \t]*[ \t]+([A-Za-z_]\w*)[ \t]*\([^;\n]*\)(?:[ \t]*throws[^{;\n]*)?[ \t]*\{"#),
     ]
 
+    static let markdown: [Rule] = [
+        Rule(.type, #"^[ \t]{0,3}#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*$"#),
+    ]
+
     public static func symbols(in text: String, language: Language) -> [Symbol] {
         let rules: [Rule] = switch language {
         case .javascript, .typescript, .tsx: script
@@ -103,6 +107,8 @@ public enum Outline {
         case .c: c
         case .cpp: cpp
         case .java: java
+        case .markdown: markdown
+        case .markdownInline: []
         case .json: []
         }
         let ns = text as NSString
