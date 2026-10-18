@@ -31,11 +31,16 @@ def main():
     OUT.mkdir(parents=True)
     with tempfile.TemporaryDirectory() as tmp:
         suite = Path(tmp) / "suite"
-        subprocess.run(["git", "clone", "-q", "--depth", "1", "--branch", "prod/testsuite-base",
-                        "https://github.com/WebAssembly/wasi-testsuite.git", str(suite)], check=True)
+        # Fetch the pinned commit itself: the branch it was cut from (prod/testsuite-base) keeps
+        # moving, so cloning that tip and checking its hash fails whenever upstream advances.
+        subprocess.run(["git", "init", "-q", str(suite)], check=True)
+        subprocess.run(["git", "-C", str(suite), "remote", "add", "origin",
+                        "https://github.com/WebAssembly/wasi-testsuite.git"], check=True)
+        subprocess.run(["git", "-C", str(suite), "fetch", "-q", "--depth", "1", "origin", SUITE_COMMIT], check=True)
+        subprocess.run(["git", "-C", str(suite), "checkout", "-q", "FETCH_HEAD"], check=True)
         head = subprocess.run(["git", "-C", str(suite), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
         if head != SUITE_COMMIT:
-            raise SystemExit(f"wasi-testsuite moved: {head} != {SUITE_COMMIT}")
+            raise SystemExit(f"wasi-testsuite gave {head} for the pinned {SUITE_COMMIT}")
         shutil.copy(suite / "LICENSE", OUT / "LICENSE-wasi-testsuite")
         tests = []
         for lang in LANGS:

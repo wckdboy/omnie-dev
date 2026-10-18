@@ -105,6 +105,16 @@ jobs:
         if: steps.runkit.outputs.cache-hit != 'true'
         run: scripts/vendor-runkit.sh
 
+      - name: Cache WASI spike
+        id: wasispike
+        uses: actions/cache@v6
+        with:
+          path: apps/ipad/Resources/WASISpike
+          key: wasispike-${{ hashFiles('scripts/vendor-wasi-spike.py') }}
+      - name: Vendor the WASI spike
+        if: steps.wasispike.outputs.cache-hit != 'true'
+        run: python3 scripts/vendor-wasi-spike.py
+
   # One job per package, in parallel: a failure in one names the package and doesn't stop the rest.
   packages:
     name: ${{ matrix.package }}
@@ -263,6 +273,11 @@ jobs:
             packages/RunKit/Sources/RunKit/JS/pyodide
             packages/RunKit/Sources/RunKit/JS/packages
           key: runkit-${{ hashFiles('scripts/vendor-runkit.sh', 'scripts/runkit/**', 'tools/wasi/**', 'scripts/collect-cargo-licenses.py') }}
+      - name: Restore the WASI spike
+        uses: actions/cache@v6
+        with:
+          path: apps/ipad/Resources/WASISpike
+          key: wasispike-${{ hashFiles('scripts/vendor-wasi-spike.py') }}
       - name: App project
         run: xcodegen generate -q
       - name: UI tests
