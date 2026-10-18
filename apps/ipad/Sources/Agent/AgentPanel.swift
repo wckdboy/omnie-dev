@@ -37,6 +37,19 @@ struct AgentPanel: View {
                         if let current = agent.current, current.phase == .review {
                             ChangesetReview(record: current)
                         }
+                        if let current = agent.current, current.phase == .merged, model.undoableAgentSnapshot != nil {
+                            HStack(spacing: 8) {
+                                Label("Changes landed.", systemImage: "checkmark.circle")
+                                    .font(.footnote)
+                                    .foregroundStyle(palette.text.secondary.color)
+                                Spacer()
+                                Button("Undo") { model.undoAgentApply() }
+                                    .buttonStyle(.bordered)
+                                    .accessibilityHint("Puts the project back the way it was before the agent's changes")
+                            }
+                            .padding(10)
+                            .background(palette.surface.raised.color.opacity(0.5), in: RoundedRectangle(cornerRadius: Metrics.Radius.sm))
+                        }
                         if let error = agent.error {
                             Text(error)
                                 .font(.footnote)

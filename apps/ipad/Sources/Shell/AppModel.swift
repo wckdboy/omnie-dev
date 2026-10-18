@@ -193,6 +193,17 @@ final class AppModel {
     let debug = DebugModel()
     /// Local project snapshots (File › Snapshots).
     let snapshots = SnapshotsModel()
+
+    /// The snapshot taken just before the last applied agent changeset, so it can be undone in one tap.
+    private(set) var undoableAgentSnapshot: ProjectSnapshot?
+
+    /// Puts a landed agent changeset back the way it was: restores the snapshot the app took just
+    /// before the merge. The restore snapshots the current state first, so it is itself undoable.
+    func undoAgentApply() {
+        guard let snapshot = undoableAgentSnapshot else { return }
+        snapshots.restore(snapshot)
+        undoableAgentSnapshot = nil
+    }
     /// The test explorer (Tests panel).
     let tests = TestsModel()
 
@@ -217,7 +228,10 @@ final class AppModel {
         agent = AgentModel(workspace: workspace, models: models, policy: policy)
         language = LanguageModel(workspace: workspace)
         agent.snippets = snippets
-        agent.beforeApply = { [weak self] in _ = self?.snapshots.take(reason: "Before agent changes") }
+        agent.beforeApply = { [weak self] in
+            // Keep the snapshot so a landed changeset can be undone in one tap.
+            self?.undoableAgentSnapshot = self?.snapshots.take(reason: "Before agent changes")
+        }
         agent.isOffline = { [weak self] in self?.isOffline ?? false }
         workspace.onProjectOpened = { [weak self, agent] root in
             agent.attach(root)
@@ -250,7 +264,7 @@ final class AppModel {
         #endif
         let args = ProcessInfo.processInfo.arguments
         // Debug launch arguments open their own folder (fixtures rebuild theirs, so don't reopen it).
-        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmniePRFixture", "-OmnieUIPyFixture"].contains { args.contains($0) }
+        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmnieUIAgentFixture", "-OmniePRFixture", "-OmnieUIPyFixture"].contains { args.contains($0) }
         #if DEBUG
         // Fixtures and launch files set up the editor themselves; an earlier run's tabs would leak in.
         if args.contains(where: { $0.hasPrefix("-OmnieUI") || $0 == "-OmniePRFixture" || $0 == "-OmnieOpenFile" }), !args.contains("-OmnieRestoreSessions") {
@@ -1132,6 +1146,10 @@ final class AppModel {
                     shortcut: Shortcut("i"), keywords: ["ai", "prompt"]) { [weak self] in
                 guard let self else { return }
                 self.show(.agent)
+            },
+            Command(id: "agent.undoApply", title: "Undo agent changes", menu: "Agent",
+                    surfaces: .ide, keywords: ["undo", "revert", "agent", "snapshot", "restore"]) { [weak self] in
+                self?.undoAgentApply()
             },
             Command(id: "density.auto", title: "Density: follow input device", menu: "View", surfaces: .ide) { [weak self] in
                 self?.densityOverride = nil

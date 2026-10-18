@@ -68,6 +68,21 @@ struct OmnieDevApp: App {
                         if model.workspace.git.fallbackEmail.isEmpty { model.workspace.git.fallbackEmail = "ui@omnie.invalid" }
                         model.workspace.open(folder: folder)
                     }
+                    // `-OmnieUIAgentFixture`: a git project with a README, for the agent UI tests — a
+                    // scripted task lands a changeset that can be undone in one tap.
+                    if args.contains("-OmnieUIAgentFixture") {
+                        let folder = URL.documentsDirectory.appending(path: "uitest-agent")
+                        try? FileManager.default.removeItem(at: folder)
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        try? "# Widget\n".write(to: folder.appending(path: "README.md"), atomically: true, encoding: .utf8)
+                        if let repo = try? Repository.create(at: folder) {
+                            _ = try? await repo.commitAll(message: "Start\n", author: Signature(name: "UI Test", email: "ui@omnie.invalid"))
+                        }
+                        model.workspace.open(folder: folder)
+                        model.workspace.open(file: folder.appending(path: "README.md"), preview: false)
+                        // The agent task needs the repository: wait for the folder to open as one.
+                        for _ in 0..<50 where model.workspace.git.repo == nil { try? await Task.sleep(for: .milliseconds(100)) }
+                    }
                     // `-OmnieStagingDemo` (with both fixtures): stage one line, commit the index, log the result.
                     if args.contains("-OmnieStagingDemo") {
                         // The last project reopens at launch: wait for the fixture's repository, not that one.

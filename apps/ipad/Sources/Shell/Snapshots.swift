@@ -27,24 +27,24 @@ final class SnapshotsModel {
 
     func refresh() { snapshots = store?.list() ?? [] }
 
-    /// Saves the open file, then snapshots the project.
+    /// Saves the open file, then snapshots the project; returns the snapshot taken.
     @discardableResult
-    func take(reason: String) -> Bool {
+    func take(reason: String) -> ProjectSnapshot? {
         guard let store else {
             error = "Open a folder first."
-            return false
+            return nil
         }
         workspace?.saveCurrent()
         isWorking = true
         defer { isWorking = false }
         do {
-            _ = try store.take(reason: reason)
+            let snapshot = try store.take(reason: reason)
             refresh()
             error = nil
-            return true
+            return snapshot
         } catch {
             self.error = "Snapshot failed: \(error.localizedDescription)"
-            return false
+            return nil
         }
     }
 

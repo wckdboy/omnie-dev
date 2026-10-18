@@ -62,7 +62,7 @@ Make the suite and the sandbox dependable before adding surface.
 | Deliverable | Where | Notes |
 |---|---|---|
 | Repo-wide context: local embedding index + retrieval | `AgentKit` | Raises the local model above 18/25 on the golden set |
-| Changeset **diff preview dialog** before apply; one-tap undo via Snapshots | `AgentKit`, `Shell` | Makes the agent safe to use broadly |
+| Changeset **diff preview dialog** before apply; one-tap undo via Snapshots | `AgentKit`, `Shell` | Makes the agent safe to use broadly. **Landed**: the changeset review previews every file and hunk (accept/reject per hunk) before `Accept and commit`, and a landed changeset offers a one-tap **Undo** that restores the snapshot taken on apply (itself undoable). `AgentUITests.testUndoesALandedChangeset` |
 | Router on a measured quality signal (per task kind) | `ModelKit` | Replaces the heuristic "Auto" |
 
 ## M6 — Platform polish
