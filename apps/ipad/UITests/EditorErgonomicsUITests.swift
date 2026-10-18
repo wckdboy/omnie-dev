@@ -45,4 +45,27 @@ final class EditorErgonomicsUITests: XCTestCase {
         app.typeKey("\\", modifierFlags: [.command, .shift]); settle()
         XCTAssertEqual(position().column, 2, "and back again")
     }
+
+    /// ⌘D selects the word, then adds the next occurrence as a real selection; typing replaces every
+    /// one in a single undo step (engine 0.7.0's multi-selection).
+    func testSelectNextOccurrenceThenTypingReplacesEveryOne() {
+        // The fixture's line 1 is "let alpha = 1;" and line 2 has another "alpha".
+        app.typeKey(.leftArrow, modifierFlags: .command); settle()   // start of line 1
+        app.typeKey(.rightArrow, modifierFlags: .option); settle()   // end of "let"
+        app.typeKey(.rightArrow, modifierFlags: []); settle()        // start of "alpha"
+        XCTAssertEqual(position().column, 5)
+        app.typeKey("d", modifierFlags: .command); settle()          // select "alpha"
+        XCTAssertEqual(position().text, "let alpha = 1;")
+        app.typeKey("d", modifierFlags: .command); settle()          // add "alpha" on line 2
+        app.typeText("x"); settle()                                  // replace both
+        XCTAssertEqual(position().line, 1)
+        XCTAssertEqual(position().text, "let x = 1;")
+        app.typeKey(.downArrow, modifierFlags: []); settle()
+        XCTAssertEqual(position().line, 2)
+        XCTAssertEqual(position().text, "const beta = x + 2;", "line 2's occurrence was replaced too")
+        // One undo puts both back.
+        app.typeKey("z", modifierFlags: .command); settle()
+        app.typeKey(.upArrow, modifierFlags: []); settle()
+        XCTAssertEqual(position().text, "let alpha = 1;")
+    }
 }

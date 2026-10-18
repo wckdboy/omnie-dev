@@ -307,6 +307,14 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         }
     }
 
+    /// Every selection, the primary first (engine 0.7.0). With more than one, typing and backspace
+    /// apply at all of them in one undo group; a selection with a length is a highlighted occurrence
+    /// and a zero-length range is a caret.
+    public var selections: [NSRange] {
+        get { textView.selections }
+        set { textView.selections = newValue }
+    }
+
     /// Called on the main thread when highlighting for the loaded text is ready.
     public var onHighlighted: (() -> Void)?
 

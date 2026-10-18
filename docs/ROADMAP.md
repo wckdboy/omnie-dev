@@ -27,7 +27,7 @@ Make the suite and the sandbox dependable before adding surface.
 ## M1 — Editor parity (the daily reach)
 | Deliverable | Where | Notes |
 |---|---|---|
-| **⌘D select-next occurrence**, real selections | engine fork `omnie-dev-editor-engine` → 0.7 | Needs selections, not just zero-length carets. Highest-value parity gap |
+| **⌘D select-next occurrence**, real selections | engine fork `omnie-dev-editor-engine` → 0.7 | **Landed** (engine 0.7.0, patch 0019): `TextView.selections: [NSRange]`. ⌘D selects the word then adds the next occurrence as a real selection; typing replaces every one in one undo step; ⇧⌘L selects them all; Esc, a tap or an arrow collapses to one |
 | **Fold-all cost** (≈0.9 s for 2 000 folds) | engine fork | The perf harness shows it is entirely the engine's `foldedRanges` setter (layout); building the ranges is 0.4 ms. Worth an engine-side fix |
 
 > The two engine changes above are written up with APIs and replayable numbers in

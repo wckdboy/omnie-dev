@@ -3,40 +3,42 @@
 Changes that belong in the engine fork, not in the app. Each is justified with numbers or a spec
 measured from this repo, and each has an app-side plan.
 
-**Status:** #2 (fold-all cost) landed in **0.6.11** and #3 (auto-close) in **0.6.10**, each with
-engine tests. #1 (multi-selection, for ⌘D) is the remaining one — the public API change that bumps the
-engine to **0.7.0** and `packages/EditorKit/Package.swift`'s `exact:` version with it.
+**Status:** all three landed, each with engine tests: #3 (auto-close) in **0.6.10**, #2 (fold-all cost)
+in **0.6.11**, and #1 (multi-selection) in **0.7.0** — the public API change `packages/EditorKit/Package.swift`'s
+`exact:` version now pins.
 
 ---
 
-## 1. Multi-selection (for ⌘D, Select next occurrence)
+## 1. Multi-selection (for ⌘D, Select next occurrence) — landed
 
-**Today.** The engine exposes zero-length cursors: `textView.additionalCaretLocations`. `⌘D`
-(`WorkspaceModel.selectNextOccurrence`) uses them, so a second press adds a *cursor* at the next
-occurrence and typing **inserts** there — it does not **replace** the occurrence, and there is no
-per-occurrence selection highlight. `⇧⌘L` ("Change all occurrences") works around this by deleting
-the word and leaving a cursor at each site.
+**Before.** The engine exposed zero-length cursors only (`textView.additionalCaretLocations`), so a
+second ⌘D press added a *cursor* at the next occurrence and typing **inserted** there instead of
+**replacing** it, with no per-occurrence highlight. ⇧⌘L worked around it by deleting the word and
+leaving a cursor at each site.
 
-**Ask.** A public multi-selection API, one range per selection:
+**Landed (patch 0019, `omnie-dev-editor-engine` 0.7.0).**
 
 ```swift
-// Runestone TextInputView / TextView
-public var selections: [NSRange] { get set }   // length 0 is the plain caret
+// Runestone TextView
+public var selections: [NSRange] { get set }   // the primary first; length 0 is a caret
 ```
 
-Requirements:
-- Each selection has a **length** (a highlighted occurrence), and the set is kept in sync with edits
-  and undo like `selectedRange` is today.
-- Setting `selections` does not fire `onSelectionChange` per element (one notification).
-- `additionalCaretLocations` can remain as `selections.filter { $0.length == 0 }.map(\.location)`, or
-  be deprecated in favour of `selections`.
+- Every selection has a length and moves with edits; setting them sends **one** selection-change
+  notification.
+- Typing and backspace apply at all of them right to left in **one undo group**, leaving a caret after
+  each change.
+- Secondary selections are drawn as a highlight (`Decoration.Style.selection`); a zero-length one is
+  still a caret.
+- `additionalCaretLocations` remains, as the carets among the selections, so the caret-only path
+  (patch 0012) keeps working.
 
-**App side once landed.** `selectNextOccurrence()` appends the word range to `selections` instead of
-a caret location; typing replaces every occurrence; Esc collapses to one selection. `MultiCaret` and
-the multi-caret engine patch (0012) stay as the caret-only fallback while the API stabilises.
+**App side.** `WorkspaceModel.selectNextOccurrence` adds the next occurrence as a real selection
+(typing replaces every one in a single undo step); `changeAllOccurrences` (⇧⌘L) selects them all
+instead of deleting the word; Esc, a tap or an arrow collapses to one.
 
-**Tests.** Extend the engine's multi-caret/keystroke tests: N selections, one edit per site, one undo
-restores all, and the caret state after an edit that changes offsets.
+**Tests.** `RunestoneTests/MultiSelectionTests` (7: replace every selection, backspace, one undo,
+carets, merging overlaps, ordinary edits moving them, one notification), `MultiCursorTests` still
+pass, and `EditorErgonomicsUITests.testSelectNextOccurrenceThenTypingReplacesEveryOne` end to end.
 
 ---
 

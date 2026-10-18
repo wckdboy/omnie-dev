@@ -148,9 +148,9 @@ final class WorkspaceModel {
             guard let self, let location = editor.textView.textLocation(at: range.location) else { return }
             cursor = (location.lineNumber + 1, location.column + 1)
             if let openFile, !editor.isLoading { carets[openFile] = range.location }
-            // Moving the caret (a tap, an arrow) goes back to one cursor, as in VS Code.
-            if !justEdited, !extraCaretsJustSet, !editor.textView.additionalCaretLocations.isEmpty {
-                editor.textView.additionalCaretLocations = []
+            // Moving the caret (a tap, an arrow) goes back to one selection, as in VS Code.
+            if !justEdited, !selectionsJustSet, editor.selections.count > 1 {
+                editor.selections = [range]
             }
         }
         // Folds are kept with the session, like the caret.
@@ -497,77 +497,69 @@ final class WorkspaceModel {
         }
     }
 
-    // MARK: Multiple cursors (engine patch 0012: carets, typing and backspace at each)
+    // MARK: Multiple selections (engine 0.7.0: selections with a length)
 
     @ObservationIgnored private var justEdited = false
-    @ObservationIgnored private var extraCaretsJustSet = false
+    @ObservationIgnored private var selectionsJustSet = false
 
-    var hasExtraCarets: Bool { !editor.textView.additionalCaretLocations.isEmpty }
+    var hasExtraCarets: Bool { editor.selections.count > 1 }
 
     /// ⌥⌘↓ / ⌥⌘↑: one more caret on the next line down (up), at the same column.
     func addCursor(above: Bool) {
         guard openFile != nil else { return }
-        let carets = editor.textView.additionalCaretLocations + [editor.selectedRange.location]
-        guard let next = MultiCaret.adjacent(in: editor.text, carets: carets, above: above) else { return }
-        setExtraCarets(editor.textView.additionalCaretLocations + [next])
+        let selections = editor.selections
+        guard let next = MultiCaret.adjacent(in: editor.text, carets: selections.map(\.location), above: above) else { return }
+        setSelections(selections + [NSRange(location: next, length: 0)])
     }
 
-    /// ⇧⌘L: every whole-word occurrence of the word at the caret (or the selection) removed, with a
-    /// caret where each was, so what you type goes in everywhere. ⌘Z brings the word back.
+    /// ⇧⌘L: select every whole-word occurrence of the word at the caret (or the selection), the one
+    /// it was in first. Typing then replaces them all in one undo step.
     func changeAllOccurrences() {
         guard openFile != nil else { return }
         let text = editor.text
-        let selection = editor.selectedRange
-        guard let target = selection.length > 0 ? selection : MultiCaret.word(in: text, at: selection.location) else { return }
+        let primary = editor.selectedRange
+        guard let target = primary.length > 0 ? primary : MultiCaret.word(in: text, at: primary.location) else { return }
         let needle = (text as NSString).substring(with: target)
-        let ranges = MultiCaret.occurrences(of: needle, in: text)
+        var ranges = MultiCaret.occurrences(of: needle, in: text)
         guard ranges.count > 1 else {
             banner = "“\(needle)” appears only once here."
             return
         }
-        let (_, carets) = MultiCaret.removing(ranges, from: text)
-        // One edit per occurrence, from the end, so earlier offsets stay put; then the carets.
-        for r in ranges.reversed() { editor.replace(r, with: "") }
-        let primaryIndex = ranges.firstIndex { NSLocationInRange(selection.location, NSRange(location: $0.location, length: $0.length + 1)) } ?? 0
-        extraCaretsJustSet = true
-        editor.selectedRange = NSRange(location: carets[primaryIndex], length: 0)
-        var others = carets
-        others.remove(at: primaryIndex)
-        setExtraCarets(others)
-        banner = "\(ranges.count) cursors: type to replace “\(needle)” everywhere; Esc for one cursor."
+        if let i = ranges.firstIndex(where: { $0.location == target.location }) { ranges.insert(ranges.remove(at: i), at: 0) }
+        setSelections(ranges)
+        banner = "\(ranges.count) selections: type to replace “\(needle)” everywhere; Esc for one."
     }
 
     func clearExtraCarets() {
-        editor.textView.additionalCaretLocations = []
+        editor.selections = [editor.selectedRange]
     }
 
-    /// ⌘D: select the word at the caret; press again to add a caret at the next whole-word
-    /// occurrence. (The engine's extra carets are zero-length, so this adds a *cursor* per match —
-    /// type to insert at each; ⇧⌘L replaces every occurrence in one step. See docs/engine-tickets.md
-    /// for real multi-selection.)
+    /// ⌘D: select the word at the caret; press again to add the next whole-word occurrence as a
+    /// selection, so typing replaces every one in a single undo step.
     func selectNextOccurrence() {
         guard openFile != nil else { return }
         let text = editor.text
-        let selection = editor.selectedRange
-        guard let target = selection.length > 0 ? selection : MultiCaret.word(in: text, at: selection.location) else { return }
-        if selection.length == 0 {
+        let primary = editor.selectedRange
+        guard let target = primary.length > 0 ? primary : MultiCaret.word(in: text, at: primary.location) else { return }
+        if primary.length == 0 {
             editor.selectedRange = target
             editor.scrollRangeToVisible(target)
             return
         }
         let needle = (text as NSString).substring(with: target)
-        let taken = editor.textView.additionalCaretLocations + [target.location]
-        guard let next = MultiCaret.occurrences(of: needle, in: text).map(\.location).first(where: { !taken.contains($0) }) else {
+        let selected = editor.selections
+        let taken = Set(selected.map(\.location))
+        guard let next = MultiCaret.occurrences(of: needle, in: text).first(where: { !taken.contains($0.location) }) else {
             banner = "No more “\(needle)”."
             return
         }
-        setExtraCarets(editor.textView.additionalCaretLocations + [next])
+        setSelections(selected + [next])
     }
 
-    private func setExtraCarets(_ locations: [Int]) {
-        extraCaretsJustSet = true
-        editor.textView.additionalCaretLocations = locations
-        DispatchQueue.main.async { [weak self] in self?.extraCaretsJustSet = false }
+    private func setSelections(_ ranges: [NSRange]) {
+        selectionsJustSet = true
+        editor.selections = ranges
+        DispatchQueue.main.async { [weak self] in self?.selectionsJustSet = false }
     }
 
     /// Recently closed tabs, newest last (⌥⌘T reopens them).
