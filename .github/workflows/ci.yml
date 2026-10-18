@@ -285,11 +285,14 @@ jobs:
           XCODEBUILD_FLAGS: CODE_SIGNING_ALLOWED=NO
         run: |
           set -o pipefail
-          scripts/test-all.sh --ui-only 2>&1 | tail -5
+          mkdir -p .build
+          scripts/test-all.sh --ui-only 2>&1 | tee .build/ui-tests.log | tail -8
       - name: Results on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: ui-test-results
-          path: .build/test-all/app/Logs/Test
+          path: |
+            .build/test-all/app/Logs/Test
+            .build/ui-tests.log
           retention-days: 7
