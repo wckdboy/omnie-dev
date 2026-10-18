@@ -12,6 +12,7 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 
 **Editor**
 - **Auto-close brackets and quotes**: typing `(`, `[`, `{`, `"`, `'` or `` ` `` brings its partner and parks the caret between; a closer typed in front of one already there steps over it; a selection is wrapped. This already worked through the engine's `characterPairs` — the fix (engine patch 0017, `omnie-dev-editor-engine` 0.6.10) stops it doubling, so `(` before `)` now gives `()` instead of `())`.
+- **Fold-all is 10× faster on a large file**: hiding 2 000 folds in the ~0.8 M-character fixture went from 0.86 s to 0.086 s (engine patch 0018, 0.6.11) — the hidden rows' heights are applied as one batch and the line tree's totals recomputed in a single pass, instead of walking each line's ancestors.
 
 **CI and tests**
 - The packages' tests run as one parallel job per package (a `vendor` job builds the native inputs once — libgit2, the tree-sitter grammars, RunKit's bundles and the WASI spike's assets — and every test job restores them and the SwiftPM caches); RunKit's WebKit suites are retried once behind a "stalled" warning; EditorKit (with the editor performance budgets, now including **scrolling**) is its own simulator job that the nightly run gates on. Two long-standing holes are closed: the UI job's `| tail` no longer hid its exit code, and the WASI spike's assets (needed to build the app, and for the WASI conformance test) are vendored again after the upstream suite moved.

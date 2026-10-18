@@ -1,8 +1,11 @@
 # Editor engine tickets (`omnie-dev-editor-engine`)
 
 Changes that belong in the engine fork, not in the app. Each is justified with numbers or a spec
-measured from this repo, and each has an app-side plan. Bump the engine to **0.7.0** and set
-`packages/EditorKit/Package.swift`'s `exact:` version when the first of them lands.
+measured from this repo, and each has an app-side plan.
+
+**Status:** #2 (fold-all cost) landed in **0.6.11** and #3 (auto-close) in **0.6.10**, each with
+engine tests. #1 (multi-selection, for ⌘D) is the remaining one — the public API change that bumps the
+engine to **0.7.0** and `packages/EditorKit/Package.swift`'s `exact:` version with it.
 
 ---
 
@@ -37,28 +40,27 @@ restores all, and the caret state after an edit that changes offsets.
 
 ---
 
-## 2. Fold-all layout cost
+## 2. Fold-all layout cost — landed
 
 **Measured** by `EditorKitTests/PerformanceTests` on a ~0.8 M-character, 20 000-line file with
 ~2 000 foldable blocks:
 
-| Step | iPad Pro simulator | CI runner |
+| Step | Before | After |
 |---|---|---|
-| Build the fold ranges (app) | 0.18 ms | — |
-| `textView.foldedRanges = ranges` (engine) | **0.87 s** | **8.0 s** |
+| Build the fold ranges (app) | 0.18 ms | 0.18 ms |
+| `textView.foldedRanges = ranges` (engine, iPad simulator) | **0.87 s** | **0.086 s** |
+| Same, CI runner | 8.0 s | under the 5 s budget |
 
-Building the ranges is free; **hiding them is the whole cost**. It looks like the setter invalidates
-layout per range rather than once.
+**What it was.** Not layout invalidation per range: the time was all in `updateHiddenRowsIfNeeded`,
+which set each of the ~16 000 hidden rows' heights through the line tree, and every set walked the
+node's ancestors to update the tree's totals (rows × depth).
 
-**Ask.** Make hiding many ranges cheap:
-- Collect the ranges, then invalidate layout **once**; or
-- Store folds as a set/mark and skip regenerate-layout for rows that are already hidden; or
-- Report the fold count so a caller can chunk a large `foldAll` (a 2 000-block file is ordinary).
+**The fix (patch 0018, `omnie-dev-editor-engine` 0.6.11).** Collect the height changes, apply them in
+one batch, then recompute the tree's totals in a single bottom-up pass. The cost is now linear in the
+rows: 355 ms → 89 ms for 2 000 folds in the engine test.
 
-**App side.** No change — `CodeEditorController.foldAll()` already sets every range in one call.
-
-**Tests.** Add an engine test that hides N ranges and asserts a single layout pass (e.g., count
-`layoutSubviews`/invalidations), so the cost can't regress silently.
+**Tests.** `RunestoneTests/FoldPerformanceTests` (2 s budget, 89 ms measured), and the app's
+`PerformanceTests.foldAllCostSplitsCleanly` budget tightened from 30 s to 5 s.
 
 ---
 

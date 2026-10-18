@@ -116,6 +116,8 @@ struct PerformanceTests {
         let hide = ContinuousClock().measure { editor.textView.foldedRanges = ranges }
         print("[perf] fold ranges build: \(build) (\(ranges.count) ranges); engine hide: \(hide)")
         #expect(build < .milliseconds(500), "building the fold ranges must stay cheap")
-        #expect(hide < .seconds(30), "engine-side: hiding the ranges runs layout (see the engine repo)")
+        // Patch 0018 made hiding the ranges one batched pass (89 ms for 2 000 folds on the simulator,
+        // ~2 s on CI); a return to a per-line tree walk would blow this.
+        #expect(hide < .seconds(5), "engine-side: hiding the ranges runs layout (see the engine repo)")
     }
 }
