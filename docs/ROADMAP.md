@@ -48,7 +48,7 @@ Make the suite and the sandbox dependable before adding surface.
 | Deliverable | Where | Notes |
 |---|---|---|
 | JS/TS **debugger**: breakpoints, step, variables, console | `RunKit` (JSContext/WKWebView + CDP-style protocol) | The single biggest "IDE" gap. **Landed**: `Debugger` (RunKit) pauses synchronously in a worker, with breakpoints (conditions too), step over/into/out, locals, the call stack, evaluation and watches over the project's own modules, plus packages from the offline npm cache (uninstrumented). A gutter dot (F9) and the Debug panel (F5/F10/F11/⇧F11/⇧F5) are wired in (`DebuggerTests`, `DebuggerUITests`) |
-| Python debugger over Pyodide (`pdb`) | `RunKit` | Reuses the Python worker |
+| Python debugger over Pyodide (`pdb`) | `RunKit` | **Landed** (as a line tracer): the same synchronous held pause request, over `sys.settrace` in the Python worker — breakpoints (conditions too), step over/into/out, locals, the call stack and evaluation, in the same Debug panel (`PythonDebuggerTests`, `DebuggerUITests.testDebugsPython`) |
 | Test explorer: run/failed/rerun, per-test output | `RunKit` + a Problems-style pane | Vitest/pytest subsets already run |
 
 ## M4 — Workspace & version control

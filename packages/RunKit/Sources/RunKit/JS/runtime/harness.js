@@ -63,6 +63,17 @@ const project = (path) => "omnie-run://local/" + path.split("/").map(encodeURICo
       });
       worker.terminate();
       send({ type: "done" });
+    } else if (params.get("mode") === "pydebug") {
+      // The Python debugger (Debugger.swift): the worker's tracer blocks on held pause requests
+      // while the app decides; its console and results come back like any other run's.
+      const worker = new Worker("omnie-run://local/__omnie/runtime/python-debug-worker.js", { type: "module" });
+      await new Promise((resolve) => {
+        worker.onmessage = (e) => { if (e.data.type === "done") resolve(); else send(e.data); };
+        worker.onerror = (e) => { send({ type: "error", text: e.message || "The Python debugger failed to start" }); resolve(); };
+        worker.postMessage(JSON.parse(params.get("spec")));
+      });
+      worker.terminate();
+      send({ type: "done" });
     } else if (params.get("mode") === "debug") {
       // The debugger (Debugger.swift): the worker blocks on held pause requests while the app
       // decides; its console and results come back like any other run's.

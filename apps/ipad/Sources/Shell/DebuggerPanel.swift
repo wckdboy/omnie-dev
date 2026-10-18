@@ -54,10 +54,15 @@ final class DebugModel {
                 self?.state = .ended
                 return
             }
-            let result = await runner.debug(path, breakpoints: breakpoints) { [weak self] pause in
+            let answer: @MainActor @Sendable (Debugger.Pause) async -> Debugger.Answer = { [weak self] pause in
                 guard let self else { return .stop }
                 return await self.hold(pause)
             }
+            // Python runs under Pyodide's line tracer; JavaScript/TypeScript under the instrumented
+            // loader. Both stop on the same held request, so the panel is the same for either.
+            let result = path.hasSuffix(".py")
+                ? await runner.debugPython(path, breakpoints: breakpoints, onPause: answer)
+                : await runner.debug(path, breakpoints: breakpoints, onPause: answer)
             guard let self, !Task.isCancelled else { return }
             output = result.output
             if case .timedOut = result.ending { failure = "The debugger timed out." }
@@ -131,7 +136,7 @@ final class DebugModel {
 
     /// The project-relative path of the file on screen, if it can be debugged.
     var openDebugTarget: String? {
-        guard let path = workspace?.relativePath, [".ts", ".tsx", ".js", ".mjs", ".jsx"].contains(where: path.hasSuffix) else { return nil }
+        guard let path = workspace?.relativePath, [".ts", ".tsx", ".js", ".mjs", ".jsx", ".py"].contains(where: path.hasSuffix) else { return nil }
         return path
     }
 }

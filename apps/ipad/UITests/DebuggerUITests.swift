@@ -33,4 +33,21 @@ final class DebuggerUITests: XCTestCase {
         app.buttons["Continue"].tap()
         XCTAssertTrue(app.staticTexts["Locals"].waitForNonExistence(timeout: 30), "continue didn't leave the stop")
     }
+
+    /// The same loop for Python: a breakpoint on app.py:3 (`print(area(2, 3))`) stops under
+    /// Pyodide's tracer, and the panel shows it like a JavaScript stop (the panel is shared).
+    func testDebugsPython() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-OmnieUIPyFixture", "-OmnieLayout", "standard", "-OmnieNoWelcome", "-OmnieNoPanelDrag",
+                               "-OmnieOpenFile", "app.py:3",
+                               "-OmnieRunCommand", "debug.toggleBreakpoint",
+                               "-OmnieRunCommand", "debug.startOrContinue"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Locals"].waitForExistence(timeout: 90), "the Python debugger didn't stop")
+        XCTAssertTrue(app.staticTexts["app.py:3"].exists, "the stop's frame should be listed")
+
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(app.staticTexts["Locals"].waitForNonExistence(timeout: 30), "continue didn't leave the stop")
+    }
 }

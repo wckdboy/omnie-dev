@@ -24,6 +24,10 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
   re-evaluated at every stop, and a breakpoint can carry a **condition** (Debug › Edit breakpoint
   condition…), which is evaluated in the frame and stops only when it holds (a conditional dot is
   amber). Breakpoints and their conditions are kept with the session, so a project reopens with them.
+- The same debugger runs **Python** (Pyodide): a line tracer (`sys.settrace`) stops at a breakpoint
+  (conditions too) or while stepping over/into/out, and shows the locals, the call stack and an
+  expression evaluated in the paused frame, over the same held pause request — so the Debug panel is
+  the same for either language. Packages from the offline Python cache load uninstrumented.
 
 ## 1.7.0 — 202610171
 

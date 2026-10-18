@@ -765,7 +765,7 @@ final class AppModel {
                 guard let self else { return }
                 if self.debug.isPaused { self.debug.send(.resume); return }
                 guard let target = self.debug.openDebugTarget else {
-                    self.workspace.banner = "Open a JavaScript or TypeScript file to debug."
+                    self.workspace.banner = "Open a JavaScript, TypeScript or Python file to debug."
                     return
                 }
                 self.show(.debug)

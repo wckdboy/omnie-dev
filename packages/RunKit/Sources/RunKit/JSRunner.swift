@@ -169,6 +169,24 @@ public final class JSRunner {
         return result
     }
 
+    /// Runs a Python file under the debugger (PLAN.md §5.3): the same pause protocol as `debug`, over
+    /// Pyodide's line tracer (`sys.settrace`). The first run starts Python, which takes a few seconds.
+    @discardableResult
+    public func debugPython(_ entry: String, breakpoints: Set<Debugger.Breakpoint>, timeout: Double = 600,
+                            onPause: @escaping @MainActor @Sendable (Debugger.Pause) async -> Debugger.Answer) async -> RunResult {
+        let session = Session(root: root, transpiler: transpiler)
+        session.handler.allowsEval = true
+        session.onDebugPause = { pause, respond in
+            Task { @MainActor in respond((await onPause(pause)).json) }
+        }
+        let query = [URLQueryItem(name: "mode", value: "pydebug"),
+                     URLQueryItem(name: "spec", value: Debugger.spec(entry: entry, breakpoints: breakpoints))]
+        let start = Date()
+        var result = await session.start(query: query, timeout: timeout)
+        result.ms = Int(Date().timeIntervalSince(start) * 1000)
+        return result
+    }
+
     private func run(query: [URLQueryItem], timeout: Double) async -> RunResult {
         let session = Session(root: root, transpiler: transpiler)
         let start = Date()
