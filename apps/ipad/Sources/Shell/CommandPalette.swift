@@ -58,9 +58,10 @@ struct CommandPalette: View {
             HStack(spacing: 8) {
                 Image(systemName: "command")
                     .foregroundStyle(palette.text.tertiary.color)
-                TextField("Command, @symbol, ?task for the agent, :line", text: $query)
+                TextField("Command, @symbol, ?task, :line", text: $query)
                     .textFieldStyle(.plain)
                     .font(.subheadline)
+                    .frame(minHeight: 44)
                     .foregroundStyle(palette.text.primary.color)
                     .focused($fieldFocused)
                     .autocorrectionDisabled()
@@ -94,8 +95,8 @@ struct CommandPalette: View {
             }
         }
         .frame(maxWidth: Metrics.paletteWidth)
-        .background(.ultraThinMaterial)
-        .background(palette.surface.raised.color.opacity(0.85))
+        // Opaque: a material over the editor made the palette's contrast depend on what was behind it.
+        .background(palette.surface.raised.color)
         .clipShape(RoundedRectangle(cornerRadius: Metrics.Radius.md))
         .overlay(RoundedRectangle(cornerRadius: Metrics.Radius.md).stroke(palette.surface.hairline.color, lineWidth: Metrics.hairline))
         .shadow(color: .black.opacity(0.24), radius: 12, y: 4)

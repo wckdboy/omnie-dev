@@ -147,6 +147,33 @@ final class AccessibilityAuditTests: XCTestCase {
         XCTAssertTrue(issues.isEmpty, "\(issues.count) accessibility issue(s); see [a11y] lines")
     }
 
+    /// Runs Apple's audit and returns the issues that aren't accepted, printing every one with its
+    /// reason. Acceptances: Dynamic Type on code-sized text, contrast on a disabled control (WCAG
+    /// 1.4.3), the hit-region rule on a label, and an element scrolled past the window's edge.
+    private func audit(_ app: XCUIApplication, _ name: String) throws -> [String] {
+        var issues: [String] = []
+        try app.performAccessibilityAudit { issue in
+            let label = issue.element?.label ?? ""
+            let line = "[\(name)] \(issue.compactDescription) — \(issue.element?.debugDescription.prefix(120) ?? "no element")"
+            if issue.auditType == .dynamicType, label.allSatisfy(\.isNumber) || issue.compactDescription.contains("partially") {
+                print("[a11y] (accepted) \(line)")
+            } else if issue.auditType == .contrast, issue.element?.isEnabled == false {
+                print("[a11y] (accepted) \(line)")
+            } else if issue.auditType == .contrast, issue.element?.isHittable == false {
+                // Content behind a modal sheet: the system dims it and it isn't interactive.
+                print("[a11y] (accepted, behind a sheet) \(line)")
+            } else if issue.auditType == .hitRegion, issue.element?.elementType == .staticText {
+                print("[a11y] (accepted) \(line)")
+            } else if let frame = issue.element?.frame, frame.maxX > app.windows.firstMatch.frame.maxX - 2 {
+                print("[a11y] (accepted, clipped) \(line)")
+            } else {
+                issues.append(line)
+            }
+            return true
+        }
+        return issues
+    }
+
     /// The surfaces added since the main-screen audit (PLAN §19): each panel is opened in turn and
     /// audited, so a new panel's labels and Dynamic Type are checked like the editor's.
     func testAuditPanels() throws {
@@ -158,29 +185,46 @@ final class AccessibilityAuditTests: XCTestCase {
             app.launch()
             XCTAssertTrue(app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch.waitForExistence(timeout: 15))
             sleep(1)
-            try app.performAccessibilityAudit { issue in
-                let label = issue.element?.label ?? ""
-                let line = "[\(tab)] \(issue.compactDescription) — \(issue.element?.debugDescription.prefix(120) ?? "no element")"
-                if issue.auditType == .dynamicType, label.allSatisfy(\.isNumber) || issue.compactDescription.contains("partially") {
-                    print("[a11y] (accepted) \(line)")
-                } else if issue.auditType == .contrast, issue.element?.isEnabled == false {
-                    // WCAG 1.4.3 exempts inactive controls; the system dims a disabled button's label.
-                    print("[a11y] (accepted) \(line)")
-                } else if issue.auditType == .hitRegion, issue.element?.elementType == .staticText {
-                    // A label isn't a control, so the hit-region rule doesn't apply to it.
-                    print("[a11y] (accepted) \(line)")
-                } else if let frame = issue.element?.frame, frame.maxX > app.windows.firstMatch.frame.maxX - 2 {
-                    // A tab scrolled past its dock's edge: the audit has no scroll-viewport concept and
-                    // samples an element that is only partly on screen.
-                    print("[a11y] (accepted, clipped) \(line)")
-                } else {
-                    issues.append(line)
-                }
-                return true
-            }
+            issues += try audit(app, tab)
             app.terminate()
         }
         for issue in issues { print("[a11y] \(issue)") }
         XCTAssertTrue(issues.isEmpty, "\(issues.count) accessibility issue(s); see [a11y] lines")
+    }
+
+    /// The sheets, each opened in turn and audited like the panels. The git sheets need a project
+    /// with a repository, so they use the history fixture.
+    ///
+    /// **Report-only for now**: the first pass found 25 findings — sheet toolbar-button contrast, a
+    /// clipped label in the projects list, text the floating palette overlaps, and a few the audit
+    /// can't attribute to an element. They print as `[a11y]` lines; tighten this to fail once they are
+    /// worked through, as `testAuditPanels` already does. (The palette's own background was the big
+    /// one: it was a translucent material, so its contrast depended on what was behind it — now opaque.)
+    func testAuditSheets() throws {
+        var issues: [String] = []
+        let sheets: [(name: String, fixture: String, command: String)] = [
+            ("problems", "-OmnieUIFixture", "problems.show"),
+            ("snapshots", "-OmnieUIFixture", "snapshot.browse"),
+            ("welcome", "-OmnieUIFixture", "help.welcome"),
+            ("palette", "-OmnieUIFixture", "palette.open"),
+            ("quickOpen", "-OmnieUIFixture", "file.quickOpen"),
+            ("projects", "-OmnieUIFixture", "file.projects"),
+            ("settings", "-OmnieUIFixture", "app.settings"),
+            ("commit", "-OmnieUIHistoryFixture", "git.commit"),
+            ("branches", "-OmnieUIHistoryFixture", "git.branches"),
+        ]
+        for sheet in sheets {
+            let app = XCUIApplication()
+            app.launchArguments = [sheet.fixture, "-OmnieLayout", "standard", "-OmnieNoWelcome", "-OmnieNoPanelDrag",
+                                   "-OmnieRunCommand", sheet.command]
+            app.launch()
+            // A modal sheet hides the editor from the accessibility tree, so wait for the sheet rather
+            // than the editor.
+            sleep(2)
+            issues += try audit(app, sheet.name)
+            app.terminate()
+        }
+        for issue in issues { print("[a11y] \(issue)") }
+        print("[a11y] \(issues.count) sheet finding(s); this audit is report-only for now")
     }
 }
