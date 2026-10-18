@@ -109,6 +109,8 @@ struct SnapshotsSheet: View {
                         .disabled(snapshots.isWorking)
                 }
             }
+            .tint(palette.accent.ion.color)
+            .toolbarBackground(palette.surface.pane.color, for: .navigationBar)
             .safeAreaInset(edge: .bottom) {
                 if let error = snapshots.error {
                     Text(error).font(.footnote).foregroundStyle(palette.status.error.color)

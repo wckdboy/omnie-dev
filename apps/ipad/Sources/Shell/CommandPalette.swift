@@ -181,7 +181,7 @@ struct CommandPalette: View {
             Spacer()
             Text(command.menu)
                 .font(.caption)
-                .foregroundStyle(palette.text.tertiary.color)
+                .foregroundStyle(palette.text.secondary.color)
             if let shortcut = command.shortcut {
                 Text(shortcut.description)
                     .font(.system(.caption, design: .monospaced))

@@ -184,6 +184,8 @@ struct ProblemsSheet: View {
                         .disabled(problems.isChecking)
                 }
             }
+            .tint(palette.accent.ion.color)
+            .toolbarBackground(palette.surface.pane.color, for: .navigationBar)
         }
     }
 
