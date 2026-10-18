@@ -84,6 +84,13 @@ public enum Outline {
         Rule(.function, #"^[ \t]*(?:static[ \t]+|inline[ \t]+|virtual[ \t]+|constexpr[ \t]+|extern[ \t]+|const[ \t]+)*[A-Za-z_][\w \t*&:<>]*[ \t]+([A-Za-z_]\w*)[ \t]*\([^;\n]*\)[ \t]*(?:const[ \t]*)?\{"#),
     ]
 
+    static let java: [Rule] = [
+        Rule(.class, #"^[ \t]*(?:(?:public|private|protected|static|final|abstract|sealed|non-sealed|strictfp)[ \t]+)*(?:class|record)[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.interface, #"^[ \t]*(?:(?:public|private|protected|static|abstract|sealed|non-sealed|strictfp)[ \t]+)*interface[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.enum, #"^[ \t]*(?:(?:public|private|protected|static|strictfp)[ \t]+)*enum[ \t]+([A-Za-z_]\w*)"#),
+        Rule(.function, #"^[ \t]*(?:(?:public|private|protected|static|final|abstract|synchronized|native|default|strictfp)[ \t]+)*(?:<[^>\n]*>[ \t]*)?[A-Za-z_][\w.<>\[\], \t]*[ \t]+([A-Za-z_]\w*)[ \t]*\([^;\n]*\)(?:[ \t]*throws[^{;\n]*)?[ \t]*\{"#),
+    ]
+
     public static func symbols(in text: String, language: Language) -> [Symbol] {
         let rules: [Rule] = switch language {
         case .javascript, .typescript, .tsx: script
@@ -95,6 +102,7 @@ public enum Outline {
         case .rust: rust
         case .c: c
         case .cpp: cpp
+        case .java: java
         case .json: []
         }
         let ns = text as NSString

@@ -53,6 +53,9 @@ GRAMMARS = {
     "cpp": ("tree-sitter/tree-sitter-cpp", "v0.23.4",
             "7a2c55afe3028f4105f25762ea58cc16537d1f5a1dcd9cca90410b3cd5d46051",
             ["src"], {}),
+    "java": ("tree-sitter/tree-sitter-java", "v0.23.5",
+             "cb199e0faae4b2c08425f88cbb51c1a9319612e7b96315a174a624db9bf3d9f0",
+             ["src"], {"java": ["highlights.scm"]}),
 }
 
 # TypeScript's highlights extend JavaScript's, and C++'s extend C's (per each grammar's

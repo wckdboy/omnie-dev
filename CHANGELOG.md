@@ -6,6 +6,9 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 
 ## Unreleased
 
+**Languages**
+- **Java**: tree-sitter-java highlighting and outlines for `.java`, joining Swift/TypeScript/JavaScript/Python/Go/Rust/C/C++ (vendored and hash-pinned by `scripts/vendor-grammars.py`).
+
 **Debugger (RunKit core, PLAN.md §5.3)**
 - RunKit's debugger runs a project's own JavaScript/TypeScript modules with a hook at the start of
   every statement and around every function body: breakpoints (per file and line, with conditions),

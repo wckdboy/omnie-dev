@@ -50,6 +50,8 @@ struct OutlineTests {
                 == ["function add @1", "class P @2"])
         #expect(names("#include <vector>\nclass P { public: int x; };\nint add(int a, int b) { return a + b; }\n", .cpp)
                 == ["class P @2", "function add @3"])
+        #expect(names("package p;\n\npublic class C {\n    private final int x = 1;\n    int add(int a, int b) { return a + b; }\n}\n", .java)
+                == ["class C @3", "function add @5"])
     }
 
     @Test func offsetsPointAtTheName() {

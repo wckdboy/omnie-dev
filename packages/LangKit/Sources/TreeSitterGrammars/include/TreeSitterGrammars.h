@@ -17,3 +17,4 @@ const TSLanguage *tree_sitter_go(void);
 const TSLanguage *tree_sitter_rust(void);
 const TSLanguage *tree_sitter_c(void);
 const TSLanguage *tree_sitter_cpp(void);
+const TSLanguage *tree_sitter_java(void);

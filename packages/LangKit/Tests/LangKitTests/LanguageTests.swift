@@ -20,6 +20,7 @@ struct LanguageTests {
         .rust: "pub struct P { x: i32 }\npub fn f(p: &P) -> i32 { p.x }\nenum E { A }\n",
         .c: "static int add(int a, int b) { return a + b; }\nstruct P { int x; };\n",
         .cpp: "#include <vector>\nclass P { public: int x; };\nint add(int a, int b) { return a + b; }\n",
+        .java: "package p;\n\npublic class C {\n    private final int x = 1;\n    int add(int a, int b) { return a + b; }\n}\n",
     ]
 
     @Test("Each grammar loads in the tree-sitter runtime and parses without errors", arguments: Language.allCases)
@@ -53,6 +54,7 @@ struct LanguageTests {
         #expect(Language(fileExtension: "rs") == .rust)
         #expect(Language(fileExtension: "c") == .c && Language(fileExtension: "h") == .c)
         #expect(Language(fileExtension: "cpp") == .cpp && Language(fileExtension: "hpp") == .cpp)
+        #expect(Language(fileExtension: "java") == .java)
         #expect(Language(fileExtension: "md") == nil)
     }
 }
