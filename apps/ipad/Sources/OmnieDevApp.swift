@@ -83,6 +83,15 @@ struct OmnieDevApp: App {
                         // The agent task needs the repository: wait for the folder to open as one.
                         for _ in 0..<50 where model.workspace.git.repo == nil { try? await Task.sleep(for: .milliseconds(100)) }
                     }
+                    // `-OmnieAddFolder <name>`: a sibling folder added to the workspace (multi-root),
+                    // with one known file, for the navigator/search UI tests.
+                    if let i = args.firstIndex(of: "-OmnieAddFolder"), args.indices.contains(i + 1) {
+                        let folder = URL.documentsDirectory.appending(path: args[i + 1])
+                        try? FileManager.default.removeItem(at: folder)
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        try? "let delta = 4;\n".write(to: folder.appending(path: "extra.ts"), atomically: true, encoding: .utf8)
+                        model.workspace.addFolder(folder)
+                    }
                     // `-OmnieStagingDemo` (with both fixtures): stage one line, commit the index, log the result.
                     if args.contains("-OmnieStagingDemo") {
                         // The last project reopens at launch: wait for the fixture's repository, not that one.

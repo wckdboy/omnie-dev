@@ -37,8 +37,14 @@ public enum FuzzyMatch {
 
     /// The best `limit` candidates for `query`, best first.
     public static func rank(_ query: String, _ candidates: [String], limit: Int = 50) -> [String] {
-        candidates.compactMap { c in score(query, c).map { (c, $0) } }
-            .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0 < $1.0 }
+        rank(query, candidates, by: { $0 }, limit: limit)
+    }
+
+    /// The best `limit` candidates for `query`, scored on `key` (which also breaks ties). Lets a
+    /// caller keep richer items than a bare path — a multi-root workspace's files, say.
+    public static func rank<T>(_ query: String, _ candidates: [T], by key: (T) -> String, limit: Int = 50) -> [T] {
+        candidates.compactMap { c in score(query, key(c)).map { (c, $0) } }
+            .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : key($0.0) < key($1.0) }
             .prefix(limit).map(\.0)
     }
 }
@@ -154,5 +160,71 @@ public enum ProjectSearch {
             }
         }
         return Replacement(files: changed, count: total, skipped: skipped)
+    }
+
+    // MARK: Workspaces with more than one folder
+
+    /// One file in a workspace, with the folder it belongs to.
+    public struct ProjectFile: Sendable, Hashable, Identifiable {
+        public let root: URL
+        /// Relative to `root`.
+        public let path: String
+        public var id: String { "\(root.path(percentEncoded: false))|\(path)" }
+
+        public init(root: URL, path: String) {
+            self.root = root
+            self.path = path
+        }
+    }
+
+    /// A hit with the folder it was found in.
+    public struct RootedHit: Sendable, Hashable, Identifiable {
+        public let root: URL
+        public let hit: Hit
+        public var id: String { "\(root.path(percentEncoded: false))|\(hit.id)" }
+
+        public init(root: URL, hit: Hit) {
+            self.root = root
+            self.hit = hit
+        }
+
+        /// How the hit reads in the list: the path inside its folder, prefixed by the folder's name
+        /// when that folder was added to the workspace (the project's own folder needs no prefix).
+        public func displayPath(in roots: [URL]) -> String {
+            guard roots.count > 1, let first = roots.first,
+                  first.standardizedFileURL.path != root.standardizedFileURL.path else { return hit.path }
+            return "\(root.lastPathComponent)/\(hit.path)"
+        }
+    }
+
+    /// Every file in the workspace's folders, in root order.
+    public static func files(in roots: [URL], limit: Int = 50_000) -> [ProjectFile] {
+        roots.map(\.standardizedFileURL)
+            .flatMap { root in files(in: root, limit: limit).map { ProjectFile(root: root, path: $0) } }
+    }
+
+    /// Every occurrence of `query` in the workspace's folders, at most `limit` overall.
+    public static func search(_ query: String, in roots: [URL], caseSensitive: Bool = false, limit: Int = 1_000) -> [RootedHit] {
+        var out: [RootedHit] = []
+        for root in roots.map(\.standardizedFileURL) {
+            guard out.count < limit else { break }
+            out += search(query, in: root, caseSensitive: caseSensitive, limit: limit - out.count)
+                .map { RootedHit(root: root, hit: $0) }
+        }
+        return out
+    }
+
+    /// Replaces every occurrence in the workspace's folders; the counts merge across them.
+    public static func replace(_ query: String, with replacement: String, in roots: [URL],
+                               caseSensitive: Bool = false) -> Replacement {
+        var files = 0, count = 0
+        var skipped: [String] = []
+        for root in roots.map(\.standardizedFileURL) {
+            let result = replace(query, with: replacement, in: root, caseSensitive: caseSensitive)
+            files += result.files
+            count += result.count
+            skipped += result.skipped
+        }
+        return Replacement(files: files, count: count, skipped: skipped)
     }
 }

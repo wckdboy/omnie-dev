@@ -14,14 +14,41 @@ struct Navigator: View {
 
     var body: some View {
         let workspace = model.workspace
+        let extras = workspace.extraFolders.enumerated().map { index, folder in
+            ExtraFolder(url: folder, node: workspace.extraRoots.indices.contains(index) ? workspace.extraRoots[index] : nil)
+        }
         Group {
             if let root = workspace.root {
                 List {
-                    OutlineGroup(root.children ?? [], children: \.children) { node in
-                        row(node)
+                    Section {
+                        OutlineGroup(root.children ?? [], children: \.children) { node in
+                            row(node)
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                    // Added folders (a multi-root workspace): each gets its own tree, under a header
+                    // that names it and offers to take it back out.
+                    ForEach(extras) { extra in
+                        Section {
+                            if let node = extra.node {
+                                OutlineGroup(node.children ?? [], children: \.children) { node in
+                                    row(node)
+                                }
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                            }
+                        } header: {
+                            extraHeader(extra.url)
+                        }
+                    }
+                    Section {
+                        Button { workspace.isAddingFolder = true } label: {
+                            Label("Add folder to workspace…", systemImage: "folder.badge.plus")
+                                .font(.footnote)
+                        }
+                        .accessibilityIdentifier("workspace-add-folder")
+                    }
                 }
                 .listStyle(.sidebar)
                 .scrollContentBackground(.hidden)
@@ -32,6 +59,28 @@ struct Navigator: View {
             }
         }
         .background(palette.surface.pane.color)
+    }
+
+    /// The header of an added folder: its name, and a button to remove it from the workspace.
+    private func extraHeader(_ folder: URL) -> some View {
+        HStack(spacing: 6) {
+            Label(folder.lastPathComponent, systemImage: "folder")
+                .lineLimit(1)
+                .accessibilityLabel("\(folder.lastPathComponent), folder in the workspace")
+            Spacer(minLength: 0)
+            Button { model.workspace.removeFolder(folder) } label: {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(folder.lastPathComponent) from the workspace")
+        }
+    }
+
+    /// One folder added to the workspace and its tree.
+    private struct ExtraFolder: Identifiable {
+        let url: URL
+        let node: FileNode?
+        var id: String { url.path }
     }
 
     private func row(_ node: FileNode) -> some View {
@@ -194,6 +243,9 @@ struct FolderPicker: ViewModifier {    @Environment(AppModel.self) private var m
         @Bindable var workspace = model.workspace
         content.fileImporter(isPresented: $workspace.isPickingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { workspace.open(folder: url) }
+        }
+        .fileImporter(isPresented: $workspace.isAddingFolder, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result { workspace.addFolder(url) }
         }
     }
 }

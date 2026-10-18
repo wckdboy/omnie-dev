@@ -977,6 +977,20 @@ final class AppModel {
                     shortcut: Shortcut("o"), keywords: ["project", "workspace"]) { [weak self] in
                 self?.workspace.isPickingFolder = true
             },
+            Command(id: "file.addFolder", title: "Add folder to workspace…", menu: "File",
+                    keywords: ["multi-root", "multi root", "workspace", "extra folder", "another folder"]) { [weak self] in
+                guard let self, workspace.rootURL != nil else { return }
+                workspace.isAddingFolder = true
+            },
+            Command(id: "file.removeFolder", title: "Remove folder from workspace", menu: "File",
+                    keywords: ["multi-root", "multi root", "workspace", "extra folder", "drop folder"]) { [weak self] in
+                guard let self else { return }
+                guard let file = workspace.openFile, let extra = workspace.extraFolder(containing: file) else {
+                    workspace.banner = "Open a file in an added folder, then remove that folder."
+                    return
+                }
+                workspace.removeFolder(extra)
+            },
             Command(id: "file.new", title: "New file…", menu: "File",
                     shortcut: Shortcut("n"), keywords: ["create file"]) { [weak self] in
                 guard let self, let folder = workspace.currentFolder else { return }

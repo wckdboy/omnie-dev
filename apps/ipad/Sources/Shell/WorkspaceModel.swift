@@ -233,6 +233,7 @@ final class WorkspaceModel {
         breakpoints = [:]
         breakpointConditions = [:]
         watcher?.stop()
+        clearExtraFolders()
         if isAccessingRoot { rootURL?.stopAccessingSecurityScopedResource() }
         // Folders inside the app container need no grant, so false here is not an error by itself;
         // reload() reports if the folder really can't be read.
@@ -256,6 +257,7 @@ final class WorkspaceModel {
         recentProjects = recents.available().map(\.ref)
         startWatching(url)
         savesSession = true
+        restoreExtraFolders(url)
         restoreSession(url)
         problems.clear()
         problems.schedule(root: url, after: .milliseconds(300))
@@ -319,6 +321,111 @@ final class WorkspaceModel {
         guard let rootURL else { return }
         do { root = try FileTree.scan(rootURL) }
         catch { banner = "Can't read \(rootURL.lastPathComponent): \(error.localizedDescription)" }
+        reloadExtraFolders()
+    }
+
+    // MARK: Multi-root — extra folders in the workspace (VS Code's "Add Folder to Workspace")
+
+    /// Folders added to this project beyond the one it was opened on, in the order added. The
+    /// project's own git, tasks, agent and type-check still work off `rootURL`; these folders are
+    /// browsed, searched and edited, and each keeps its own tree.
+    private(set) var extraFolders: [URL] = []
+    /// The added folders' trees, parallel to `extraFolders`.
+    private(set) var extraRoots: [FileNode] = []
+    /// Whether the folder picker is choosing a folder to *add* rather than a project to open.
+    var isAddingFolder = false
+    @ObservationIgnored let workspaceFolders = WorkspaceFolders(fileURL: AppPaths.support.appendingPathComponent("workspace-folders.json"))
+    /// The security scopes held for the added folders, released when the project closes.
+    @ObservationIgnored private var extraScopes: [String: Bool] = [:]
+
+    /// Every folder in the workspace: the project's own first, then the added ones.
+    var allRoots: [URL] { (rootURL.map { [$0] } ?? []) + extraFolders }
+
+    /// The added folder `url` sits in, if any.
+    func extraFolder(containing url: URL) -> URL? {
+        extraFolders.first { Self.isInside(url, of: $0) }
+    }
+
+    func isExtraFolder(_ url: URL) -> Bool { extraFolder(containing: url) != nil }
+
+    /// Adds a folder to the workspace: scanned for the navigator, searched from now on, and
+    /// remembered for this project.
+    func addFolder(_ url: URL) {
+        guard let project = rootURL else { return }
+        let folder = url.standardizedFileURL
+        guard !extraFolders.contains(where: { $0.path == folder.path }),
+              folder.path != rootURL?.standardizedFileURL.path else {
+            banner = "\(folder.lastPathComponent) is already in the workspace."
+            return
+        }
+        let scoped = url.startAccessingSecurityScopedResource()
+        do {
+            let tree = try FileTree.scan(url)
+            extraScopes[folder.path] = scoped
+            extraFolders.append(folder)
+            extraRoots.append(tree)
+            try? workspaceFolders.remember(url, for: AppModel.layoutKey(for: project))
+            saveSession()
+            banner = "\(folder.lastPathComponent) is in the workspace. Search and quick open cover it now."
+        } catch {
+            if scoped { url.stopAccessingSecurityScopedResource() }
+            banner = "Can't read \(url.lastPathComponent): \(error.localizedDescription)"
+        }
+    }
+
+    /// Removes an added folder: its tree goes, its tabs close, and it's forgotten for this project.
+    func removeFolder(_ url: URL) {
+        guard let project = rootURL,
+              let i = extraFolders.firstIndex(where: { $0.path == url.standardizedFileURL.path }) else { return }
+        if isDirty { saveCurrent() }
+        let folder = extraFolders.remove(at: i)
+        extraRoots.remove(at: i)
+        if extraScopes.removeValue(forKey: folder.path) == true { folder.stopAccessingSecurityScopedResource() }
+        try? workspaceFolders.forget(folder, for: AppModel.layoutKey(for: project))
+        // Tabs in that folder have no tree any more.
+        if let open = openFile, Self.isInside(open, of: folder) { closeFile() }
+        tabs.removeAll { Self.isInside($0.url, of: folder) }
+        if openFile == nil, let next = tabs.first { open(file: next.url, preview: false) }
+        saveSession()
+        banner = "\(folder.lastPathComponent) left the workspace."
+    }
+
+    private func reloadExtraFolders() {
+        for (i, url) in extraFolders.enumerated() where extraRoots.indices.contains(i) {
+            if let tree = try? FileTree.scan(url) { extraRoots[i] = tree }
+        }
+    }
+
+    /// Brings back the folders this project had added (unless this launch set up its own files).
+    private func restoreExtraFolders(_ project: URL) {
+        clearExtraFolders()
+        guard restoresSessions else { return }
+        for url in workspaceFolders.available(for: AppModel.layoutKey(for: project)) {
+            let scoped = url.startAccessingSecurityScopedResource()
+            guard let tree = try? FileTree.scan(url) else {
+                if scoped { url.stopAccessingSecurityScopedResource() }
+                continue
+            }
+            extraScopes[url.path] = scoped
+            extraFolders.append(url)
+            extraRoots.append(tree)
+        }
+    }
+
+    private func clearExtraFolders() {
+        for url in extraFolders where extraScopes[url.path] == true { url.stopAccessingSecurityScopedResource() }
+        extraScopes = [:]
+        extraFolders = []
+        extraRoots = []
+    }
+
+    /// Whether `url` is `folder` itself or inside it (a path boundary, so `/app` doesn't match
+    /// `/app-old`).
+    static func isInside(_ url: URL, of folder: URL) -> Bool {
+        let path = url.standardizedFileURL.path(percentEncoded: false)
+        let base = folder.standardizedFileURL.path(percentEncoded: false)
+        let prefix = base.hasSuffix("/") ? base : base + "/"
+        return path == base || path.hasPrefix(prefix)
     }
 
     /// Opens a file and, once it's loaded, selects `range` and scrolls to it.
@@ -612,6 +719,7 @@ final class WorkspaceModel {
         saveSession()
         watcher?.stop()
         watcher = nil
+        clearExtraFolders()
         if isAccessingRoot { rootURL?.stopAccessingSecurityScopedResource() }
         isAccessingRoot = false
         savesSession = false
@@ -880,17 +988,35 @@ final class WorkspaceModel {
 
     func relativePath(of url: URL) -> String {
         guard let rootURL else { return url.lastPathComponent }
-        let path = url.path(percentEncoded: false), base = rootURL.path(percentEncoded: false)
-        // Require a path boundary: root "…/app" must not match "…/app-old/x".
+        if let insideProject = Self.path(of: url, inside: rootURL) { return insideProject }
+        // A file in an added folder still gets a path from the project root — climbing out with
+        // `..` — so tabs, the session and the status strip have a stable name for it.
+        if isExtraFolder(url) { return pathFromProjectRoot(to: url) }
+        return url.lastPathComponent
+    }
+
+    /// `url`'s path inside `folder`, or nil when it isn't inside it (a path boundary, so `/app`
+    /// doesn't match `/app-old`).
+    static func path(of url: URL, inside folder: URL) -> String? {
+        let path = url.standardizedFileURL.path(percentEncoded: false)
+        let base = folder.standardizedFileURL.path(percentEncoded: false)
         let prefix = base.hasSuffix("/") ? base : base + "/"
-        return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : url.lastPathComponent
+        return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : nil
+    }
+
+    /// `url`'s path from the project root, climbing out with `..` for each level when it lies
+    /// outside it (a folder added to the workspace, usually).
+    private func pathFromProjectRoot(to url: URL) -> String {
+        guard let rootURL else { return url.lastPathComponent }
+        let base = rootURL.standardizedFileURL.pathComponents
+        let target = url.standardizedFileURL.pathComponents
+        var shared = 0
+        while shared < base.count, shared < target.count, base[shared] == target[shared] { shared += 1 }
+        return (Array(repeating: "..", count: base.count - shared) + target[shared...]).joined(separator: "/")
     }
 
     var relativePath: String? {
-        guard let openFile, let rootURL else { return nil }
-        let path = openFile.path(percentEncoded: false)
-        let base = rootURL.path(percentEncoded: false)
-        let prefix = base.hasSuffix("/") ? base : base + "/"
-        return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : openFile.lastPathComponent
+        guard let openFile, rootURL != nil else { return nil }
+        return relativePath(of: openFile)
     }
 }

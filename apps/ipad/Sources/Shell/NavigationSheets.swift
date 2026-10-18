@@ -11,19 +11,17 @@ struct QuickOpenSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.palette) private var palette
     @State private var query = ""
-    @State private var files: [String] = []
+    @State private var files: [ProjectSearch.ProjectFile] = []
     @FocusState private var focused: Bool
 
     var body: some View {
-        let results = query.isEmpty
-            ? model.workspace.recentFiles.filter(files.contains) + files.filter { !model.workspace.recentFiles.contains($0) }.prefix(50)
-            : FuzzyMatch.rank(query, files)
+        let results = query.isEmpty ? openOrder() : FuzzyMatch.rank(query, files, by: display)
         NavigationStack {
-            List(results, id: \.self) { path in
-                Button { open(path) } label: {
+            List(results) { file in
+                Button { open(file) } label: {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text((path as NSString).lastPathComponent).font(.subheadline)
-                        Text(path).font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
+                        Text((file.path as NSString).lastPathComponent).font(.subheadline)
+                        Text(display(file)).font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.secondary.color)
                     }
                 }
                 .buttonStyle(.plain)
@@ -37,7 +35,8 @@ struct QuickOpenSheet: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
         .task {
-            if let root = model.workspace.rootURL { files = await Task.detached { ProjectSearch.files(in: root) }.value }
+            let roots = model.workspace.allRoots
+            if !roots.isEmpty { files = await Task.detached { ProjectSearch.files(in: roots) }.value }
             focused = true
             #if DEBUG
             let args = ProcessInfo.processInfo.arguments
@@ -46,9 +45,27 @@ struct QuickOpenSheet: View {
         }
     }
 
-    private func open(_ path: String) {
-        guard let root = model.workspace.rootURL else { return }
-        model.workspace.open(file: root.appending(path: path))
+    /// With nothing typed: the files you had open recently first, then the rest of the workspace.
+    private func openOrder() -> [ProjectSearch.ProjectFile] {
+        let workspace = model.workspace
+        guard let root = workspace.rootURL else { return Array(files.prefix(50)) }
+        let recents = workspace.recentFiles.map { root.appending(path: $0).standardizedFileURL.path }
+        func rank(_ file: ProjectSearch.ProjectFile) -> Int? {
+            recents.firstIndex(of: file.root.appending(path: file.path).standardizedFileURL.path)
+        }
+        let recent = files.filter { rank($0) != nil }.sorted { (rank($0) ?? 0) < (rank($1) ?? 0) }
+        return recent + Array(files.filter { rank($0) == nil }.prefix(50))
+    }
+
+    /// Files in the project's own folder read as before; a file in an added folder is named by it.
+    private func display(_ file: ProjectSearch.ProjectFile) -> String {
+        let roots = model.workspace.allRoots
+        guard roots.count > 1, roots.first?.path != file.root.path else { return file.path }
+        return "\(file.root.lastPathComponent)/\(file.path)"
+    }
+
+    private func open(_ file: ProjectSearch.ProjectFile) {
+        model.workspace.open(file: file.root.appending(path: file.path))
         dismiss()
     }
 }
@@ -60,7 +77,7 @@ struct FindInProjectSheet: View {
     @Environment(\.palette) private var palette
     @State private var query = ""
     @State private var caseSensitive = false
-    @State private var hits: [ProjectSearch.Hit] = []
+    @State private var hits: [ProjectSearch.RootedHit] = []
     @State private var searching = false
     @State private var replacement = ""
     @State private var showingReplace = false
@@ -69,7 +86,8 @@ struct FindInProjectSheet: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        let groups = Dictionary(grouping: hits, by: \.path)
+        let roots = model.workspace.allRoots
+        let groups = Dictionary(grouping: hits, by: { $0.displayPath(in: roots) })
         let paths = groups.keys.sorted()
         NavigationStack {
             List {
@@ -82,9 +100,9 @@ struct FindInProjectSheet: View {
                         ForEach(groups[path] ?? []) { hit in
                             Button { open(hit) } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    Text("\(hit.line)").font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.tertiary.color)
+                                    Text("\(hit.hit.line)").font(.system(.caption2, design: .monospaced)).foregroundStyle(palette.text.tertiary.color)
                                         .frame(minWidth: 32, alignment: .trailing)
-                                    Text(hit.text.trimmingCharacters(in: .whitespaces)).font(.system(.caption, design: .monospaced)).lineLimit(2)
+                                    Text(hit.hit.text.trimmingCharacters(in: .whitespaces)).font(.system(.caption, design: .monospaced)).lineLimit(2)
                                 }
                             }
                             .buttonStyle(.plain)
@@ -152,31 +170,32 @@ struct FindInProjectSheet: View {
     }
 
     private func search() async {
-        guard let root = model.workspace.rootURL, !query.isEmpty else { hits = []; return }
+        let roots = model.workspace.allRoots
+        guard !roots.isEmpty, !query.isEmpty else { hits = []; return }
         searching = true
         status = nil
         let q = query, cs = caseSensitive
         model.workspace.saveCurrent()
-        hits = await Task.detached { ProjectSearch.search(q, in: root, caseSensitive: cs) }.value
+        hits = await Task.detached { ProjectSearch.search(q, in: roots, caseSensitive: cs) }.value
         searching = false
     }
 
-    /// Snapshots first (so it can be undone), then replaces every match in the project.
+    /// Snapshots first (so it can be undone), then replaces every match in the workspace.
     private func replaceAll() async {
-        guard let root = model.workspace.rootURL, !query.isEmpty, !hits.isEmpty else { return }
+        let roots = model.workspace.allRoots
+        guard !roots.isEmpty, !query.isEmpty, !hits.isEmpty else { return }
         let q = query, r = replacement, cs = caseSensitive
         model.snapshots.take(reason: "Before replacing in project")
         model.workspace.saveCurrent()
-        let result = await Task.detached { ProjectSearch.replace(q, with: r, in: root, caseSensitive: cs) }.value
+        let result = await Task.detached { ProjectSearch.replace(q, with: r, in: roots, caseSensitive: cs) }.value
         model.workspace.reloadFromDisk()
         await search()
         status = "Replaced \(result.count) in \(result.files) \(result.files == 1 ? "file" : "files")"
             + (result.skipped.isEmpty ? "." : "; skipped \(result.skipped.count).")
     }
 
-    private func open(_ hit: ProjectSearch.Hit) {
-        guard let root = model.workspace.rootURL else { return }
-        model.workspace.open(file: root.appending(path: hit.path), select: hit.range)
+    private func open(_ hit: ProjectSearch.RootedHit) {
+        model.workspace.open(file: hit.root.appending(path: hit.hit.path), select: hit.hit.range)
         dismiss()
     }
 }
