@@ -68,4 +68,12 @@ struct LanguageTests {
         #expect(Language(injectionName: "markdown_inline") == .markdownInline)
         #expect(Language(injectionName: "yaml") == nil, "no grammar for it; the fence stays plain")
     }
+
+    @Test func knowsItsIndentationRules() {
+        #expect(Language.javascript.indentationRules?.indent.contains("statement_block") == true)
+        #expect(Language.javascript.indentationRules?.outdent.contains("}") == true)
+        #expect(Language.python.indentationRules?.whitespaceDenotesBlocks == true)
+        #expect(Language.json.indentationRules?.indent.contains("object") == true)
+        #expect(Language.markdown.indentationRules == nil, "no rules; a line break keeps the indent")
+    }
 }

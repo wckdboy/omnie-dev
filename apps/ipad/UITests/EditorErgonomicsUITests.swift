@@ -46,6 +46,26 @@ final class EditorErgonomicsUITests: XCTestCase {
         XCTAssertEqual(position().column, 2, "and back again")
     }
 
+    /// Smart indent: a line break inside a block indents by the file's unit (two spaces here), and
+    /// Enter between `{}` opens the block up.
+    func testLineBreakIndentsInsideABlock() {
+        app.typeKey("a", modifierFlags: .command); settle()
+        app.typeText("function f() {"); settle()
+        app.typeText("\n"); settle()
+        XCTAssertEqual(position().line, 2)
+        XCTAssertEqual(position().column, 3, "the new line is indented by two spaces")
+        // Enter between the braces opens the block: an indented line, and the closer below it.
+        app.typeKey("a", modifierFlags: .command); settle()
+        app.typeText("if (x) {}"); settle()
+        app.typeKey(.leftArrow, modifierFlags: []); settle()          // between { and }
+        app.typeText("\n"); settle()
+        XCTAssertEqual(position().line, 2)
+        XCTAssertEqual(position().column, 3)
+        app.typeKey(.downArrow, modifierFlags: []); settle()
+        XCTAssertEqual(position().line, 3)
+        XCTAssertEqual(position().text, "}", "the closing brace is on its own line, not indented")
+    }
+
     /// ⌘D selects the word, then adds the next occurrence as a real selection; typing replaces every
     /// one in a single undo step (engine 0.7.0's multi-selection).
     func testSelectNextOccurrenceThenTypingReplacesEveryOne() {

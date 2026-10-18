@@ -29,6 +29,13 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     private(set) public var language: Language?
     /// Markdown folds by headings; set by the app with the file (the editor has no Markdown mode).
     public var isMarkdown = false
+    /// The indentation a continued line gets (engine smart indent): a tab for a tab-indented file,
+    /// else the file's smallest positive width. Set from the text on load.
+    public private(set) var indentUnit = "  " {
+        didSet {
+            textView.indentStrategy = indentUnit.hasPrefix("\t") ? .tab(length: 2) : .space(length: max(1, indentUnit.count))
+        }
+    }
     /// The lines with a breakpoint, drawn as dots in the gutter (the debugger's).
     public private(set) var breakpointLines: Set<Int> = []
     /// Each breakpoint's condition, if it has one (a conditional breakpoint is drawn differently).
@@ -269,6 +276,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
         textView.writingToolsBehavior = .none
         textView.isFindInteractionEnabled = true
         textView.characterPairs = Self.pairs
+        textView.indentStrategy = .space(length: 2)
         textView.alwaysBounceVertical = true
         textView.contentInsetAdjustmentBehavior = .never
         textView.textContainerInset = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 8)
@@ -324,6 +332,7 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     /// Loads a file's text; `marks` (its diagnostics) replace the previous file's.
     public func load(_ text: String, language: Language?, marks: [EditorMark] = []) {
         self.language = language
+        indentUnit = Self.detectedIndentUnit(in: text)
         // A new file: any snippet being filled in is gone with the old text.
         snippet = nil
         selectionStack = []
@@ -708,7 +717,30 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
     nonisolated static func treeSitterLanguage(_ language: Language) -> TreeSitterLanguage {
         TreeSitterLanguage(language.grammar,
                            highlightsQuery: language.highlightsQuery.map { .init(string: $0) },
-                           injectionsQuery: language.injectionsQuery.map { .init(string: $0) })
+                           injectionsQuery: language.injectionsQuery.map { .init(string: $0) },
+                           indentationScopes: language.indentationRules.map {
+                               TreeSitterIndentationScopes(indent: $0.indent, inheritIndent: $0.inheritIndent,
+                                                           outdent: $0.outdent, whitespaceDenotesBlocks: $0.whitespaceDenotesBlocks)
+                           })
+    }
+
+    /// The file's indentation for a continued line: a tab when most indented lines start with one,
+    /// otherwise the smallest positive width in it (2 when there is none).
+    public nonisolated static func detectedIndentUnit(in text: String) -> String {
+        var tabs = 0
+        var spaces = 0
+        var widths: [Int] = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false).prefix(2_000) {
+            if line.hasPrefix("\t") {
+                tabs += 1
+            } else if line.hasPrefix(" ") {
+                let width = line.prefix { $0 == " " }.count
+                if width > 1 { spaces += 1; widths.append(width) }
+            }
+        }
+        if tabs > spaces { return "\t" }
+        let width = widths.min() ?? 2
+        return String(repeating: " ", count: max(2, min(width, 8)))
     }
 }
 
