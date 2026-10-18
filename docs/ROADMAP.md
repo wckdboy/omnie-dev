@@ -21,7 +21,8 @@ Make the suite and the sandbox dependable before adding surface.
 |---|---|---|
 | Sandbox stall root-caused, heartbeat + real error surfaced, retry only on a real stall | `RunKit` (`SandboxWorker`, `pylanguage-worker`, `python-worker`) | CI green twice in a row with no manual retry; a stall fails in seconds with a reason |
 | Biometrics require a passcode; keyed audit chain; secret scanner covers long lines; npm cache path containment | `PolicyKit`, `SecretsKit`, `RunKit/Npm` | Audit findings closed; tests added |
-| Perf budgets enforced (typing latency, scroll hitches, fold/minimap/find over a 1 M-char file) | new `EditorPerfTests` + `-OmniePerf` | Nightly run fails on regression |
+| Perf budgets enforced (typing latency, scroll hitches, fold/minimap/find over a 1 M-char file) | `EditorKitTests/PerformanceTests` + `-OmniePerf` | **Landed**: budgets for typing, **scrolling**, fold-all, minimap, find-all and bracket matching over a ~0.8 M-char file, with the readings printed; the `editor` CI job (run nightly by the schedule) fails on a breach |
+| CI: split the packages job, cache hard, quarantine the WebKit tests | `.github/workflows/ci.yml`, `scripts/test-all.sh` | **Landed**: a `vendor` job builds the native inputs once, each package is its own parallel matrix job (`--only`), RunKit's WebKit suites are retried once behind a "stalled" warning, and EditorKit is its own simulator + perf job |
 
 ## M1 — Editor parity (the daily reach)
 | Deliverable | Where | Notes |
@@ -78,8 +79,10 @@ Make the suite and the sandbox dependable before adding surface.
 - **Every bug gets a failing test** before the fix (5 added in the 1.6.0/1.6.x cycle).
 - **Release hygiene:** bump `MARKETING_VERSION` per shippable; one build per change set; a
   `CHANGELOG.md`; `scripts/clean.sh` for the derived-data growth that aborted an archive.
-- **CI:** split the packages job, cache hard, quarantine the WebKit sandbox tests behind a
-  retry-once policy with a clear "stalled" signal; keep UI tests on main.
+- **CI:** **done** — the packages job is split into a parallel matrix (each package its own job), the
+  native inputs and SwiftPM caches are built and cached once, the WebKit sandbox suites are
+  quarantined behind a retry-once with a clear "stalled" signal, and UI tests stay on main/nightly.
+  See the M0 table and `.github/workflows/ci.yml`.
 
 ## Recommended order
 1. **M0.1** sandbox stall → 2. **M1 find/replace depth** → 3. **M1 ⌘D** (engine 0.7) → 4. **M2 Go/Rust

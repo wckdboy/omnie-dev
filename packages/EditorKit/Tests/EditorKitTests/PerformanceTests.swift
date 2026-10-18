@@ -66,6 +66,21 @@ struct PerformanceTests {
         #expect(elapsed < .seconds(10), "a keystroke must not re-scan or re-parse the whole file")
     }
 
+    /// Scrolling: each step re-lays out the visible lines, not the file.
+    @Test func scrollingALargeFileIsBounded() async {
+        let editor = await loadedEditor(Self.largeFile())
+        editor.textView.layoutIfNeeded()
+        let step = editor.textView.frame.height / 4
+        let elapsed = ContinuousClock().measure {
+            for i in 0..<120 {
+                editor.textView.contentOffset = CGPoint(x: 0, y: Double(i) * step)
+                editor.textView.layoutIfNeeded()
+            }
+        }
+        print("[perf] 120 scroll steps: \(elapsed)")
+        #expect(elapsed < .seconds(20), "scrolling must lay out only the visible lines")
+    }
+
     @Test func theMinimapBuildsInBoundedTime() {
         let text = Self.largeFile()
         let elapsed = ContinuousClock().measure { _ = Minimap(text: text) }

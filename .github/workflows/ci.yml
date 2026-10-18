@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: 2026 wckdboy and Omnie-dev contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Every package's tests on each push and pull request; the app's UI tests on main, nightly and on
-# demand. Standard GitHub-hosted runners (macos-26, ubuntu) are free for this public repository.
-# The vendored inputs (libgit2, tree-sitter grammars, RunKit's bundles) are built by the same
-# scripts as on a Mac and cached on the hash of what produces them.
+# The packages' tests are split so one flaky WebKit suite can't fail the whole run: a `vendor` job
+# builds and caches the native inputs once, then every package is its own matrix job (in parallel),
+# RunKit runs with its WebKit suites quarantined behind a retry-once, and EditorKit (a simulator
+# build, and the editor performance budgets) is its own job. The app's UI tests run on main, nightly
+# and on demand. Standard GitHub-hosted runners (macos-26, ubuntu) are free for this public repo.
 name: CI
 
 on:
@@ -32,16 +33,33 @@ jobs:
       - uses: actions/checkout@v7
       - uses: fsfe/reuse-action@v5
 
-  packages:
-    name: Package tests
-    runs-on: macos-26
-    timeout-minutes: 60
+  # The packages to test, minus RunKit (WebKit, quarantined) and EditorKit (a simulator build):
+  # both get their own jobs. Computed so a new package can't be forgotten.
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
     steps:
       - uses: actions/checkout@v7
-      - name: Xcode
-        run: xcodebuild -version
+      - id: list
+        name: Packages for the matrix
+        run: |
+          readarray -t names < <(find packages -mindepth 1 -maxdepth 1 -type d -exec basename {} + \
+            | grep -vE '^(RunKit|EditorKit)$' | sort)
+          printf 'matrix: %s\n' "${names[*]}"
+          echo "packages=$(printf '%s\n' "${names[@]}" | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  # Builds the hash-pinned native inputs once and saves them; the test jobs restore and never rebuild.
+  vendor:
+    name: Vendored inputs
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
       - name: Tools
-        run: brew install ninja xcodegen
+        run: brew install ninja
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -87,28 +105,142 @@ jobs:
         if: steps.runkit.outputs.cache-hit != 'true'
         run: scripts/vendor-runkit.sh
 
-      - name: Test every package
+  # One job per package, in parallel: a failure in one names the package and doesn't stop the rest.
+  packages:
+    name: ${{ matrix.package }}
+    needs: [plan, vendor]
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.plan.outputs.packages) }}
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Restore libgit2
+        uses: actions/cache@v6
+        with:
+          path: packages/GitKit/Vendor
+          key: libgit2-${{ hashFiles('scripts/build-git-deps.sh', 'scripts/patches/**') }}
+      - name: Restore grammars
+        uses: actions/cache@v6
+        with:
+          path: |
+            packages/LangKit/Sources/TreeSitterGrammars
+            packages/LangKit/Sources/LangKit/Resources/queries
+            packages/LangKit/REUSE.toml
+          key: grammars-${{ hashFiles('scripts/vendor-grammars.py') }}
+      - name: Restore RunKit bundles
+        uses: actions/cache@v6
+        with:
+          path: |
+            packages/RunKit/Sources/RunKit/JS/sucrase.js
+            packages/RunKit/Sources/RunKit/JS/sucrase-LICENSE.txt
+            packages/RunKit/Sources/RunKit/JS/pyodide
+            packages/RunKit/Sources/RunKit/JS/packages
+          key: runkit-${{ hashFiles('scripts/vendor-runkit.sh', 'scripts/runkit/**', 'tools/wasi/**', 'scripts/collect-cargo-licenses.py') }}
+      - name: Cache SwiftPM
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/.swiftpm
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('packages/*/Package.resolved') }}
+          restore-keys: swiftpm-${{ runner.os }}-
+
+      - name: Test ${{ matrix.package }}
         env:
           XCODEBUILD_FLAGS: CODE_SIGNING_ALLOWED=NO
-        run: scripts/test-all.sh
+        run: scripts/test-all.sh --only "${{ matrix.package }}"
+
+  # RunKit drives WebKit/Pyodide: its deterministic suites run always, and the WebKit suites are
+  # quarantined behind a retry-once with a clear "stalled" signal (they starve a shared process).
+  runkit:
+    name: RunKit (WebKit retried)
+    needs: vendor
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Restore libgit2
+        uses: actions/cache@v6
+        with:
+          path: packages/GitKit/Vendor
+          key: libgit2-${{ hashFiles('scripts/build-git-deps.sh', 'scripts/patches/**') }}
+      - name: Restore RunKit bundles
+        uses: actions/cache@v6
+        with:
+          path: |
+            packages/RunKit/Sources/RunKit/JS/sucrase.js
+            packages/RunKit/Sources/RunKit/JS/sucrase-LICENSE.txt
+            packages/RunKit/Sources/RunKit/JS/pyodide
+            packages/RunKit/Sources/RunKit/JS/packages
+          key: runkit-${{ hashFiles('scripts/vendor-runkit.sh', 'scripts/runkit/**', 'tools/wasi/**', 'scripts/collect-cargo-licenses.py') }}
+      - name: Cache SwiftPM
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/.swiftpm
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('packages/*/Package.resolved') }}
+          restore-keys: swiftpm-${{ runner.os }}-
+
+      - name: RunKit's deterministic suites
+        working-directory: packages/RunKit
+        run: swift test --skip WebKitSuites
+      - name: RunKit's WebKit suites (retried once)
+        working-directory: packages/RunKit
+        run: |
+          set +e
+          swift test --filter WebKitSuites
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo "::warning title=WebKit suites stalled or failed::RunKit's WebKit suites failed; retrying once (a known flake: Pyodide and Mermaid starve a shared WebKit process)."
+            swift test --filter WebKitSuites
+          fi
+
+  # EditorKit is iOS-only (a simulator build) and carries the editor performance budgets, so a
+  # regression — including on the nightly run — fails here.
+  editor:
+    name: EditorKit (simulator + perf)
+    needs: vendor
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Restore grammars
+        uses: actions/cache@v6
+        with:
+          path: |
+            packages/LangKit/Sources/TreeSitterGrammars
+            packages/LangKit/Sources/LangKit/Resources/queries
+            packages/LangKit/REUSE.toml
+          key: grammars-${{ hashFiles('scripts/vendor-grammars.py') }}
+      - name: Cache SwiftPM
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/.swiftpm
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('packages/*/Package.resolved') }}
+          restore-keys: swiftpm-${{ runner.os }}-
+
+      - name: EditorKit tests (and the perf budgets)
+        env:
+          XCODEBUILD_FLAGS: CODE_SIGNING_ALLOWED=NO
+        run: scripts/test-all.sh --only EditorKit
 
   ui:
     name: UI tests
     if: github.event_name != 'pull_request'
-    needs: packages
+    needs: [packages, runkit, editor]
     runs-on: macos-26
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
       - name: Tools
-        run: brew install ninja xcodegen
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-      - uses: oven-sh/setup-bun@v2
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip1
+        run: brew install xcodegen
       - name: Restore libgit2
         uses: actions/cache@v6
         with:
@@ -136,7 +268,9 @@ jobs:
       - name: UI tests
         env:
           XCODEBUILD_FLAGS: CODE_SIGNING_ALLOWED=NO
-        run: scripts/test-all.sh --ui 2>&1 | tail -3
+        run: |
+          set -o pipefail
+          scripts/test-all.sh --ui-only 2>&1 | tail -5
       - name: Results on failure
         if: failure()
         uses: actions/upload-artifact@v7
