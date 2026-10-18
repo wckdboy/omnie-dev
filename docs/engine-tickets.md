@@ -62,36 +62,23 @@ layout per range rather than once.
 
 ---
 
-## 3. Auto-close brackets and quotes (and skip-over)
+## 3. Auto-close brackets and quotes (and skip-over) — landed
 
-**Today.** The engine's `characterPairs` only handles *deletion*: with
-`characterPairTrailingComponentDeletionMode == .immediatelyFollowingLeadingComponent`, deleting an
-opening bracket also deletes the trailing one it paired with. Typing an opening bracket does **not**
-insert its partner, and typing a closing bracket just before its twin does not move over it — the two
-behaviours a VS Code user expects from "auto-close".
+Upstream Runestone already does most of this: `TextView.insertLeadingComponent` inserts the pair and
+puts the caret between them, `skipInsertingTrailingComponent` moves the caret over a closer already
+there, and a non-empty selection is wrapped — all gated by `characterPairs`, which EditorKit sets
+(`CodeEditorController.pairs`). It runs through the typed-insertion path, so it is one undo step, and
+marked text (IME) is left alone.
 
-It belongs in the engine, not the app, because it is typing: it must go through the same edit path as
-the typed character so it is **one undo step**, it must not disturb marked text (IME/dictation), and it
-must agree with the deletion side of `characterPairs`.
+The gap was **double-closing**: Runestone always added the trailing component, so typing `(` in front
+of an existing `)` gave `())`. **Patch 0017** (`omnie-dev-editor-engine` 0.6.10) now leaves the typed
+bracket to insert on its own when the character after the caret already closes the pair, giving `()`.
 
-**Ask.** Insert the trailing component (and skip over it) as part of the typed insertion:
+Tests: `RunestoneTests/CharacterPairTests` (insert the pair, skip over an existing closer, wrap a
+selection, don't double-close), and EditorKit's `EditorErgonomicsTests` for the same through the app's
+editor.
 
-- Typing an opening `(`/`[`/`{` with no selection inserts the pair and puts the caret between them,
-  **when it closes something** — the next character is whitespace, end of line, or one of `)]};,`. Not
-  inside a word (`foo(` should stay `foo(` when the next character is a letter).
-- Typing `"`, `'` or `` ` `` inserts the pair the same way, unless the next character is the same quote
-  (then it skips over it) or the caret is inside a string it would break.
-- Typing a closing `)`/`]`/`}` or a quote when the character after the caret is the same skips over it
-  (no insertion).
-- A non-empty selection wraps: typing `(` or `"` surrounds the selection and keeps it selected.
-- The pair insertion is one undo step that undoes as one.
-
-Suppression: while the text view has marked text (IME composition), do none of this.
-
-**App side once landed.** `CodeEditorController` drops nothing (it has no auto-close today); the
-Settings switch "Auto-close brackets" would flip the new engine property. No app code is waiting on
-this, which is why it lives in the engine.
-
-**Tests.** Engine tests: pair insertion per kind, skip-over, wrap-a-selection, no insertion before a
-word, and one undo step. `EditorKeyboardTests`-style: type `(` and assert the pair and the caret.
+Still open if wanted: insert the pair only when it "closes something" (not before a word character)
+and never inside a string it would break, and a Settings switch to turn auto-close off (the app sets
+`characterPairs` unconditionally today).
 

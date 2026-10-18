@@ -234,4 +234,24 @@ struct EditorErgonomicsTests {
         editor.selectToMatchingBracket()
         #expect(editor.selectedRange == NSRange(location: 3, length: 0))
     }
+
+    // MARK: Auto-close (engine patch 0017)
+
+    @Test func typingBracketsAndQuotesClosesThem() async {
+        let editor = await loadedEditor("")
+        editor.textView.insertText("(")
+        #expect(editor.text == "()", "an opening bracket brings its pair")
+        editor.textView.insertText(")")
+        #expect(editor.text == "()", "the closer skips over the one already there")
+        #expect(editor.selectedRange == NSRange(location: 2, length: 0))
+    }
+
+    @Test func openingBeforeACloserKeepsOneCloser() async {
+        // Typing `(` before an existing `)` uses it as the partner instead of doubling it.
+        let editor = await loadedEditor(")")
+        editor.selectedRange = NSRange(location: 0, length: 0)
+        editor.textView.insertText("(")
+        #expect(editor.text == "()")
+        #expect(editor.selectedRange == NSRange(location: 1, length: 0))
+    }
 }

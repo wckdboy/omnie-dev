@@ -10,6 +10,9 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 - **Java**: tree-sitter-java highlighting and outlines for `.java`, joining Swift/TypeScript/JavaScript/Python/Go/Rust/C/C++ (vendored and hash-pinned by `scripts/vendor-grammars.py`).
 - **Markdown**: `.md` files highlight with tree-sitter-markdown (headings, code fences, links), and a fenced block is highlighted as the language it names (```` ```java ````, ```` ```python ````, …). This is the editor's first use of the engine's injected-language path, so an HTML document's CSS and `<script>` highlight too.
 
+**Editor**
+- **Auto-close brackets and quotes**: typing `(`, `[`, `{`, `"`, `'` or `` ` `` brings its partner and parks the caret between; a closer typed in front of one already there steps over it; a selection is wrapped. This already worked through the engine's `characterPairs` — the fix (engine patch 0017, `omnie-dev-editor-engine` 0.6.10) stops it doubling, so `(` before `)` now gives `()` instead of `())`.
+
 **CI and tests**
 - The packages' tests run as one parallel job per package (a `vendor` job builds the native inputs once and every test job restores them and the SwiftPM caches); RunKit's WebKit suites are retried once behind a "stalled" warning; EditorKit (with the editor performance budgets, now including **scrolling**) is its own simulator job that the nightly run gates on.
 
