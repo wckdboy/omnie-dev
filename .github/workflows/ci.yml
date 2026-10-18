@@ -46,7 +46,7 @@ jobs:
       - id: list
         name: Packages for the matrix
         run: |
-          readarray -t names < <(find packages -mindepth 1 -maxdepth 1 -type d -exec basename {} + \
+          readarray -t names < <(for d in packages/*/; do basename "$d"; done \
             | grep -vE '^(RunKit|EditorKit)$' | sort)
           printf 'matrix: %s\n' "${names[*]}"
           echo "packages=$(printf '%s\n' "${names[@]}" | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
