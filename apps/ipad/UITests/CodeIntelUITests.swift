@@ -274,4 +274,35 @@ final class CodeIntelUITests: XCTestCase {
         XCTAssertFalse((editor.value as? String ?? "").contains("Folded"), "the block is open: \(editor.value ?? "")")
     }
 
+    /// The gutter's breakpoint tap and the fold chevron share a strip: a gutter tap must still toggle
+    /// a breakpoint, and a chevron must still fold (the two taps run beside each other).
+    func testGutterTapTogglesABreakpointAndChevronStillFolds() {
+        app = XCUIApplication()
+        // geometry.py: line 1 `import os` is plain (a breakpoint line); line 3 heads the fold that
+        // hides lines 4–5. The caret starts on line 1.
+        app.launchArguments = ["-OmnieUIPyFixture", "-OmnieOpenFile", "geometry.py:1:1", "-OmnieLayout", "standard",
+                               "-OmnieNoWelcome", "-OmnieNoPanelDrag"]
+        app.launch()
+        XCTAssertTrue(editor.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitForEditor("Line 1,"), "\(editor.value ?? "")")
+        XCTAssertFalse((editor.value as? String ?? "").contains("Breakpoint"), "no breakpoint yet: \(editor.value ?? "")")
+
+        // The gutter is the strip just left of the text (the accessibility element is the inner input
+        // view), a tap there toggles the line's breakpoint.
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        // A line's band: 8 pt inset plus (N − 0.5) ~17 pt lines (see testFolding).
+        let line1 = editor.frame.minY + 8 + 0.5 * 17
+        origin.withOffset(CGVector(dx: editor.frame.minX - 12, dy: line1)).tap()
+        sleep(1)
+        XCTAssertTrue((editor.value as? String ?? "").contains("Breakpoint"), "a gutter tap should add a breakpoint: \(editor.value ?? "")")
+
+        // The breakpoint gesture must not swallow a chevron: the header still folds.
+        let header = editor.frame.minY + 8 + 2.5 * 17
+        origin.withOffset(CGVector(dx: editor.frame.minX - 12, dy: header)).tap()
+        sleep(1)
+        XCTAssertTrue(waitForEditor("Line 3,") && (editor.value as? String ?? "").contains("Folded, 2 lines"),
+                      "the chevron should still fold: \(editor.value ?? "")")
+        shot("gutter-breakpoint-and-fold")
+    }
+
 }
