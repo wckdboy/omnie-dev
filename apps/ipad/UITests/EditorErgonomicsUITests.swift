@@ -88,4 +88,19 @@ final class EditorErgonomicsUITests: XCTestCase {
         app.typeKey(.upArrow, modifierFlags: []); settle()
         XCTAssertEqual(position().text, "let alpha = 1;")
     }
+
+    /// The display toggles (whitespace, indent guides, ruler) run and leave the editor working
+    /// (engine 0.7.2 renders them).
+    func testEditorDisplayToggles() {
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments = ["-OmnieUIFixture", "-OmnieLayout", "standard", "-OmnieNoWelcome", "-OmnieNoPanelDrag",
+                               "-OmnieRunCommand", "view.whitespace",
+                               "-OmnieRunCommand", "view.indentGuides",
+                               "-OmnieRunCommand", "view.ruler"]
+        app.launch()
+        let text = app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch
+        XCTAssertTrue(text.waitForExistence(timeout: 15))
+        XCTAssertTrue((text.value as? String ?? "").contains("let alpha = 1;"), "\(text.value ?? "")")
+    }
 }

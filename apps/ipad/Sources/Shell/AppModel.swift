@@ -152,6 +152,37 @@ final class AppModel {
         split.editor.textView.isLineWrappingEnabled = wordWrap
     }
 
+    /// View › Render whitespace: spaces as dots and tabs as arrows. Off by default.
+    var showsWhitespace = UserDefaults.standard.bool(forKey: "editor.whitespace") {
+        didSet {
+            UserDefaults.standard.set(showsWhitespace, forKey: "editor.whitespace")
+            applyEditorGuides()
+        }
+    }
+    /// View › Indent guides: a hairline at each level of indentation. On by default.
+    var showsIndentGuides = UserDefaults.standard.object(forKey: "editor.indentGuides") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(showsIndentGuides, forKey: "editor.indentGuides")
+            applyEditorGuides()
+        }
+    }
+    /// View › Ruler: a column guide at 100 characters, as VS Code's `editor.rulers` does.
+    var showsRuler = UserDefaults.standard.bool(forKey: "editor.ruler") {
+        didSet {
+            UserDefaults.standard.set(showsRuler, forKey: "editor.ruler")
+            applyEditorGuides()
+        }
+    }
+
+    /// Whitespace, indent guides and the ruler on both editors.
+    func applyEditorGuides() {
+        for editor in [workspace.editor, split.editor] {
+            editor.showsWhitespace = showsWhitespace
+            editor.showsIndentGuides = showsIndentGuides
+            editor.rulerColumn = showsRuler ? 100 : 0
+        }
+    }
+
     var showsMinimap = UserDefaults.standard.object(forKey: "editor.minimap") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showsMinimap, forKey: "editor.minimap") }
     }
@@ -275,6 +306,7 @@ final class AppModel {
         #endif
         if !opensFolderAtLaunch { workspace.reopenLast() }
         applyWordWrap()
+        applyEditorGuides()
         // The line moves: ⌥↑/⌥↓ would otherwise move the caret by paragraph before the menu sees them.
         workspace.editor.keyCommands = [
             EditorKeyCommand(input: UIKeyCommand.inputUpArrow, modifiers: .alternate, id: "editor.moveLineUp"),
@@ -882,6 +914,18 @@ final class AppModel {
             Command(id: "view.wordWrap", title: "Toggle word wrap", menu: "View",
                     shortcut: Shortcut("z", [.option]), surfaces: .ide, keywords: ["wrap lines", "long lines", "soft wrap"]) { [weak self] in
                 self?.wordWrap.toggle()
+            },
+            Command(id: "view.whitespace", title: "Toggle render whitespace", menu: "View",
+                    surfaces: .ide, keywords: ["spaces", "tabs", "dots", "invisible", "whitespace"]) { [weak self] in
+                self?.showsWhitespace.toggle()
+            },
+            Command(id: "view.indentGuides", title: "Toggle indent guides", menu: "View",
+                    surfaces: .ide, keywords: ["guides", "indentation", "vertical lines"]) { [weak self] in
+                self?.showsIndentGuides.toggle()
+            },
+            Command(id: "view.ruler", title: "Toggle ruler", menu: "View",
+                    surfaces: .ide, keywords: ["column", "guide", "margin", "100"]) { [weak self] in
+                self?.showsRuler.toggle()
             },
             Command(id: "view.sidebar", title: "Toggle sidebar", menu: "View",
                     shortcut: Shortcut("b"), surfaces: .ide, keywords: ["left dock", "explorer", "files"]) { [weak self] in

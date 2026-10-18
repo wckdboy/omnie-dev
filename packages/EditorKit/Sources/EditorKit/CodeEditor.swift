@@ -36,6 +36,24 @@ public final class CodeEditorController: NSObject, EditorView, @MainActor TextVi
             textView.indentStrategy = indentUnit.hasPrefix("\t") ? .tab(length: 2) : .space(length: max(1, indentUnit.count))
         }
     }
+
+    /// Spaces and tabs drawn as dots and arrows (View › Render whitespace). Engine 0.6.x.
+    public var showsWhitespace = false {
+        didSet {
+            textView.showSpaces = showsWhitespace
+            textView.showTabs = showsWhitespace
+        }
+    }
+
+    /// A hairline at each level of a line's indentation (View › Indent guides). Engine 0.7.2.
+    public var showsIndentGuides = false {
+        didSet { textView.showIndentGuides = showsIndentGuides }
+    }
+
+    /// A column guide (the "ruler") at this 1-based column; 0 turns it off.
+    public var rulerColumn = 0 {
+        didSet { textView.rulerColumn = rulerColumn }
+    }
     /// The lines with a breakpoint, drawn as dots in the gutter (the debugger's).
     public private(set) var breakpointLines: Set<Int> = []
     /// Each breakpoint's condition, if it has one (a conditional breakpoint is drawn differently).

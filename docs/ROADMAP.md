@@ -35,7 +35,7 @@ Make the suite and the sandbox dependable before adding surface.
 | Find/replace depth: **regex**, **whole word**, replace-in-selection, search history | `EditorKit/Search.swift`, `FindBar` | Builds on the find shipped in 1.6.0. All four shipped in 1.7.0 (regex/whole word in 1.6.0; Find in Selection ⌥⌘L and search history in 1.7.0) |
 | Auto-close brackets/quotes, smart indent, matching-bracket jump | engine | Ergonomics that separate "editor" from "text box". Matching-bracket jump shipped in 1.7.0; **auto-close landed** — Runestone already inserted the pair, skipped over an existing closer and wrapped a selection, and patch 0017 (engine 0.6.10) stopped it double-closing (`(` before `)` gives `()`); **smart indent landed** — LangKit now gives each language its indentation rules and the editor sets the file's unit (engine 0.7.1 fixed a byte/character column bug that inserted an extra blank line) |
 | Snippet placeholders with Tab stops | `ToolsKit` snippets + editor | The vault exists; make it interactive. Shipped in 1.7.0 (`SnippetExpansion`, `SnippetSession`) |
-| Word-wrap / whitespace / indent-guide toggles, editor ruler | `EditorKit` | Mostly presentation |
+| Word-wrap / whitespace / indent-guide toggles, editor ruler | `EditorKit` | **Landed**: Toggle word wrap (1.6), and **Render whitespace**, **Indent guides** and **Ruler** (engine 0.7.2 renders them: dots/arrows, a hairline per indent level, and a column guide at 100) |
 
 ## M2 — Languages
 | Deliverable | Where | Notes |
