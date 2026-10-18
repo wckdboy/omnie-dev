@@ -16,7 +16,7 @@ public extension Palette {
         text: TextColors(
             primary: RGBA(0xE6E8EBFF),
             secondary: RGBA(0xA3AAB4FF),
-            tertiary: RGBA(0x7D8590FF)
+            tertiary: RGBA(0x828A94FF)
         ),
         accent: AccentColors(
             ion: RGBA(0x3DD6F5FF),
@@ -58,7 +58,7 @@ public extension Palette {
         text: TextColors(
             primary: RGBA(0x16181BFF),
             secondary: RGBA(0x4E5560FF),
-            tertiary: RGBA(0x6B727CFF)
+            tertiary: RGBA(0x666D77FF)
         ),
         accent: AccentColors(
             ion: RGBA(0x007A94FF),

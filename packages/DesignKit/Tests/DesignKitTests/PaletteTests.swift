@@ -38,6 +38,28 @@ struct PaletteTests {
         }
     }
 
+    /// Labels read on any surface, not just the editor's: tertiary text on the raised/chrome/pane
+    /// surfaces must meet AA too (the Colors tool flags the brand file for exactly this).
+    @Test("Text roles meet their contrast target on every surface",
+          arguments: ["dark", "light", "highContrast"])
+    func textOnEverySurface(name: String) {
+        let (_, palette, target) = Self.themes.first { $0.0 == name }!
+        let surfaces: [(String, RGBA)] = [
+            ("chrome", palette.surface.chrome), ("editor", palette.surface.editor),
+            ("pane", palette.surface.pane), ("raised", palette.surface.raised),
+        ]
+        let text: [(String, RGBA)] = [
+            ("text.primary", palette.text.primary),
+            ("text.secondary", palette.text.secondary),
+            ("text.tertiary", palette.text.tertiary),
+        ]
+        for (surface, bg) in surfaces {
+            for (role, fg) in text {
+                #expect(fg.contrast(against: bg) >= target, "\(name).\(role) on \(surface) is \(fg.contrast(against: bg))")
+            }
+        }
+    }
+
     @Test("Contrast math matches the ratios published in PLAN.md §3.3")
     func matchesPublishedRatios() {
         let cases: [(RGBA, RGBA, Double)] = [

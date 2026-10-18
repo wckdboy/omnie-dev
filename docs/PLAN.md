@@ -139,7 +139,7 @@ Contrast ratios are measured against the editor surface. Every text color passes
 |---|---|---|---|
 | text.primary | #E6E8EB · 15.16 | #16181B · 17.18 | #FFFFFF · 21.0 |
 | text.secondary | #A3AAB4 · 7.94 | #4E5560 · 7.26 | #D0D4DA · 14.11 |
-| text.tertiary | #7D8590 · 4.99 | #6B727C · 4.69 | #B8C0CB · 11.44 |
+| text.tertiary | #828A94 · 5.33 | #666D77 · 5.05 | #B8C0CB · 11.44 |
 | **accent.ion** | #3DD6F5 · 10.75 | #007A94 · 4.82 | #5CE1FF · 13.67 |
 | **agent** | #B4A2FF · 8.46 | #6D4FD8 · 5.39 | #CDBDFF · 12.32 |
 | ok | #4ADE80 · 10.68 | #1B7F3B · 4.89 | #6EF09A · 14.59 |

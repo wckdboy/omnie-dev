@@ -13,6 +13,9 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 **CI and tests**
 - The packages' tests run as one parallel job per package (a `vendor` job builds the native inputs once and every test job restores them and the SwiftPM caches); RunKit's WebKit suites are retried once behind a "stalled" warning; EditorKit (with the editor performance budgets, now including **scrolling**) is its own simulator job that the nightly run gates on.
 
+**Design**
+- **Tertiary text meets AA everywhere**: dark `text.tertiary` on the raised panel was 4.34:1, so both themes' tertiary grey were nudged to clear 4.5:1 on every surface — chrome, editor, pane and raised (dark `#828A94`, light `#666D77`) — and a DesignKit test now checks the text roles on all four.
+
 **Agent**
 - **One-tap undo**: the app snapshots the project just before an accepted changeset lands, and the agent pane then offers **Undo** (or "Undo agent changes" in the palette) to put the project back the way it was. Because a restore snapshots the current state first, the undo is itself undoable.
 
