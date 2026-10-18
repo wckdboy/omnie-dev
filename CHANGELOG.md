@@ -10,6 +10,9 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 - **Java**: tree-sitter-java highlighting and outlines for `.java`, joining Swift/TypeScript/JavaScript/Python/Go/Rust/C/C++ (vendored and hash-pinned by `scripts/vendor-grammars.py`).
 - **Markdown**: `.md` files highlight with tree-sitter-markdown (headings, code fences, links), and a fenced block is highlighted as the language it names (```` ```java ````, ```` ```python ````, …). This is the editor's first use of the engine's injected-language path, so an HTML document's CSS and `<script>` highlight too.
 
+**Simple mode**
+- **Graduate to the workbench**: Simple mode shows a **Workbench** button in the status strip (and a "Graduate to the workbench" command) that leaves the plain file list and editor for the standard layout, with the agent, terminal and docks to hand; a one-time hint points at it.
+
 **Debugger (RunKit core, PLAN.md §5.3)**
 - RunKit's debugger runs a project's own JavaScript/TypeScript modules with a hook at the start of
   every statement and around every function body: breakpoints (per file and line, with conditions),

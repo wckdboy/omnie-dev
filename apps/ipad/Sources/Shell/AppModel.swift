@@ -413,6 +413,25 @@ final class AppModel {
         withAnimation(Motion.pane) { panes = preset.layout }
     }
 
+    /// Leaves Simple mode for the full workbench (POSITIONING.md: the graduation path): the standard
+    /// layout comes back and the agent is to hand.
+    func graduate() {
+        withAnimation(Motion.pane) {
+            simpleMode = false
+            focusMode = false
+            applyLayout(.standard)
+            show(.agent)
+        }
+    }
+
+    /// A one-time pointer to the Workbench button, the first time Simple mode is turned on.
+    private func hintAtGraduation() {
+        let key = "view.simpleHintShown"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        workspace.banner = "Simple mode: the file list and the editor. Tap Workbench for docks, terminal and the agent."
+    }
+
     nonisolated static let panesKey = "panes.v1"
 
     static func loadPanes() -> PaneLayout {
@@ -505,8 +524,16 @@ final class AppModel {
                 withAnimation(Motion.pane) {
                     self.simpleMode.toggle()
                     // Simple mode keeps one panel: the file list.
-                    if self.simpleMode { self.focusMode = false; self.show(.files) }
+                    if self.simpleMode {
+                        self.focusMode = false
+                        self.show(.files)
+                        self.hintAtGraduation()
+                    }
                 }
+            },
+            Command(id: "view.graduate", title: "Graduate to the workbench", menu: "View",
+                    surfaces: .ide, keywords: ["simple", "workbench", "docks", "terminal", "agent", "advanced", "graduate"]) { [weak self] in
+                self?.graduate()
             },
             Command(id: "view.navigator", title: "Toggle left dock", menu: "View",
                     shortcut: Shortcut("1"), surfaces: .ide, keywords: ["sidebar", "files", "navigator"]) { [weak self] in

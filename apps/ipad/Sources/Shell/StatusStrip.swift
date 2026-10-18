@@ -42,7 +42,17 @@ struct StatusStrip: View {
                 Text("Ln \(cursor.line), Col \(cursor.column)")
                     .monospacedDigit()
             }
-            if model.layout != .single || model.workspace.root != nil {
+            if model.simpleMode {
+                // The graduation path out of Simple mode (POSITIONING.md): docks, terminal, the agent.
+                Button { model.graduate() } label: {
+                    Label("Workbench", systemImage: "square.grid.2x2")
+                        .frame(minHeight: 24)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(palette.accent.ion.color)
+                .hoverEffect(.highlight)
+                .accessibilityHint("Leaves Simple mode for docks, terminal and the agent")
+            } else if model.layout != .single || model.workspace.root != nil {
                 LayoutToggles()
             }
         }

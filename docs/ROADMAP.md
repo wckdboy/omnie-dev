@@ -70,7 +70,7 @@ Make the suite and the sandbox dependable before adding surface.
 |---|---|---|
 | iPhone parity for the core (editor, git, run, agent) | `Vibe` | Not a full workbench; the agent-first loop |
 | VoiceOver + Dynamic Type pass for every new surface | app-wide | PLAN §19; keep the audit tests green |
-| Simple-mode onboarding for new users | `Shell` | Graduation path into the workbench |
+| Simple-mode onboarding for new users | `Shell` | **Landed** (graduation path): a **Workbench** button in the status strip and a **Graduate to the workbench** command leave Simple mode for the standard layout with the agent to hand; a one-time hint points at it (`CodeIntelUITests.testGraduatesFromSimpleModeToTheWorkbench`) |
 
 ---
 

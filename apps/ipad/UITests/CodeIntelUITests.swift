@@ -71,6 +71,19 @@ final class CodeIntelUITests: XCTestCase {
         shot("simple-mode")
     }
 
+    /// Graduation (POSITIONING.md): the Workbench button in Simple mode brings the full workbench back.
+    func testGraduatesFromSimpleModeToTheWorkbench() {
+        launch(at: "main.ts:1:1", ["view.simple"])
+        let minimap = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Minimap'")).firstMatch
+        XCTAssertFalse(minimap.waitForExistence(timeout: 3), "Simple mode should hide the minimap")
+        let graduate = app.buttons["Workbench"]
+        XCTAssertTrue(graduate.waitForExistence(timeout: 10), "the Workbench button should be in the status bar")
+        graduate.tap()
+        XCTAssertTrue(minimap.waitForExistence(timeout: 10), "graduating should restore the workbench")
+        XCTAssertFalse(app.buttons["Workbench"].exists, "the button is gone once the workbench is back")
+        shot("graduated")
+    }
+
     func testSnapshotsSheet() {
         app = XCUIApplication()
         app.launchArguments = ["-OmnieUIFixture", "-OmnieOpenFile", "main.ts", "-OmnieLayout", "standard", "-OmnieNoWelcome", "-OmnieNoPanelDrag",
