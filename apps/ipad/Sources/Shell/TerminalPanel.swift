@@ -48,7 +48,7 @@ struct TerminalPanel: View {
                 if busy { ProgressView().controlSize(.small) }
                 TextField("Filter", text: $filter)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    .frame(minWidth: 44, maxWidth: 120)
+                    .frame(minWidth: 88, maxWidth: 140)
                 Toggle(isOn: $errorsOnly) { Image(systemName: "exclamationmark.triangle") }
                     .toggleStyle(.button)
                     .accessibilityLabel("Errors only")

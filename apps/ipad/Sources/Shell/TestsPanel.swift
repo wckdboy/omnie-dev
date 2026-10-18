@@ -85,9 +85,9 @@ struct TestsPanel: View {
         let tests = model.tests
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Button { Task { await tests.run() } } label: { Label("Run all", systemImage: "play.fill") }
+                Button { Task { await tests.run() } } label: { Label("Run all", systemImage: "play.fill").padding(.vertical, 14) }
                     .disabled(tests.isRunning)
-                Button { Task { await tests.runFailed() } } label: { Label("Run failed", systemImage: "arrow.clockwise") }
+                Button { Task { await tests.runFailed() } } label: { Label("Run failed", systemImage: "arrow.clockwise").padding(.vertical, 14) }
                     .disabled(tests.isRunning || tests.failedCount == 0)
                 if tests.isRunning { ProgressView().controlSize(.small) }
                 Spacer()

@@ -126,8 +126,7 @@ final class AccessibilityAuditTests: XCTestCase {
         XCTAssertEqual(editor.value as? String, "Line 1, column 1. let alpha = 1;")
     }
 
-    func testAuditMainScreen() throws {
-        let app = XCUIApplication()
+    func testAuditMainScreen() throws {        let app = XCUIApplication()
         app.launchArguments = ["-OmnieUIFixture", "-OmnieLayout", "standard"]
         app.launch()
         XCTAssertTrue(app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch.waitForExistence(timeout: 15))
@@ -143,6 +142,43 @@ final class AccessibilityAuditTests: XCTestCase {
                 issues.append(line)
             }
             return true
+        }
+        for issue in issues { print("[a11y] \(issue)") }
+        XCTAssertTrue(issues.isEmpty, "\(issues.count) accessibility issue(s); see [a11y] lines")
+    }
+
+    /// The surfaces added since the main-screen audit (PLAN §19): each panel is opened in turn and
+    /// audited, so a new panel's labels and Dynamic Type are checked like the editor's.
+    func testAuditPanels() throws {
+        var issues: [String] = []
+        for tab in ["agent", "debug", "tests", "tools", "terminal", "preview", "stage"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-OmnieUIFixture", "-OmnieLayout", "standard", "-OmnieNoWelcome", "-OmnieNoPanelDrag",
+                                   "-OmnieRunCommand", "utility.\(tab)"]
+            app.launch()
+            XCTAssertTrue(app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch.waitForExistence(timeout: 15))
+            sleep(1)
+            try app.performAccessibilityAudit { issue in
+                let label = issue.element?.label ?? ""
+                let line = "[\(tab)] \(issue.compactDescription) — \(issue.element?.debugDescription.prefix(120) ?? "no element")"
+                if issue.auditType == .dynamicType, label.allSatisfy(\.isNumber) || issue.compactDescription.contains("partially") {
+                    print("[a11y] (accepted) \(line)")
+                } else if issue.auditType == .contrast, issue.element?.isEnabled == false {
+                    // WCAG 1.4.3 exempts inactive controls; the system dims a disabled button's label.
+                    print("[a11y] (accepted) \(line)")
+                } else if issue.auditType == .hitRegion, issue.element?.elementType == .staticText {
+                    // A label isn't a control, so the hit-region rule doesn't apply to it.
+                    print("[a11y] (accepted) \(line)")
+                } else if let frame = issue.element?.frame, frame.maxX > app.windows.firstMatch.frame.maxX - 2 {
+                    // A tab scrolled past its dock's edge: the audit has no scroll-viewport concept and
+                    // samples an element that is only partly on screen.
+                    print("[a11y] (accepted, clipped) \(line)")
+                } else {
+                    issues.append(line)
+                }
+                return true
+            }
+            app.terminate()
         }
         for issue in issues { print("[a11y] \(issue)") }
         XCTAssertTrue(issues.isEmpty, "\(issues.count) accessibility issue(s); see [a11y] lines")

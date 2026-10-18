@@ -31,11 +31,9 @@ struct ToolsPanel: View {
                     ForEach(Tool.allCases) { t in
                         Button { tool = t } label: {
                             Text(t.rawValue).font(.footnote.weight(tool == t ? .semibold : .regular))
-                                .padding(.horizontal, 12).padding(.vertical, 6)
-                                .background(tool == t ? palette.surface.raised.color : .clear, in: Capsule())
-                                .foregroundStyle(tool == t ? palette.text.primary.color : palette.text.secondary.color)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.bordered)
+                        .tint(tool == t ? palette.text.primary.color : palette.text.secondary.color)
                         .accessibilityAddTraits(tool == t ? .isSelected : [])
                         .id(t)
                     }
