@@ -66,4 +66,23 @@ final class MultiRootUITests: XCTestCase {
         match.tap()
         XCTAssertTrue(app.textViews["Code editor, extra.ts"].waitForExistence(timeout: 10), "tapping it opens that file")
     }
+
+    func testAnAddedFolderAndItsFileComeBackAfterRelaunch() {
+        launch(["-OmnieRestoreSessions"])
+        XCTAssertTrue(element("extra.ts, file").waitForExistence(timeout: 10))
+        element("extra.ts, file").tap()
+        XCTAssertTrue(app.textViews["Code editor, extra.ts"].waitForExistence(timeout: 10))
+        XCUIDevice.shared.press(.home)
+        sleep(1)
+        app.terminate()
+
+        // No fixture and no -OmnieAddFolder: the project reopens by itself, and the folder it had
+        // added (remembered by bookmark) and the file open in it come back with it.
+        app.launchArguments = ["-OmnieRestoreSessions", "-OmnieLayout", "focusRight", "-OmnieNoWelcome", "-OmnieNoPanelDrag"]
+        app.launch()
+        XCTAssertTrue(element("uitest-extra, folder in the workspace").waitForExistence(timeout: 15),
+                      "the added folder is back in the workspace")
+        XCTAssertTrue(app.textViews["Code editor, extra.ts"].waitForExistence(timeout: 15),
+                      "the file open in it is back too")
+    }
 }

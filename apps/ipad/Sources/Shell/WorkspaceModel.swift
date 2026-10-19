@@ -337,6 +337,8 @@ final class WorkspaceModel {
     @ObservationIgnored let workspaceFolders = WorkspaceFolders(fileURL: AppPaths.support.appendingPathComponent("workspace-folders.json"))
     /// The security scopes held for the added folders, released when the project closes.
     @ObservationIgnored private var extraScopes: [String: Bool] = [:]
+    /// One watcher per added folder, so a change made outside Omnie-dev there refreshes too.
+    @ObservationIgnored private var extraWatchers: [String: ProjectWatcher] = [:]
 
     /// Every folder in the workspace: the project's own first, then the added ones.
     var allRoots: [URL] { (rootURL.map { [$0] } ?? []) + extraFolders }
@@ -353,9 +355,13 @@ final class WorkspaceModel {
     func addFolder(_ url: URL) {
         guard let project = rootURL else { return }
         let folder = url.standardizedFileURL
-        guard !extraFolders.contains(where: { $0.path == folder.path }),
-              folder.path != rootURL?.standardizedFileURL.path else {
-            banner = "\(folder.lastPathComponent) is already in the workspace."
+        guard folder.path != rootURL?.standardizedFileURL.path else {
+            banner = "\(folder.lastPathComponent) is the project's own folder."
+            return
+        }
+        // Overlapping folders would list the same file twice and search it twice.
+        for existing in allRoots where Self.isInside(folder, of: existing) || Self.isInside(existing, of: folder) {
+            banner = "\(folder.lastPathComponent) overlaps \(existing.lastPathComponent), which is already in the workspace."
             return
         }
         let scoped = url.startAccessingSecurityScopedResource()
@@ -364,6 +370,7 @@ final class WorkspaceModel {
             extraScopes[folder.path] = scoped
             extraFolders.append(folder)
             extraRoots.append(tree)
+            startWatchingExtra(folder)
             try? workspaceFolders.remember(url, for: AppModel.layoutKey(for: project))
             saveSession()
             banner = "\(folder.lastPathComponent) is in the workspace. Search and quick open cover it now."
@@ -409,14 +416,38 @@ final class WorkspaceModel {
             extraScopes[url.path] = scoped
             extraFolders.append(url)
             extraRoots.append(tree)
+            startWatchingExtra(url)
         }
     }
 
     private func clearExtraFolders() {
+        for watcher in extraWatchers.values { watcher.stop() }
+        extraWatchers = [:]
         for url in extraFolders where extraScopes[url.path] == true { url.stopAccessingSecurityScopedResource() }
         extraScopes = [:]
         extraFolders = []
         extraRoots = []
+    }
+
+    /// Watches an added folder like the project's own, so files changed outside Omnie-dev there
+    /// refresh the navigator too (and an outside write asks us to save the open file first).
+    private func startWatchingExtra(_ url: URL) {
+        guard extraWatchers[url.path] == nil else { return }
+        let watcher = ProjectWatcher(root: url)
+        watcher.onSaveRequest = { [weak self] in
+            MainActor.assumeIsolated { self?.saveCurrent() }
+        }
+        watcher.onChange = { [weak self] urls in
+            MainActor.assumeIsolated { self?.changedOutside(urls) }
+        }
+        watcher.start()
+        extraWatchers[url.path] = watcher
+    }
+
+    /// The presenter that covers a file: its added folder's watcher, or the project's.
+    private func presenter(for url: URL) -> NSFilePresenter? {
+        guard let extra = extraFolder(containing: url) else { return watcher }
+        return extraWatchers[extra.path]
     }
 
     /// Whether `url` is `folder` itself or inside it (a path boundary, so `/app` doesn't match
@@ -560,7 +591,7 @@ final class WorkspaceModel {
         if let current = openFile { foldsByFile[current] = editor.foldedHeaders }
         if isDirty { saveCurrent() }
         do {
-            let loaded = try TextFile.load(url, presenter: watcher)
+            let loaded = try TextFile.load(url, presenter: presenter(for: url))
             language = Language(url: url)
             editor.isMarkdown = WorkspaceModel.isMarkdown(url)
             editor.load(loaded, language: language, marks: problems.marks(for: relativePath(of: url)))
@@ -760,7 +791,7 @@ final class WorkspaceModel {
         autosaveTask?.cancel()
         guard let openFile, isDirty else { return }
         do {
-            try TextFile.save(editor.text, to: openFile, presenter: watcher)
+            try TextFile.save(editor.text, to: openFile, presenter: presenter(for: openFile))
             isDirty = false
             changeCount += 1
             if let rootURL { problems.schedule(root: rootURL) }
@@ -825,7 +856,7 @@ final class WorkspaceModel {
         reload()
         guard let openFile else { return }
         if FileManager.default.fileExists(atPath: openFile.path(percentEncoded: false)),
-           let loaded = try? TextFile.load(openFile, presenter: watcher) {
+           let loaded = try? TextFile.load(openFile, presenter: presenter(for: openFile)) {
             // The editor keeps the caret where it is now (clamped), not where it was when this began.
             editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
             applyBreakpoints(of: openFile)
@@ -837,7 +868,7 @@ final class WorkspaceModel {
 
     /// The second editor saved the open file: show its text, unless there are unsaved edits here.
     func reloadOpenFileIfClean() {
-        guard let openFile, !isDirty, let loaded = try? TextFile.load(openFile, presenter: watcher), loaded != editor.text else { return }
+        guard let openFile, !isDirty, let loaded = try? TextFile.load(openFile, presenter: presenter(for: openFile)), loaded != editor.text else { return }
         // The editor keeps the caret where it is now (clamped), not where it was when this began.
         editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
         applyBreakpoints(of: openFile)

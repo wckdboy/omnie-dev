@@ -73,11 +73,19 @@ struct StatusStrip: View {
 /// name in VS Code's title bar.
 struct ProjectButton: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
 
     var body: some View {
+        let extras = model.workspace.extraFolders.count
         Button { model.projectsOpen = true } label: {
             HStack(spacing: 3) {
                 Label(model.workspace.rootURL?.lastPathComponent ?? "No project", systemImage: "folder")
+                if extras > 0 {
+                    Text("+\(extras)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(palette.text.secondary.color)
+                        .accessibilityHidden(true)
+                }
                 Image(systemName: "chevron.up.chevron.down").imageScale(.small)
             }
             .frame(minHeight: 24)
@@ -85,7 +93,8 @@ struct ProjectButton: View {
         }
         .buttonStyle(.plain)
         .hoverEffect(.highlight)
-        .accessibilityLabel("Project: \(model.workspace.rootURL?.lastPathComponent ?? "none")")
+        .accessibilityLabel("Project: \(model.workspace.rootURL?.lastPathComponent ?? "none")"
+                            + (extras > 0 ? ", \(extras) more \(extras == 1 ? "folder" : "folders") in the workspace" : ""))
         .accessibilityHint("Switch, open, start or close a project")
         .accessibilityIdentifier("project-switcher")
     }
