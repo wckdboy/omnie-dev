@@ -64,12 +64,31 @@ struct PaletteTests {
         }
     }
 
+    /// A bordered button's text sits on its own tint at about 18% (measured from a light-theme
+    /// screenshot: pane #F5F5F3 under ion #00748D gave #C9DEE1), not on a surface. At 4.5:1 that fill
+    /// is the tightest place an accent is read; it is why light `accent.ion` is #006174, not #00748D.
+    @Test("Accent text meets AA on a bordered control's tinted fill",
+          arguments: ["dark", "light", "highContrast"])
+    func accentOnTintedControl(name: String) {
+        let (_, palette, target) = Self.themes.first { $0.0 == name }!
+        let surfaces: [(String, RGBA)] = [
+            ("chrome", palette.surface.chrome), ("editor", palette.surface.editor),
+            ("pane", palette.surface.pane), ("raised", palette.surface.raised),
+        ]
+        for (surface, background) in surfaces {
+            // 20% covers the 18% a `.bordered` button draws, with room for a runtime's rounding.
+            let fill = background.mixed(with: palette.accent.ion, fraction: 0.2)
+            #expect(palette.accent.ion.contrast(against: fill) >= target,
+                    "\(name).accent.ion on its tinted fill over \(surface) is \(palette.accent.ion.contrast(against: fill))")
+        }
+    }
+
     @Test("Contrast math matches the ratios published in PLAN.md §3.3")
     func matchesPublishedRatios() {
         let cases: [(RGBA, RGBA, Double)] = [
             (Palette.dark.text.primary, Palette.dark.surface.editor, 15.16),
             (Palette.dark.accent.agent, Palette.dark.surface.editor, 8.46),
-            (Palette.light.accent.ion, Palette.light.surface.editor, 5.22),
+            (Palette.light.accent.ion, Palette.light.surface.editor, 6.85),
             (Palette.highContrast.status.error, Palette.highContrast.surface.editor, 9.25),
         ]
         for (fg, bg, expected) in cases {

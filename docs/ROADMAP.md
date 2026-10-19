@@ -70,7 +70,7 @@ Make the suite and the sandbox dependable before adding surface.
 | Deliverable | Where | Notes |
 |---|---|---|
 | iPhone parity for the core (editor, git, run, agent) | `Vibe` | Not a full workbench; the agent-first loop |
-| VoiceOver + Dynamic Type pass for every new surface | app-wide | PLAN §19; the accessibility audit now **enforces** over the panels *and* the sheets (the sheets draw on the app's own surfaces, `sheetChrome()`); the hands-on VoiceOver pass on device remains (OMNIE-46) |
+| VoiceOver + Dynamic Type pass for every new surface | app-wide | PLAN §19; the accessibility audit now **enforces** over the panels *and* the sheets in both appearances, contrast included and re-measured from the screenshot (`RenderedContrast`); the hands-on VoiceOver pass on device remains (OMNIE-46) |
 | Simple-mode onboarding for new users | `Shell` | **Landed** (graduation path): a **Workbench** button in the status strip and a **Graduate to the workbench** command leave Simple mode for the standard layout with the agent to hand; a one-time hint points at it (`CodeIntelUITests.testGraduatesFromSimpleModeToTheWorkbench`) |
 
 ---

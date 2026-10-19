@@ -196,8 +196,9 @@ struct BranchSheet: View {
                     }
                 } footer: {
                     Text("Switching keeps your uncommitted changes with the branch you leave and brings them back when you return.")
+                        .foregroundStyle(palette.text.secondary.color)
                 }
-                Section("Branches") {
+                Section {
                     ForEach(git.branches) { branch in
                         Button {
                             Task {
@@ -223,6 +224,8 @@ struct BranchSheet: View {
                         }
                         .disabled(branch.isCurrent)
                     }
+                } header: {
+                    Text("Branches").foregroundStyle(palette.text.secondary.color)
                 }
             }
             .navigationTitle("Branches")

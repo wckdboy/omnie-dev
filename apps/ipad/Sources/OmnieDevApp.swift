@@ -432,8 +432,21 @@ struct ExperienceRoot: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
 
+    /// `-OmnieAppearance dark|light` pins the appearance in DEBUG builds, so the accessibility audits
+    /// can run the same screens in both regardless of how the simulator or CI runner is configured.
+    private var appearanceOverride: ColorScheme? {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-OmnieAppearance"), args.indices.contains(i + 1) {
+            return args[i + 1] == "light" ? .light : .dark
+        }
+        #endif
+        return nil
+    }
+
     var body: some View {
-        let palette = Palette.resolve(colorScheme: colorScheme, contrast: contrast)
+        let appearance = appearanceOverride
+        let palette = Palette.resolve(colorScheme: appearance ?? colorScheme, contrast: contrast)
         Group {
             switch model.experience {
             case .ide: IDEShell()
@@ -444,6 +457,7 @@ struct ExperienceRoot: View {
         .environment(\.density, model.density)
         .tint(palette.accent.ion.color)
         .background(palette.surface.chrome.color)
+        .preferredColorScheme(appearance)
     }
 }
 

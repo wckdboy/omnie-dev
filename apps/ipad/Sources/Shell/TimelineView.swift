@@ -295,7 +295,8 @@ struct CommitSheet: View {
                     }
                     .pickerStyle(.segmented)
                 } footer: {
-                    if chosenOnly { Text("Stage hunks or lines below (swipe a hunk right, or select lines and press S); only those are committed.") }
+                    if chosenOnly { Text("Stage hunks or lines below (swipe a hunk right, or select lines and press S); only those are committed.")
+                        .foregroundStyle(palette.text.secondary.color) }
                 }
                 Section {
                     TextField("Message", text: $message, axis: .vertical)
@@ -304,6 +305,7 @@ struct CommitSheet: View {
                         .accessibilityIdentifier("commit-message")
                 } header: {
                     Text("\(git.status?.changedCount ?? 0) changed on \(git.status?.head.branch ?? "HEAD")")
+                        .foregroundStyle(palette.text.secondary.color)
                 } footer: {
                     if model.models.isInstalled(.tiny) {
                         HStack {
@@ -313,8 +315,10 @@ struct CommitSheet: View {
                                 .font(.footnote)
                                 .disabled(isDrafting)
                         }
+                        .foregroundStyle(palette.text.secondary.color)
                     } else {
                         Text("Drafted from the changed files. Edit it to say why. A local model (Settings › Models) can draft it from the diff.")
+                            .foregroundStyle(palette.text.secondary.color)
                     }
                 }
                 if needsIdentity {
@@ -326,15 +330,16 @@ struct CommitSheet: View {
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)
                     } header: {
-                        Text("Author")
+                        Text("Author").foregroundStyle(palette.text.secondary.color)
                     } footer: {
                         Text("This repository has no user.name or user.email. Saved on this device for future commits.")
+                            .foregroundStyle(palette.text.secondary.color)
                     }
                 }
                 if chosenOnly {
                     StagingSections()
                 } else if let changed = git.status?.entries, !changed.isEmpty {
-                    Section("Files") {
+                    Section {
                         ForEach(changed, id: \.path) { entry in
                             HStack {
                                 Text(entry.path).font(.system(.footnote, design: .monospaced)).lineLimit(1).truncationMode(.middle)
@@ -342,6 +347,8 @@ struct CommitSheet: View {
                                 Text(entry.kind.label).font(.caption).foregroundStyle(palette.text.secondary.color)
                             }
                         }
+                    } header: {
+                        Text("Files").foregroundStyle(palette.text.secondary.color)
                     }
                 }
             }

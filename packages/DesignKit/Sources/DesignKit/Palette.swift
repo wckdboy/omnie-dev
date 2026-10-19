@@ -29,6 +29,21 @@ public struct RGBA: Sendable, Hashable {
         let (a, b) = (relativeLuminance, other.relativeLuminance)
         return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
+
+    /// This color mixed with `other` at `fraction` (0...1), the way a control's tinted fill is; it is
+    /// the background that text on a bordered button is measured against.
+    public func mixed(with other: RGBA, fraction: Double) -> RGBA {
+        func channel(_ a: Double, _ b: Double) -> UInt32 {
+            UInt32((a * (1 - fraction) + b * fraction).rounded().clamped(to: 0...255))
+        }
+        let a = (Double((value >> 24) & 0xFF), Double((value >> 16) & 0xFF), Double((value >> 8) & 0xFF))
+        let b = (Double((other.value >> 24) & 0xFF), Double((other.value >> 16) & 0xFF), Double((other.value >> 8) & 0xFF))
+        return RGBA(channel(a.0, b.0) << 24 | channel(a.1, b.1) << 16 | channel(a.2, b.2) << 8 | 0xFF)
+    }
+}
+
+private extension Double {
+    func clamped(to range: ClosedRange<Double>) -> Double { min(max(self, range.lowerBound), range.upperBound) }
 }
 
 public struct SurfaceColors: Sendable, Hashable {

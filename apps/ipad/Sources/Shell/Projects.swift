@@ -34,7 +34,7 @@ struct ProjectsSheet: View {
                     }
                 }
                 if let current {
-                    Section("Open now") {
+                    Section {
                         HStack {
                             HStack(spacing: 8) {
                                 Image(systemName: "folder.fill").frame(minWidth: 22, alignment: .leading)
@@ -48,9 +48,11 @@ struct ProjectsSheet: View {
                             }
                             .accessibilityIdentifier("projects-close")
                         }
+                    } header: {
+                        Text("Open now").foregroundStyle(palette.text.secondary.color)
                     }
                 }
-                Section(recents.isEmpty && query.isEmpty ? "" : "Recent") {
+                Section {
                     ForEach(recents) { ref in
                         Button {
                             workspace.open(recent: ref)
@@ -79,6 +81,10 @@ struct ProjectsSheet: View {
                     }
                     if recents.isEmpty && !query.isEmpty {
                         Text("No recent project matches “\(query)”.").foregroundStyle(palette.text.secondary.color)
+                    }
+                } header: {
+                    if !(recents.isEmpty && query.isEmpty) {
+                        Text("Recent").foregroundStyle(palette.text.secondary.color)
                     }
                 }
             }

@@ -136,6 +136,7 @@ enum ApprovalPresenter {
 /// Shows exactly what will happen and why it needs you (PLAN.md §12: "Approvals show the exact
 /// artifact, never the model's summary of it").
 struct ApprovalSheet: View {
+    @Environment(\.palette) private var palette
     let request: ApprovalRequest
     let finish: (Bool) -> Void
 
@@ -145,13 +146,13 @@ struct ApprovalSheet: View {
                 Label(request.actor == .agent ? "The agent wants to" : "You're about to",
                       systemImage: request.actor == .agent ? "text.bubble" : "person")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(palette.text.secondary.color)
                 Text(request.action.summary)
                     .font(.title3.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
                 Text(request.reasons.joined(separator: " · "))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(palette.text.secondary.color)
                 if let artifact = request.artifact {
                     ScrollView {
                         Text(artifact)
@@ -195,6 +196,7 @@ struct AuditLogView: View {
 /// Every policy decision, newest first, and whether the hash chain checks out.
 struct AuditLogList: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
     @State private var entries: [AuditEntry] = []
     @State private var verification: AuditLog.Verification?
 
@@ -212,18 +214,21 @@ struct AuditLogList: View {
                     }
                 } footer: {
                     Text("Each entry includes the hash of the one before it, so a past entry can't be changed or removed unnoticed.")
+                        .foregroundStyle(palette.text.secondary.color)
                 }
-                Section("Decisions") {
-                    if entries.isEmpty { Text("Nothing yet.").foregroundStyle(.secondary) }
+                Section {
+                    if entries.isEmpty { Text("Nothing yet.").foregroundStyle(palette.text.secondary.color) }
                     ForEach(entries.reversed()) { entry in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(entry.action.summary)
                             Text("\(entry.actor == .agent ? "Agent" : "You") · \(Self.label(entry.outcome)) · \(entry.date.formatted(date: .abbreviated, time: .standard))")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(palette.text.secondary.color)
                         }
                         .accessibilityElement(children: .combine)
                     }
+                } header: {
+                    Text("Decisions").foregroundStyle(palette.text.secondary.color)
                 }
             }
             .navigationTitle("Audit log")

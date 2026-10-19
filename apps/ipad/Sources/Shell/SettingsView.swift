@@ -29,20 +29,23 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } header: {
-                    Text("Commit as")
+                    Text("Commit as").foregroundStyle(palette.text.secondary.color)
                 } footer: {
                     Text("Used when a repository doesn't set user.name and user.email itself.")
+                        .foregroundStyle(palette.text.secondary.color)
                 }
 
                 SSHKeySection()
 
-                Section("Appearance") {
+                Section {
                     Picker("Density", selection: $model.densityOverride) {
                         Text("Automatic").tag(Density?.none)
                         Text("Compact").tag(Density?.some(.compact))
                         Text("Regular").tag(Density?.some(.regular))
                         Text("Touch").tag(Density?.some(.touch))
                     }
+                } header: {
+                    Text("Appearance").foregroundStyle(palette.text.secondary.color)
                 }
 
                 Section {
@@ -56,9 +59,10 @@ struct SettingsView: View {
                     Stepper("Text size \(Int((model.workspace.fontScale * 100).rounded())) %", value: Binding(
                         get: { Double(model.workspace.fontScale) }, set: { model.workspace.fontScale = CGFloat($0) }), in: 0.6...2.5, step: 0.1)
                 } header: {
-                    Text("Editor")
+                    Text("Editor").foregroundStyle(palette.text.secondary.color)
                 } footer: {
                     Text("TypeScript and JavaScript (the TypeScript language service) and Python (Jedi) get definitions, references, rename and completions, on this iPad; ⌃Space asks for completions any time.")
+                        .foregroundStyle(palette.text.secondary.color)
                 }
 
                 ModelsSection()
@@ -68,19 +72,22 @@ struct SettingsView: View {
                     Toggle("Plane mode", isOn: $policy.planeMode)
                     NavigationLink("Audit log") { AuditLogList() }
                 } header: {
-                    Text("Safety")
+                    Text("Safety").foregroundStyle(palette.text.secondary.color)
                 } footer: {
                     Text("Plane mode blocks every network action. Sync queues your push instead, and queued pushes wait until you turn it off.")
+                        .foregroundStyle(palette.text.secondary.color)
                 }
 
                 if !model.workspace.recentProjects.isEmpty {
-                    Section("Recent projects") {
+                    Section {
                         ForEach(model.workspace.recentProjects) { ref in
                             Text(ref.name)
                         }
                         .onDelete { offsets in
                             for i in offsets { model.workspace.forget(model.workspace.recentProjects[i]) }
                         }
+                    } header: {
+                        Text("Recent projects").foregroundStyle(palette.text.secondary.color)
                     }
                 }
 
@@ -89,9 +96,10 @@ struct SettingsView: View {
                     LabeledContent("License", value: "Apache-2.0")
                     NavigationLink("Acknowledgements") { AcknowledgementsList() }
                 } header: {
-                    Text("About Omnie Dev")
+                    Text("About Omnie Dev").foregroundStyle(palette.text.secondary.color)
                 } footer: {
                     Text("The code is open source. The name and icon aren't covered by the license.")
+                        .foregroundStyle(palette.text.secondary.color)
                 }
             }
             .navigationTitle("Settings")
@@ -110,6 +118,7 @@ struct SettingsView: View {
 
 private struct SSHKeySection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
     @State private var copied = false
 
     var body: some View {
@@ -129,14 +138,16 @@ private struct SSHKeySection: View {
                 Button("Create SSH key") { git.createIdentity() }
             }
         } header: {
-            Text("SSH key")
+            Text("SSH key").foregroundStyle(palette.text.secondary.color)
         } footer: {
             if let identity = git.identity {
                 Text(identity.isHardwareBacked
                      ? "In the Secure Enclave: it can't be read or exported, only used to sign on this device. Add the public key to your forge."
                      : "A software key (this device has no Secure Enclave). Add the public key to your forge.")
+                    .foregroundStyle(palette.text.secondary.color)
             } else {
                 Text("For cloning and pushing over SSH.")
+                    .foregroundStyle(palette.text.secondary.color)
             }
         }
     }
@@ -146,6 +157,7 @@ private struct SSHKeySection: View {
 /// SHA-256 sums before they're used.
 private struct ModelsSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
 
     var body: some View {
         let models = model.models
@@ -157,7 +169,7 @@ private struct ModelsSection: View {
                             Text(pack.displayName)
                             Text("\(pack.role == .tiny ? "Commit messages and completion" : "The offline agent") · \(ByteCountFormatter.string(fromByteCount: pack.totalBytes, countStyle: .file))")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(palette.text.secondary.color)
                         }
                         Spacer()
                         if models.downloads[pack.id] != nil {
@@ -189,9 +201,10 @@ private struct ModelsSection: View {
                 Text(error).font(.caption).foregroundStyle(.red)
             }
         } header: {
-            Text("Models")
+            Text("Models").foregroundStyle(palette.text.secondary.color)
         } footer: {
             Text("Models run on this device; nothing you write is sent anywhere. Downloads come from Hugging Face and are checked against pinned checksums. Keep the app open while one downloads.")
+                .foregroundStyle(palette.text.secondary.color)
         }
     }
 }
@@ -199,6 +212,7 @@ private struct ModelsSection: View {
 /// The online model for agent tasks (PLAN.md §7, P4): provider, model, key, and where tasks run.
 private struct OnlineModelSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.palette) private var palette
     @State private var key = ""
     /// Bumped when the key changes; the Keychain isn't observable.
     @State private var revision = 0
@@ -251,9 +265,10 @@ private struct OnlineModelSection: View {
                 }
             }
         } header: {
-            Text("Online model")
+            Text("Online model").foregroundStyle(palette.text.secondary.color)
         } footer: {
             Text("Auto uses the online model when you're connected and on this device otherwise; plane mode always means this device. Code goes to a provider only after you agree for that project, with Face ID. Ghost text and commit drafts always stay on this device. The key is kept in this device's Keychain.")
+                .foregroundStyle(palette.text.secondary.color)
         }
     }
 }

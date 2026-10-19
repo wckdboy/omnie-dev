@@ -89,7 +89,8 @@ struct SnapshotsSheet: View {
             Group {
                 if snapshots.snapshots.isEmpty {
                     ContentUnavailableView("No snapshots", systemImage: "clock.arrow.circlepath",
-                        description: Text("A snapshot is a copy of the project kept outside it, so it works in any folder and doesn't touch git. Take one before a risky change."))
+                        description: Text("A snapshot is a copy of the project kept outside it, so it works in any folder and doesn't touch git. Take one before a risky change.")
+                            .foregroundStyle(palette.text.secondary.color))
                 } else {
                     List {
                         ForEach(snapshots.snapshots) { snapshot in
