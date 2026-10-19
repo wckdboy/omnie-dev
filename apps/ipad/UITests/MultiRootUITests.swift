@@ -96,6 +96,8 @@ final class MultiRootUITests: XCTestCase {
         // The added folder is its own repository: the strip (and the git panels) follow the file into it.
         let branch = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "main")).firstMatch
         XCTAssertTrue(branch.waitForExistence(timeout: 20), "the strip reports the added folder's branch")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "uitest-extra"))
+                        .firstMatch.exists, "and names the folder the repository belongs to")
         XCTAssertFalse(app.staticTexts["not a git repo"].exists, "and no longer the project's state")
 
         element("main.ts, file").tap()

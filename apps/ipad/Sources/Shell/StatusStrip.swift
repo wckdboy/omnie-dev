@@ -141,7 +141,10 @@ struct GitStatusLabel: View {
 
     var body: some View {
         let git = model.workspace.git
-        // The project's name is ProjectButton's; this is its git state.
+        // The project's name is ProjectButton's; this is its git state. In a multi-root workspace the
+        // repository can be an added folder's, so say which one when that's the case.
+        let repo = model.workspace.gitRootURL
+        let extra = repo.flatMap { r in model.workspace.extraFolders.first { $0.path == r.path }?.lastPathComponent }
         if model.workspace.rootURL == nil {
             EmptyView()
         } else if git.isNotARepo {
@@ -150,10 +153,12 @@ struct GitStatusLabel: View {
             Button {
                 model.registry.run("git.branches")
             } label: {
-                Label(status.plainLanguage, systemImage: status.head.isDetached ? "exclamationmark.triangle" : "arrow.triangle.branch")
+                Label(extra.map { "\($0) · \(status.plainLanguage)" } ?? status.plainLanguage,
+                      systemImage: status.head.isDetached ? "exclamationmark.triangle" : "arrow.triangle.branch")
                     .foregroundStyle(color(status))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Git: " + (extra.map { "\($0), " } ?? "") + status.plainLanguage)
         }
     }
 
