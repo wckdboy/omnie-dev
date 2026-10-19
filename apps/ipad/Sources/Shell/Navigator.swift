@@ -67,6 +67,12 @@ struct Navigator: View {
             Label(folder.lastPathComponent, systemImage: "folder")
                 .lineLimit(1)
                 .accessibilityLabel("\(folder.lastPathComponent), folder in the workspace")
+            if model.workspace.isRepository(folder) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.caption2)
+                    .foregroundStyle(palette.text.secondary.color)
+                    .accessibilityLabel("git repository")
+            }
             Spacer(minLength: 0)
             Button { model.workspace.removeFolder(folder) } label: {
                 Image(systemName: "xmark.circle.fill")

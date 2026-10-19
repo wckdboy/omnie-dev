@@ -105,12 +105,17 @@ struct OmnieDevApp: App {
                         for _ in 0..<50 where model.workspace.git.repo == nil { try? await Task.sleep(for: .milliseconds(100)) }
                     }
                     // `-OmnieAddFolder <name>`: a sibling folder added to the workspace (multi-root),
-                    // with one known file, for the navigator/search UI tests.
+                    // with one known file, for the navigator/search UI tests. It's a git repository of
+                    // its own, so the git panels can follow a file into it.
                     if let i = args.firstIndex(of: "-OmnieAddFolder"), args.indices.contains(i + 1) {
                         let folder = URL.documentsDirectory.appending(path: args[i + 1])
                         try? FileManager.default.removeItem(at: folder)
                         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                         try? "let delta = 4;\n".write(to: folder.appending(path: "extra.ts"), atomically: true, encoding: .utf8)
+                        if let repo = try? Repository.create(at: folder) {
+                            _ = try? await repo.commitAll(message: "Start the extra folder\n",
+                                                          author: Signature(name: "UI Test", email: "ui@omnie.invalid"))
+                        }
                         model.workspace.addFolder(folder)
                     }
                     // `-OmnieStagingDemo` (with both fixtures): stage one line, commit the index, log the result.

@@ -56,7 +56,7 @@ Make the suite and the sandbox dependable before adding surface.
 | Deliverable | Where | Notes |
 |---|---|---|
 | **Replace in project** (preview + apply, with a checkpoint first) | `WorkspaceKit/ProjectSearch`, UI | Pairs with Snapshots for safety |
-| Multi-root / multi-folder workspaces | `WorkspaceKit`, `Shell` | VS Code users expect it. **Landed**: folders added from the navigator (or File) get their own tree and section, quick open / find / replace span them, and the set is remembered per project by bookmark (`MultiRootSearchTests`, `WorkspaceFoldersTests`, `MultiRootUITests`). Git, tasks, the agent and type-checking stay on the project's own folder for now |
+| Multi-root / multi-folder workspaces | `WorkspaceKit`, `Shell` | VS Code users expect it. **Landed**: folders added from the navigator (or File) get their own tree and section, quick open / find / replace span them, the set is remembered per project by bookmark, and git follows the open file into an added folder's own repository (`MultiRootSearchTests`, `WorkspaceFoldersTests`, `MultiRootUITests`). Tasks, the agent and type-checking still run on the project's own folder (OMNIE-123) |
 | Remote dev: SSH + **tmux control mode**, remote Podman runner + deploy | `RunKit`, new RemoteKit | PLAN §12; the long pole for real projects |
 
 ## M5 — Agentic depth

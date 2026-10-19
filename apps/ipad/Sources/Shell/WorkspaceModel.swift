@@ -261,6 +261,7 @@ final class WorkspaceModel {
         restoreSession(url)
         problems.clear()
         problems.schedule(root: url, after: .milliseconds(300))
+        gitRootURL = url
         Task {
             await git.attach(url)
             onProjectOpened?(url)
@@ -340,6 +341,29 @@ final class WorkspaceModel {
     /// One watcher per added folder, so a change made outside Omnie-dev there refreshes too.
     @ObservationIgnored private var extraWatchers: [String: ProjectWatcher] = [:]
 
+    /// The folder git is attached to: the project's own, or the repository of an added folder while
+    /// a file in it is open. The git panels, blame and the status strip follow the file you edit.
+    private(set) var gitRootURL: URL?
+
+    /// The repository covering `url`: the added folder it sits in when that folder is a repository,
+    /// else the project's own folder.
+    private func repositoryRoot(for url: URL) -> URL? {
+        if let extra = extraFolder(containing: url), Repository.exists(at: extra) { return extra }
+        return rootURL
+    }
+
+    /// Points git at the repository covering `url`, so a multi-root workspace's panels follow the
+    /// open file. A no-op when it is already the right one.
+    func syncGit(to url: URL?) {
+        let target = url.flatMap(repositoryRoot(for:)) ?? rootURL
+        guard let target, target.standardizedFileURL.path != gitRootURL?.standardizedFileURL.path else { return }
+        gitRootURL = target
+        Task { await git.attach(target) }
+    }
+
+    /// Whether `folder` is a git repository (the navigator marks it).
+    func isRepository(_ folder: URL) -> Bool { Repository.exists(at: folder) }
+
     /// Every folder in the workspace: the project's own first, then the added ones.
     var allRoots: [URL] { (rootURL.map { [$0] } ?? []) + extraFolders }
 
@@ -393,6 +417,10 @@ final class WorkspaceModel {
         if let open = openFile, Self.isInside(open, of: folder) { closeFile() }
         tabs.removeAll { Self.isInside($0.url, of: folder) }
         if openFile == nil, let next = tabs.first { open(file: next.url, preview: false) }
+        if gitRootURL?.standardizedFileURL.path == folder.standardizedFileURL.path, let rootURL {
+            gitRootURL = nil
+            syncGit(to: rootURL)
+        }
         saveSession()
         banner = "\(folder.lastPathComponent) left the workspace."
     }
@@ -537,6 +565,8 @@ final class WorkspaceModel {
     /// Deletes after a checkpoint, so even an untracked file can be brought back from the timeline.
     func delete(_ url: URL) async {
         if isDirty { saveCurrent() }
+        // Checkpoint the repository the file belongs to, not whichever one the editor was on.
+        syncGit(to: url)
         await git.checkpoint(.delete)
         do {
             try FileOperations.delete(url)
@@ -625,6 +655,7 @@ final class WorkspaceModel {
             }
             cursor = (1, 1)
             banner = nil
+            syncGit(to: url)
         } catch TextFile.LoadError.binary {
             binaryFile = url
         } catch TextFile.LoadError.tooLarge {
@@ -764,6 +795,7 @@ final class WorkspaceModel {
         savesSession = true
         rootURL = nil
         root = nil
+        gitRootURL = nil
         policy.projectRoot = nil
         recentFiles = []
         problems.clear()

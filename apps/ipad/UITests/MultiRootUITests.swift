@@ -85,4 +85,22 @@ final class MultiRootUITests: XCTestCase {
         XCTAssertTrue(app.textViews["Code editor, extra.ts"].waitForExistence(timeout: 15),
                       "the file open in it is back too")
     }
+
+    func testGitFollowsAFileIntoAnAddedFolder() {
+        launch()
+        // The fixture's own project isn't a repository, so the strip says so while its file is open.
+        XCTAssertTrue(app.staticTexts["not a git repo"].waitForExistence(timeout: 15))
+
+        element("extra.ts, file").tap()
+        XCTAssertTrue(app.textViews["Code editor, extra.ts"].waitForExistence(timeout: 10))
+        // The added folder is its own repository: the strip (and the git panels) follow the file into it.
+        let branch = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "main")).firstMatch
+        XCTAssertTrue(branch.waitForExistence(timeout: 20), "the strip reports the added folder's branch")
+        XCTAssertFalse(app.staticTexts["not a git repo"].exists, "and no longer the project's state")
+
+        element("main.ts, file").tap()
+        XCTAssertTrue(app.textViews["Code editor, main.ts"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["not a git repo"].waitForExistence(timeout: 20),
+                      "back in the project's own folder, which isn't a repository")
+    }
 }
