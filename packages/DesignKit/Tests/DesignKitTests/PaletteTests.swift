@@ -39,7 +39,9 @@ struct PaletteTests {
     }
 
     /// Labels read on any surface, not just the editor's: tertiary text on the raised/chrome/pane
-    /// surfaces must meet AA too (the Colors tool flags the brand file for exactly this).
+    /// surfaces must meet AA too (the Colors tool flags the brand file for exactly this). The accent
+    /// roles are text too — a link, a selected row, the status strip's branch — and the CI runner's
+    /// simulator caught the light theme's ion at 4.41:1 on chrome.
     @Test("Text roles meet their contrast target on every surface",
           arguments: ["dark", "light", "highContrast"])
     func textOnEverySurface(name: String) {
@@ -52,6 +54,8 @@ struct PaletteTests {
             ("text.primary", palette.text.primary),
             ("text.secondary", palette.text.secondary),
             ("text.tertiary", palette.text.tertiary),
+            ("accent.ion", palette.accent.ion),
+            ("accent.agent", palette.accent.agent),
         ]
         for (surface, bg) in surfaces {
             for (role, fg) in text {
@@ -65,7 +69,7 @@ struct PaletteTests {
         let cases: [(RGBA, RGBA, Double)] = [
             (Palette.dark.text.primary, Palette.dark.surface.editor, 15.16),
             (Palette.dark.accent.agent, Palette.dark.surface.editor, 8.46),
-            (Palette.light.accent.ion, Palette.light.surface.editor, 4.82),
+            (Palette.light.accent.ion, Palette.light.surface.editor, 5.22),
             (Palette.highContrast.status.error, Palette.highContrast.surface.editor, 9.25),
         ]
         for (fg, bg, expected) in cases {

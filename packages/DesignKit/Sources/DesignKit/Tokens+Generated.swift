@@ -61,9 +61,9 @@ public extension Palette {
             tertiary: RGBA(0x666D77FF)
         ),
         accent: AccentColors(
-            ion: RGBA(0x007A94FF),
+            ion: RGBA(0x00748DFF),
             agent: RGBA(0x6D4FD8FF),
-            focusRing: RGBA(0x007A94FF)
+            focusRing: RGBA(0x00748DFF)
         ),
         status: StatusColors(
             ok: RGBA(0x1B7F3BFF),

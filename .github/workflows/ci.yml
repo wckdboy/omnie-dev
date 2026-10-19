@@ -286,6 +286,11 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p .build
+          # A fixed appearance: the accessibility audits measure rendered contrast, so which theme the
+          # runner is in changes their result. Dark is where they are reliable (see docs/STATUS.md,
+          # "Known, open" — the light-theme audit misreads custom-colored overlay content).
+          SIM=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=[x for r,v in json.load(sys.stdin)["devices"].items() if "iOS" in r for x in v if "iPad" in x["name"]]; print(d[0]["udid"] if d else "")')
+          xcrun simctl ui "$SIM" appearance dark || true
           scripts/test-all.sh --ui-only 2>&1 | tee .build/ui-tests.log | tail -8
       - name: Results on failure
         if: failure()

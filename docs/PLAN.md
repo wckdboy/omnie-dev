@@ -133,14 +133,14 @@ The caret mark (§3.2) doesn't depend on the name, so a rename costs nothing vis
 
 Graphite neutrals come in five surface steps (chrome, editor, pane, raised, hairline), and the editor is never pure black except in high contrast. Two accents: **Ion** (focus, caret, selection, links) and **Agent violet**, which is reserved for agent work. **Syntax highlighting never uses violet.** Status colors are ok green, warn amber and error red. **Color appears only when something needs attention: an idle, clean state is grey.**
 
-Contrast ratios are measured against the editor surface. Every text color passes its target: 4.5:1 for dark and light, 7:1 for high contrast.
+Contrast ratios are measured against the editor surface. Every text color passes its target: 4.5:1 for dark and light, 7:1 for high contrast. The palette's text *and* accent roles are also held to it on the chrome, pane and raised surfaces, since a label or a link can sit on any of them (a DesignKit test checks all four).
 
 | Role | Dark (on #111316) | Light (on #FBFBFA) | High contrast (on #000000) |
 |---|---|---|---|
 | text.primary | #E6E8EB · 15.16 | #16181B · 17.18 | #FFFFFF · 21.0 |
 | text.secondary | #A3AAB4 · 7.94 | #4E5560 · 7.26 | #D0D4DA · 14.11 |
 | text.tertiary | #828A94 · 5.33 | #666D77 · 5.05 | #B8C0CB · 11.44 |
-| **accent.ion** | #3DD6F5 · 10.75 | #007A94 · 4.82 | #5CE1FF · 13.67 |
+| **accent.ion** | #3DD6F5 · 10.75 | #00748D · 5.22 | #5CE1FF · 13.67 |
 | **agent** | #B4A2FF · 8.46 | #6D4FD8 · 5.39 | #CDBDFF · 12.32 |
 | ok | #4ADE80 · 10.68 | #1B7F3B · 4.89 | #6EF09A · 14.59 |
 | warn | #FBBF24 · 11.15 | #8F5B00 · 5.53 | #FFD24D · 14.58 |
