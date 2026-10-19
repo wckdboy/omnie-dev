@@ -286,14 +286,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p .build
-          # A fixed appearance: the accessibility audits measure *rendered* contrast, so which theme
-          # the runner is in changes their result. Dark is where they are reliable (see
-          # docs/STATUS.md, "Known, open" and OMNIE-124); the device must be booted before simctl
-          # will set its appearance, and the same device is passed to the test script.
-          SIM=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=[x for r,v in json.load(sys.stdin)["devices"].items() if "iOS" in r for x in v if "iPad" in x["name"]]; print(d[0]["udid"] if d else "")')
-          xcrun simctl bootstatus "$SIM" -b
-          xcrun simctl ui "$SIM" appearance dark
-          scripts/test-all.sh --ui-only "$SIM" 2>&1 | tee .build/ui-tests.log | tail -8
+          scripts/test-all.sh --ui-only 2>&1 | tee .build/ui-tests.log | tail -8
       - name: Results on failure
         if: failure()
         uses: actions/upload-artifact@v7

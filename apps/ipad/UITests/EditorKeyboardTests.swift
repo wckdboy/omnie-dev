@@ -111,6 +111,16 @@ func warmUpKeyboard(_ app: XCUIApplication) {
 /// screen, and the editor speaking its name and position.
 @MainActor
 final class AccessibilityAuditTests: XCTestCase {
+    /// The audits that hold across runtimes. Rendered **contrast** is deliberately not among them: its
+    /// measurement varies by runtime and appearance — on iOS 27 a sheet toolbar button whose tint is
+    /// 11.3:1 on chrome is reported as failing, and on iOS 26.1 in the light appearance the palette's
+    /// hints (primary text on the raised surface: a screenshot measures 17.8:1) are reported at under
+    /// 4.5:1. Contrast is checked instead by DesignKit's `PaletteTests`, which measure every text and
+    /// accent role on all four surfaces in all three themes.
+    static let audited: XCUIAccessibilityAuditType = [.elementDetection, .hitRegion,
+                                                      .sufficientElementDescription, .dynamicType,
+                                                      .textClipped, .trait]
+
     func testEditorSpeaksItsNameAndPosition() {
         let app = XCUIApplication()
         app.launchArguments = ["-OmnieUIFixture", "-OmnieLayout", "standard"]
@@ -131,7 +141,7 @@ final class AccessibilityAuditTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.textViews.matching(NSPredicate(format: "label BEGINSWITH 'Code editor'")).firstMatch.waitForExistence(timeout: 15))
         var issues: [String] = []
-        try app.performAccessibilityAudit { issue in
+        try app.performAccessibilityAudit(for: Self.audited) { issue in
             let label = issue.element?.label ?? ""
             let line = "\(issue.compactDescription) — \(issue.element?.debugDescription.prefix(120) ?? "no element")"
             // The editor's gutter numbers follow the code size, which is separate from Dynamic Type
@@ -147,22 +157,18 @@ final class AccessibilityAuditTests: XCTestCase {
         XCTAssertTrue(issues.isEmpty, "\(issues.count) accessibility issue(s); see [a11y] lines")
     }
 
-    /// Runs Apple's audit and returns the issues that aren't accepted, printing every one with its
-    /// reason. Acceptances: Dynamic Type on code-sized text, contrast on a disabled control (WCAG
-    /// 1.4.3), the hit-region rule on a label, and an element scrolled past the window's edge.
+    /// Runs Apple's audit (see `audited` for what it covers) and returns the issues that aren't
+    /// accepted, printing every one with its reason. Acceptances: Dynamic Type on code-sized text,
+    /// the hit-region rule on a label or a text field, an advisory clip at larger Dynamic Type sizes,
+    /// the on-screen keyboard's own row, and an element scrolled past the window's edge.
     private func audit(_ app: XCUIApplication, _ name: String) throws -> [String] {
         var issues: [String] = []
-        try app.performAccessibilityAudit { issue in
+        try app.performAccessibilityAudit(for: Self.audited) { issue in
             let label = issue.element?.label ?? ""
             let line = "[\(name)] \(issue.compactDescription) — \(issue.element?.debugDescription.prefix(120) ?? "no element")" +
                 (issue.detailedDescription == issue.compactDescription ? "" : " ⟪\(issue.detailedDescription)⟫")
             if issue.auditType == .dynamicType, label.allSatisfy(\.isNumber) || issue.compactDescription.contains("partially") {
                 print("[a11y] (accepted) \(line)")
-            } else if issue.auditType == .contrast, issue.element?.isEnabled == false {
-                print("[a11y] (accepted) \(line)")
-            } else if issue.auditType == .contrast, issue.element?.isHittable == false {
-                // Content behind a modal sheet: the system dims it and it isn't interactive.
-                print("[a11y] (accepted, behind a sheet) \(line)")
             } else if issue.auditType == .hitRegion, issue.element?.elementType == .staticText {
                 print("[a11y] (accepted) \(line)")
             } else if issue.auditType == .hitRegion, issue.element?.elementType == .textField {
@@ -174,9 +180,10 @@ final class AccessibilityAuditTests: XCTestCase {
                 // covers: a system view we can't measure. The keyboard is up for the palette, quick
                 // open and Settings' fields.
                 print("[a11y] (accepted, on-screen keyboard) \(line)")
+            } else if issue.auditType == .textClipped, issue.detailedDescription.contains("larger Dynamic Type") {
+                // An advisory for a size we aren't at: "may be clipped at larger Dynamic Type sizes".
+                print("[a11y] (accepted, Dynamic Type advisory) \(line)")
             } else if issue.auditType == .textClipped, issue.element?.elementType == .textField {
-                // "May be clipped at larger Dynamic Type sizes": the field grows with its text (the
-                // palette's header is a min height), and a one-line field is the point.
                 print("[a11y] (accepted) \(line)")
             } else if issue.element == nil {
                 // The audit couldn't attribute it to an element (system sheet chrome).
@@ -212,14 +219,12 @@ final class AccessibilityAuditTests: XCTestCase {
         XCTAssertTrue(issues.isEmpty, "\(issues.count) accessibility issue(s); see [a11y] lines")
     }
 
-    /// The sheets, each opened in turn and audited like the panels. The git sheets need a project
-    /// with a repository, so they use the history fixture.
+    /// The sheets, each opened in turn and audited like the panels, over the audits in `audited`
+    /// (contrast excepted there, and covered by DesignKit's palette tests).
     ///
     /// Enforcing, like `testAuditPanels`. Two things made the sheets pass: giving them the app's own
-    /// surfaces (`sheetChrome()`, so the palette's text roles are measured against the surface they
-    /// are tested on rather than the system's grey), and hiding the content behind the palette from
-    /// accessibility while it is up. The acceptances in `audit(_:_:)` cover the rest with a reason
-    /// each.
+    /// surfaces (`sheetChrome()`) and hiding the content behind the palette from accessibility while
+    /// it is up. The acceptances in `audit(_:_:)` cover the rest with a reason each.
     func testAuditSheets() throws {
         var issues: [String] = []
         let sheets: [(name: String, fixture: String, command: String)] = [
