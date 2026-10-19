@@ -72,7 +72,7 @@ struct CommandPalette: View {
                     .onKeyPress(.escape) { close(); return .handled }
             }
             .padding(.horizontal, 12)
-            .frame(height: max(density.hitTarget, 40))
+            .frame(minHeight: max(density.hitTarget, 40))
 
             Rectangle().fill(palette.surface.hairline.color).frame(height: Metrics.hairline)
 
@@ -168,7 +168,10 @@ struct CommandPalette: View {
     }
 
     private func commandRow(_ command: Command, selected: Bool) -> some View {
-        HStack {
+        // The hints are primary, not secondary: the selection tint takes secondary grey under AA
+        // (4.38:1 in the dark theme) and the audit measures this row.
+        let hint = palette.text.primary.color
+        return HStack {
             Text(command.title)
                 .font(.footnote)
                 .foregroundStyle(palette.text.primary.color)
@@ -181,11 +184,11 @@ struct CommandPalette: View {
             Spacer()
             Text(command.menu)
                 .font(.caption)
-                .foregroundStyle(palette.text.secondary.color)
+                .foregroundStyle(hint)
             if let shortcut = command.shortcut {
                 Text(shortcut.description)
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(palette.text.secondary.color)
+                    .foregroundStyle(hint)
                     .frame(minWidth: 44, alignment: .trailing)
             }
         }

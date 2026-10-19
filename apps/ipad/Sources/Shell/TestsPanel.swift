@@ -168,7 +168,7 @@ struct TestsPanel: View {
             }
         }
         .sheet(isPresented: Binding(get: { selectedID != nil }, set: { if !$0 { selectedID = nil } })) {
-            if let id = selectedID { TestDetailSheet(id: id) }
+            if let id = selectedID { TestDetailSheet(id: id).sheetChrome() }
         }
     }
 

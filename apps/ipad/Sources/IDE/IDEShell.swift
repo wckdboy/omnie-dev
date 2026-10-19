@@ -64,6 +64,9 @@ struct IDEShell: View {
                 }
                 StatusStrip()
             }
+            // A modal palette owns the screen: VoiceOver shouldn't wander into the editor or panels
+            // behind it (and the audit shouldn't measure their text through it).
+            .accessibilityHidden(model.paletteOpen)
             .overlay(alignment: .leading) {
                 // Under 700 pt the left dock slides over the editor; a tap beside it closes it.
                 if layout == .single && model.leftOverlay && !model.focusMode && !model.panes.left.isEmpty {

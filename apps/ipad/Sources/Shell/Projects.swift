@@ -36,7 +36,11 @@ struct ProjectsSheet: View {
                 if let current {
                     Section("Open now") {
                         HStack {
-                            Label(current, systemImage: "folder.fill").foregroundStyle(palette.text.primary.color)
+                            HStack(spacing: 8) {
+                                Image(systemName: "folder.fill").frame(minWidth: 22, alignment: .leading)
+                                Text(current)
+                            }
+                            .foregroundStyle(palette.text.primary.color)
                             Spacer()
                             Button("Close folder") {
                                 workspace.closeFolder()
@@ -53,10 +57,13 @@ struct ProjectsSheet: View {
                             dismiss()
                         } label: {
                             HStack {
-                                Label(ref.name, systemImage: "folder")
+                                HStack(spacing: 8) {
+                                    Image(systemName: "folder").frame(minWidth: 22, alignment: .leading)
+                                    Text(ref.name)
+                                }
                                 Spacer()
                                 Text(ref.lastOpened, format: .relative(presentation: .named))
-                                    .font(.caption).foregroundStyle(palette.text.tertiary.color)
+                                    .font(.caption).foregroundStyle(palette.text.secondary.color)
                             }
                             .contentShape(Rectangle())
                         }
@@ -93,7 +100,14 @@ struct ProjectsSheet: View {
                 perform()
             }
         } label: {
-            Label(title, systemImage: symbol).contentShape(Rectangle())
+            // An Image + Text rather than Label: the audit reads a Label's text as clipped in a List
+            // row (its text frame is inset by the icon), and this renders the same.
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .frame(minWidth: 22, alignment: .leading)
+                Text(title)
+            }
+            .contentShape(Rectangle())
         }
         .accessibilityIdentifier(id)
     }

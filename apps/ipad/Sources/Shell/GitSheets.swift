@@ -189,40 +189,40 @@ extension View {
         @Bindable var model = model
         @Bindable var git = model.workspace.git
         return self
-            .sheet(isPresented: $model.commitSheetOpen) { CommitSheet() }
-            .sheet(isPresented: $model.sshKeySheetOpen) { SSHKeySheet() }
-            .sheet(isPresented: $model.cloneSheetOpen) { CloneSheet() }
-            .sheet(item: $git.pendingHostKey) { HostKeySheet(key: $0) }
-            .sheet(isPresented: $model.branchSheetOpen) { BranchSheet() }
-            .sheet(isPresented: $model.historySheetOpen) { HistorySheet() }
-            .sheet(isPresented: $model.remotesSheetOpen) { RemotesSheet() }
-            .sheet(isPresented: $model.pullRequestsOpen) { PullRequestsSheet() }
-            .sheet(isPresented: $model.projectsOpen) { ProjectsSheet() }
-            .sheet(item: Binding(get: { model.language.references }, set: { model.language.references = $0 })) { ReferencesSheet(list: $0) }
-            .sheet(item: Binding(get: { model.language.renaming }, set: { model.language.renaming = $0 })) { RenameSheet(request: $0) }
-            .sheet(isPresented: $model.newProjectOpen) { NewProjectSheet() }
+            .sheet(isPresented: $model.commitSheetOpen) { CommitSheet().sheetChrome() }
+            .sheet(isPresented: $model.sshKeySheetOpen) { SSHKeySheet().sheetChrome() }
+            .sheet(isPresented: $model.cloneSheetOpen) { CloneSheet().sheetChrome() }
+            .sheet(item: $git.pendingHostKey) { HostKeySheet(key: $0).sheetChrome() }
+            .sheet(isPresented: $model.branchSheetOpen) { BranchSheet().sheetChrome() }
+            .sheet(isPresented: $model.historySheetOpen) { HistorySheet().sheetChrome() }
+            .sheet(isPresented: $model.remotesSheetOpen) { RemotesSheet().sheetChrome() }
+            .sheet(isPresented: $model.pullRequestsOpen) { PullRequestsSheet().sheetChrome() }
+            .sheet(isPresented: $model.projectsOpen) { ProjectsSheet().sheetChrome() }
+            .sheet(item: Binding(get: { model.language.references }, set: { model.language.references = $0 })) { ReferencesSheet(list: $0).sheetChrome() }
+            .sheet(item: Binding(get: { model.language.renaming }, set: { model.language.renaming = $0 })) { RenameSheet(request: $0).sheetChrome() }
+            .sheet(isPresented: $model.newProjectOpen) { NewProjectSheet().sheetChrome() }
             .fullScreenCover(isPresented: $model.editorSpikeOpen) { EditorSpikeView() }
             .fullScreenCover(isPresented: $model.modelSpikeOpen) { ModelSpikeView() }
             .fullScreenCover(isPresented: $model.webGPUSpikeOpen) { WebGPUSpikeView() }
             .fullScreenCover(isPresented: $model.wasiSpikeOpen) { WASISpikeView() }
-            .sheet(isPresented: $model.auditLogOpen) { AuditLogView() }
-            .sheet(isPresented: $model.settingsOpen) { SettingsView() }
-            .sheet(isPresented: $model.quickOpenOpen) { QuickOpenSheet() }
-            .sheet(isPresented: $model.prepareOfflineOpen) { PrepareOfflineSheet() }
-            .sheet(isPresented: $model.findOpen) { FindInProjectSheet() }
-            .sheet(isPresented: $model.goToLineOpen) { GoToLineSheet() }
-            .sheet(isPresented: $model.problemsOpen) { ProblemsSheet() }
-            .sheet(isPresented: $model.snapshotsOpen) { SnapshotsSheet() }
-            .sheet(isPresented: $model.workspaceSymbolOpen) { WorkspaceSymbolSheet() }
+            .sheet(isPresented: $model.auditLogOpen) { AuditLogView().sheetChrome() }
+            .sheet(isPresented: $model.settingsOpen) { SettingsView().sheetChrome() }
+            .sheet(isPresented: $model.quickOpenOpen) { QuickOpenSheet().sheetChrome() }
+            .sheet(isPresented: $model.prepareOfflineOpen) { PrepareOfflineSheet().sheetChrome() }
+            .sheet(isPresented: $model.findOpen) { FindInProjectSheet().sheetChrome() }
+            .sheet(isPresented: $model.goToLineOpen) { GoToLineSheet().sheetChrome() }
+            .sheet(isPresented: $model.problemsOpen) { ProblemsSheet().sheetChrome() }
+            .sheet(isPresented: $model.snapshotsOpen) { SnapshotsSheet().sheetChrome() }
+            .sheet(isPresented: $model.workspaceSymbolOpen) { WorkspaceSymbolSheet().sheetChrome() }
             .sheet(isPresented: Binding(get: { model.workspace.binaryFile != nil }, set: { if !$0 { model.workspace.binaryFile = nil } })) {
-                if let url = model.workspace.binaryFile { BinaryViewer(url: url).presentationSizing(.page) }
+                if let url = model.workspace.binaryFile { BinaryViewer(url: url).presentationSizing(.page).sheetChrome() }
             }
             .sheet(isPresented: Binding(get: { model.docsQuery != nil }, set: { if !$0 { model.docsQuery = nil } })) {
-                DocsSheet(query: model.docsQuery ?? "").presentationSizing(.page)
+                DocsSheet(query: model.docsQuery ?? "").presentationSizing(.page).sheetChrome()
             }
             .modifier(FileOperationPrompts())
             .modifier(BreakpointConditionPrompt())
-            .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
+            .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0).sheetChrome() }
             .fullScreenCover(item: $git.mergeSession) { ConflictResolverView(session: $0) }
     }
 }

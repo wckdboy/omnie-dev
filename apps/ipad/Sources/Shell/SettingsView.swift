@@ -12,6 +12,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.palette) private var palette
 
     var body: some View {
         @Bindable var model = model
@@ -47,7 +48,9 @@ struct SettingsView: View {
                 Section {
                     Toggle("Completions as you type", isOn: Binding(get: { model.language.completesAsYouType },
                                                                    set: { model.language.completesAsYouType = $0 }))
-                    Toggle("Wrap long lines", isOn: Binding(get: { model.wordWrap }, set: { model.wordWrap = $0 }))
+                    Toggle(isOn: Binding(get: { model.wordWrap }, set: { model.wordWrap = $0 })) {
+                        Text("Wrap long lines").foregroundStyle(palette.text.primary.color)
+                    }
                     Toggle("Format on save (⌘S)", isOn: Binding(get: { model.language.formatsOnSave }, set: { model.language.formatsOnSave = $0 }))
                     Toggle("Minimap", isOn: Binding(get: { model.showsMinimap }, set: { model.showsMinimap = $0 }))
                     Stepper("Text size \(Int((model.workspace.fontScale * 100).rounded())) %", value: Binding(

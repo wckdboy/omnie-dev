@@ -441,7 +441,7 @@ private struct HTTPTool: View {
             }
         }
         .padding(12)
-        .sheet(isPresented: $showSecrets) { SecretsSheet(names: Array(Set(requests.flatMap(HTTPFile.secrets(in:)))).sorted()) }
+        .sheet(isPresented: $showSecrets) { SecretsSheet(names: Array(Set(requests.flatMap(HTTPFile.secrets(in:)))).sorted()).sheetChrome() }
     }
 
     static func httpFiles(in root: URL) -> [String] {

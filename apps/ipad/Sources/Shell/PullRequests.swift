@@ -61,7 +61,7 @@ struct PullRequestsSheet: View {
                 }
             }
             // Over this sheet, so a missing or refused token is asked for here.
-            .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0) }
+            .sheet(item: $git.pendingTokenHost) { TokenSheet(request: $0).sheetChrome() }
         }
         .task { await start() }
     }
