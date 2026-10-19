@@ -81,7 +81,7 @@ final class AgentModel {
 
     /// The status-strip pill (PLAN.md §3.8).
     var pillState: AgentState {
-        let queued = queuedSketches.contains { $0.repoPath == workspace.rootURL?.path }
+        let queued = queuedSketches.contains { $0.repoPath == workspace.repoRoot?.path }
         guard let current else { return queued ? .queued : .idle }
         switch current.phase {
         case .running: return isRunning ? .thinking : .blocked
@@ -115,7 +115,7 @@ final class AgentModel {
     func start(_ goal: String) async {
         let goal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !goal.isEmpty, !isRunning else { return }
-        guard workspace.git.repo != nil, workspace.rootURL != nil else {
+        guard workspace.git.repo != nil, workspace.repoRoot != nil else {
             error = "Open a git project first."
             return
         }
@@ -137,7 +137,7 @@ final class AgentModel {
 
     /// A task branch and worktree from your last commit, recorded and made current.
     private func createTask(goal: String, isSketch: Bool = false) async -> TaskRecord? {
-        guard let repo = workspace.git.repo, let root = workspace.rootURL else {
+        guard let repo = workspace.git.repo, let root = workspace.repoRoot else {
             error = "Open a git project first."
             return nil
         }
@@ -233,7 +233,7 @@ final class AgentModel {
     /// and goes when you're back online.
     func startSketch(png: Data, source: SketchToCode.Source, instruction: String) async {
         guard !isRunning else { return }
-        guard workspace.git.repo != nil, let root = workspace.rootURL else {
+        guard workspace.git.repo != nil, let root = workspace.repoRoot else {
             error = "Open a git project first."
             return
         }
@@ -285,7 +285,7 @@ final class AgentModel {
 
     /// Sends the open project's queued sketches, oldest first (on reconnect, and from the Sketch tool).
     func sendQueuedSketches() async {
-        guard let root = workspace.rootURL, !policy.planeMode, !isOffline() else { return }
+        guard let root = workspace.repoRoot, !policy.planeMode, !isOffline() else { return }
         for item in queuedSketches where item.repoPath == root.path {
             guard !isRunning, let png = try? Data(contentsOf: sketchFolder.appendingPathComponent("\(item.id.uuidString).png")) else { continue }
             dropQueued(item)

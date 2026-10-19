@@ -112,6 +112,8 @@ struct OmnieDevApp: App {
                         try? FileManager.default.removeItem(at: folder)
                         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                         try? "let delta = 4;\n".write(to: folder.appending(path: "extra.ts"), atomically: true, encoding: .utf8)
+                        // A type error of its own, so Problems has a per-folder test.
+                        try? "const broken: number = \"not a number\";\n".write(to: folder.appending(path: "broken.ts"), atomically: true, encoding: .utf8)
                         if let repo = try? Repository.create(at: folder) {
                             _ = try? await repo.commitAll(message: "Start the extra folder\n",
                                                           author: Signature(name: "UI Test", email: "ui@omnie.invalid"))

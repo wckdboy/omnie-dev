@@ -105,4 +105,29 @@ final class MultiRootUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["not a git repo"].waitForExistence(timeout: 20),
                       "back in the project's own folder, which isn't a repository")
     }
+
+    func testTheTerminalFollowsTheFolderYouAreIn() {
+        launch(["-OmnieRunCommand", "utility.terminal"])
+        // main.ts is open, so the shell starts in the project's own folder.
+        XCTAssertTrue(app.staticTexts["uitest-fixture $"].waitForExistence(timeout: 20))
+
+        element("extra.ts, file").tap()
+        XCTAssertTrue(app.textViews["Code editor, extra.ts"].waitForExistence(timeout: 10))
+        // The shell re-opens in the added folder, keeps the scrollback, and says where it is.
+        let moved = app.staticTexts.matching(NSPredicate(format: "label == %@", "Now in uitest-extra/.")).firstMatch
+        XCTAssertTrue(moved.waitForExistence(timeout: 15), "the terminal moved to the file's folder")
+        XCTAssertTrue(app.staticTexts["uitest-extra $"].waitForExistence(timeout: 15), "and its prompt names it")
+    }
+
+    func testProblemsCoverAddedFolders() {
+        launch(["-OmnieRunCommand", "problems.show"])
+        // The added folder is checked like the project's own; its error says which folder it's in.
+        let section = app.staticTexts["uitest-extra/broken.ts"]
+        XCTAssertTrue(section.waitForExistence(timeout: 90), "Problems has the added folder's file")
+        let message = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "not assignable")).firstMatch
+        XCTAssertTrue(message.waitForExistence(timeout: 15), "with the type error's message")
+        message.tap()
+        XCTAssertTrue(app.textViews["Code editor, broken.ts"].waitForExistence(timeout: 10),
+                      "tapping it opens the file in that folder")
+    }
 }

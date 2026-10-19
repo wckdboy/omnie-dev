@@ -46,7 +46,7 @@ struct SketchTool: View {
                 if let error = agent.error {
                     Text(error).font(.footnote).foregroundStyle(palette.status.warn.color)
                 }
-                let queued = agent.queuedSketches.filter { $0.repoPath == model.workspace.rootURL?.path }
+                let queued = agent.queuedSketches.filter { $0.repoPath == model.workspace.repoRoot?.path }
                 if !queued.isEmpty {
                     Text("Waiting to send").font(.footnote.weight(.semibold))
                     ForEach(queued) { item in

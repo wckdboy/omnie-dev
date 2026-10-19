@@ -41,7 +41,7 @@ struct TerminalPanel: View {
                 Button { Task { await submit("test") } } label: { Label("Run tests", systemImage: "checkmark.diamond").lineLimit(1) }
                     .disabled(shell == nil || busy)
                     .fixedSize()
-                Button { Task { await submit("run \(model.workspace.relativePath ?? "")") } } label: { Label("Run file", systemImage: "play").lineLimit(1) }
+                Button { Task { await submit("run \(model.workspace.pathInWorkingDirectory ?? "")") } } label: { Label("Run file", systemImage: "play").lineLimit(1) }
                     .disabled(!canRunOpenFile || busy)
                     .fixedSize()
                 Spacer()
@@ -91,11 +91,13 @@ struct TerminalPanel: View {
             .padding(12)
         }
         .background(palette.surface.pane.color)
-        .onAppear(perform: attach)
+        .onAppear { attach() }
         .task(id: model.workspace.changeCount) {
-            if let root = model.workspace.rootURL { projectFiles = Set(await Task.detached { ProjectSearch.files(in: root) }.value) }
+            if let root = model.workspace.workingDirectory { projectFiles = Set(await Task.detached { ProjectSearch.files(in: root) }.value) }
         }
         .onChange(of: model.workspace.rootURL) { attach() }
+        // A multi-root workspace's terminal follows the folder of the file you open.
+        .onChange(of: model.workspace.workingDirectory) { attach() }
         // "Run task: …" in the palette: type the task into this terminal.
         .task(id: model.terminalRequest) {
             guard let request = model.terminalRequest else { return }
@@ -119,7 +121,8 @@ struct TerminalPanel: View {
     }
 
     private var canRunOpenFile: Bool {
-        guard let path = model.workspace.relativePath else { return false }
+        let path = model.workspace.pathInWorkingDirectory ?? model.workspace.relativePath
+        guard let path else { return false }
         return [".ts", ".tsx", ".js", ".mjs", ".jsx", ".py"].contains { path.hasSuffix($0) }
     }
 
@@ -167,9 +170,12 @@ struct TerminalPanel: View {
         }
     }
 
-    private func attach() {
-        guard let root = model.workspace.rootURL else { shell = nil; return }
-        guard shell?.root.standardizedFileURL != root.standardizedFileURL else { return }
+    private func attach(force: Bool = false) {
+        // The terminal (and so tasks, `run`, `typecheck`, `git`) follows the folder you're working in:
+        // the open file's folder, which is an added folder's in a multi-root workspace.
+        guard let root = model.workspace.workingDirectory else { shell = nil; return }
+        let moved = shell != nil && shell?.root.standardizedFileURL != root.standardizedFileURL
+        guard force || shell?.root.standardizedFileURL != root.standardizedFileURL else { return }
         let workspace = model.workspace
         shell = Shell(root: root, hooks: .init(
             run: { file in
@@ -212,7 +218,12 @@ struct TerminalPanel: View {
             },
             open: { file in workspace.open(file: root.appending(path: file)) },
             wrote: { _ in workspace.reloadFromDisk() }))
-        lines = []
+        if moved {
+            // Keep the scrollback: only the folder changed, not the project.
+            lines.append(Line(kind: .output, text: "Now in \(root.lastPathComponent)/."))
+        } else {
+            lines = []
+        }
     }
 
     private func submit(_ command: String) async {

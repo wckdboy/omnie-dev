@@ -85,6 +85,9 @@ final class WorkspaceModel {
     @ObservationIgnored var completionModel: (() async -> TextModel?)?
     /// Called after a project opens (the agent shows that project's tasks).
     @ObservationIgnored var onProjectOpened: ((URL) -> Void)?
+    /// Called when the repository git is attached to changes — in a multi-root workspace it follows
+    /// the open file, so the agent shows the tasks of the repository you are working in.
+    @ObservationIgnored var onWorkingRepoChanged: ((URL) -> Void)?
     /// After each edit in the editor (completions as you type).
     @ObservationIgnored var onEdited: (() -> Void)?
     @ObservationIgnored var onProjectClosed: (() -> Void)?
@@ -117,8 +120,8 @@ final class WorkspaceModel {
         git.afterWorktreeChange = { [weak self] in self?.reloadFromDisk() }
         // New results mark the open file, unless it changed since the save they describe.
         problems.onUpdate = { [weak self] in
-            guard let self, openFile != nil, !isDirty else { return }
-            editor.setMarks(problems.marks(for: relativePath))
+            guard let self, let openFile, !isDirty else { return }
+            editor.setMarks(problems.marks(for: openFile))
         }
         // Breakpoints, per file: the editor draws them and a gutter tap toggles one.
         editor.onToggleBreakpoint = { [weak self] line, added in
@@ -260,7 +263,7 @@ final class WorkspaceModel {
         restoreExtraFolders(url)
         restoreSession(url)
         problems.clear()
-        problems.schedule(root: url, after: .milliseconds(300))
+        problems.schedule(roots: allRoots, after: .milliseconds(300))
         gitRootURL = url
         Task {
             await git.attach(url)
@@ -307,7 +310,7 @@ final class WorkspaceModel {
     /// clean. Unsaved edits are never overwritten; you're told instead.
     private func changedOutside(_ urls: Set<URL>) {
         changeCount += 1
-        if let rootURL { problems.schedule(root: rootURL) }
+        problems.schedule(roots: allRoots)
         reload()
         Task { await git.refresh() }
         guard let openFile, urls.contains(openFile.standardizedFileURL) else { return }
@@ -358,11 +361,31 @@ final class WorkspaceModel {
         let target = url.flatMap(repositoryRoot(for:)) ?? rootURL
         guard let target, target.standardizedFileURL.path != gitRootURL?.standardizedFileURL.path else { return }
         gitRootURL = target
+        onWorkingRepoChanged?(target)
         Task { await git.attach(target) }
     }
 
     /// Whether `folder` is a git repository (the navigator marks it).
     func isRepository(_ folder: URL) -> Bool { Repository.exists(at: folder) }
+
+    /// The folder agent tasks, worktrees and commits work in: the repository git is attached to
+    /// (which follows the open file in a multi-root workspace), else the project's own folder.
+    var repoRoot: URL? { gitRootURL ?? rootURL }
+
+    /// The folder commands run in: the open file's folder when it is in the workspace (the project's
+    /// own or an added one), else the project's own. Tasks, the terminal and the type-checker follow
+    /// the file you are editing in a multi-root workspace.
+    var workingDirectory: URL? {
+        guard let openFile else { return rootURL }
+        return extraFolder(containing: openFile) ?? rootURL
+    }
+
+    /// The open file's path inside the folder commands run in (the terminal's root), so `run <file>`
+    /// is right in a multi-root workspace too.
+    var pathInWorkingDirectory: String? {
+        guard let openFile, let root = workingDirectory else { return nil }
+        return Self.path(of: openFile, inside: root) ?? openFile.lastPathComponent
+    }
 
     /// Every folder in the workspace: the project's own first, then the added ones.
     var allRoots: [URL] { (rootURL.map { [$0] } ?? []) + extraFolders }
@@ -397,6 +420,8 @@ final class WorkspaceModel {
             startWatchingExtra(folder)
             try? workspaceFolders.remember(url, for: AppModel.layoutKey(for: project))
             saveSession()
+            // The new folder is checked like the project's own (a moment later, off the main run).
+            problems.schedule(roots: allRoots)
             banner = "\(folder.lastPathComponent) is in the workspace. Search and quick open cover it now."
         } catch {
             if scoped { url.stopAccessingSecurityScopedResource() }
@@ -417,6 +442,7 @@ final class WorkspaceModel {
         if let open = openFile, Self.isInside(open, of: folder) { closeFile() }
         tabs.removeAll { Self.isInside($0.url, of: folder) }
         if openFile == nil, let next = tabs.first { open(file: next.url, preview: false) }
+        problems.forget(root: folder)
         if gitRootURL?.standardizedFileURL.path == folder.standardizedFileURL.path, let rootURL {
             gitRootURL = nil
             syncGit(to: rootURL)
@@ -624,7 +650,7 @@ final class WorkspaceModel {
             let loaded = try TextFile.load(url, presenter: presenter(for: url))
             language = Language(url: url)
             editor.isMarkdown = WorkspaceModel.isMarkdown(url)
-            editor.load(loaded, language: language, marks: problems.marks(for: relativePath(of: url)))
+            editor.load(loaded, language: language, marks: problems.marks(for: url))
             applyBreakpoints(of: url)
             editor.restoreFolds(foldsByFile[url] ?? [])
             editor.textView.accessibilityLabel = "Code editor, \(url.lastPathComponent)"
@@ -826,7 +852,7 @@ final class WorkspaceModel {
             try TextFile.save(editor.text, to: openFile, presenter: presenter(for: openFile))
             isDirty = false
             changeCount += 1
-            if let rootURL { problems.schedule(root: rootURL) }
+            problems.schedule(root: openFile)
         } catch {
             banner = "Save failed: \(error.localizedDescription). Try again."
             return
@@ -884,13 +910,13 @@ final class WorkspaceModel {
     /// Re-reads the navigator and the open file after something other than the editor changed files.
     func reloadFromDisk() {
         changeCount += 1
-        if let rootURL { problems.schedule(root: rootURL) }
+        if let folder = openFile ?? rootURL { problems.schedule(root: folder) }
         reload()
         guard let openFile else { return }
         if FileManager.default.fileExists(atPath: openFile.path(percentEncoded: false)),
            let loaded = try? TextFile.load(openFile, presenter: presenter(for: openFile)) {
             // The editor keeps the caret where it is now (clamped), not where it was when this began.
-            editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
+            editor.load(loaded, language: language, marks: problems.marks(for: openFile))
             applyBreakpoints(of: openFile)
             isDirty = false
         } else {
@@ -902,7 +928,7 @@ final class WorkspaceModel {
     func reloadOpenFileIfClean() {
         guard let openFile, !isDirty, let loaded = try? TextFile.load(openFile, presenter: presenter(for: openFile)), loaded != editor.text else { return }
         // The editor keeps the caret where it is now (clamped), not where it was when this began.
-        editor.load(loaded, language: language, marks: problems.marks(for: relativePath))
+        editor.load(loaded, language: language, marks: problems.marks(for: openFile))
         applyBreakpoints(of: openFile)
         changeCount += 1
     }
@@ -1035,18 +1061,31 @@ final class WorkspaceModel {
     /// Moves the caret to the next (or previous) problem, wrapping around, opening its file when it's
     /// not the one on screen. The order is by path then offset, so F8 walks the whole project.
     func goToProblem(forward: Bool) {
-        let items = problems.diagnostics
-            .compactMap { d -> (path: String, start: Int, length: Int)? in
-                guard let path = d.path, let start = d.start else { return nil }
-                return (path, start, d.length ?? 0)
+        struct Item { var key: String; var url: URL; var start: Int; var length: Int }
+        // Every folder's problems, plus the Stage's shader errors (which belong to the project's own
+        // folder). A file's key is its stable workspace path, so the walk works across folders.
+        var sources = problems.folders.map { (root: $0.root, diagnostics: $0.diagnostics) }
+        if !problems.stageDiagnostics.isEmpty, let rootURL {
+            if let index = sources.firstIndex(where: { $0.root.standardizedFileURL.path == rootURL.standardizedFileURL.path }) {
+                sources[index].diagnostics += problems.stageDiagnostics
+            } else {
+                sources.append((root: rootURL, diagnostics: problems.stageDiagnostics))
             }
-            .sorted { ($0.path, $0.start) < ($1.path, $1.start) }
-        guard let root = rootURL, !items.isEmpty else { return }
+        }
+        let items = sources.flatMap { source in
+            source.diagnostics.compactMap { d -> Item? in
+                guard let path = d.path, let start = d.start else { return nil }
+                let url = source.root.appending(path: path)
+                return Item(key: relativePath(of: url), url: url, start: start, length: d.length ?? 0)
+            }
+        }
+        .sorted { ($0.key, $0.start) < ($1.key, $1.start) }
+        guard !items.isEmpty else { return }
         let here = (relativePath ?? "", editor.selectedRange.location)
-        let after = items.first { ($0.path, $0.start) > here }
-        let before = items.last { ($0.path, $0.start) < here }
+        let after = items.first { ($0.key, $0.start) > here }
+        let before = items.last { ($0.key, $0.start) < here }
         guard let target = forward ? (after ?? items.first) : (before ?? items.last) else { return }
-        open(file: root.appending(path: target.path), select: NSRange(location: target.start, length: target.length))
+        open(file: target.url, select: NSRange(location: target.start, length: target.length))
     }
 
     func relativePath(of url: URL) -> String {

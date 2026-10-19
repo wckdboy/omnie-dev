@@ -269,6 +269,8 @@ final class AppModel {
             self?.language.reset()
             self?.restoreLayout(for: root)
         }
+        // A multi-root workspace's git follows the open file; the agent shows that repository's tasks.
+        workspace.onWorkingRepoChanged = { [agent] root in agent.attach(root) }
         workspace.onEdited = { [weak self] in
             self?.language.edited()
             self?.find.textChanged()
@@ -410,7 +412,7 @@ final class AppModel {
 
     /// Runs a workspace task (PLAN.md §8.2) in the terminal, which says where it ran.
     func runTask(_ name: String) {
-        guard workspace.rootURL != nil else { return }
+        guard workspace.workingDirectory != nil else { return }
         show(.terminal)
         terminalRequest = "task \(name)"
     }
@@ -1065,7 +1067,7 @@ final class AppModel {
             Command(id: "problems.show", title: "Show problems", menu: "File",
                     shortcut: Shortcut("m", [.command, .shift]), keywords: ["type errors", "diagnostics", "typescript", "tsc", "check types"]) { [weak self] in
                 guard let self, workspace.rootURL != nil else { return }
-                if let root = workspace.rootURL, workspace.problems.diagnostics.isEmpty { workspace.problems.schedule(root: root, after: .zero) }
+                if workspace.rootURL != nil, workspace.problems.diagnostics.isEmpty { workspace.problems.schedule(roots: workspace.allRoots, after: .zero) }
                 problemsOpen = true
             },
             Command(id: "editor.goToLine", title: "Go to line…", menu: "File",
