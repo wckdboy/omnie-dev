@@ -33,6 +33,27 @@ struct OmnieDevApp: App {
                         model.workspace.open(folder: folder)
                         model.workspace.open(file: folder.appending(path: "main.ts"), preview: false)
                     }
+                    // `-OmnieUITestFixture`: a project with one passing and one failing test, for the
+                    // Tests panel's run/rerun/output UI tests.
+                    if args.contains("-OmnieUITestFixture") {
+                        let folder = URL.documentsDirectory.appending(path: "uitest-tests")
+                        try? FileManager.default.removeItem(at: folder)
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        try? "export const sum = (a: number, b: number): number => a + b;\n"
+                            .write(to: folder.appending(path: "sum.ts"), atomically: true, encoding: .utf8)
+                        try? """
+                        import { describe, it, expect } from "vitest";
+                        import { sum } from "./sum";
+
+                        describe("sum", () => {
+                          it("adds", () => { expect(sum(1, 2)).toBe(3); });
+                          it("is wrong on purpose", () => { expect(sum(1, 2)).toBe(4); });
+                        });
+
+                        """.write(to: folder.appending(path: "sum.test.ts"), atomically: true, encoding: .utf8)
+                        model.workspace.open(folder: folder)
+                        model.workspace.open(file: folder.appending(path: "sum.test.ts"), preview: false)
+                    }
                     // `-OmnieUIPyFixture`: two Python files, the second calling the first (code intelligence).
                     if args.contains("-OmnieUIPyFixture") {
                         let folder = URL.documentsDirectory.appending(path: "uitest-py")

@@ -59,7 +59,7 @@ const project = (path) => "omnie-run://local/" + path.split("/").map(encodeURICo
       await new Promise((resolve) => {
         worker.onmessage = (e) => { if (e.data.type === "done") resolve(); else send(e.data); };
         worker.onerror = (e) => { send({ type: "error", text: e.message || "Python worker failed" }); resolve(); };
-        worker.postMessage({ mode: params.get("mode"), entry: params.get("entry"), files: params.getAll("file") });
+        worker.postMessage({ mode: params.get("mode"), entry: params.get("entry"), files: params.getAll("file"), name: params.get("name") });
       });
       worker.terminate();
       send({ type: "done" });
@@ -92,7 +92,7 @@ const project = (path) => "omnie-run://local/" + path.split("/").map(encodeURICo
         try { await import(project(file)); }
         catch (e) { send({ type: "test", file, name: "(loading the file)", ok: false, error: format(e), ms: 0 }); }
       }
-      await runner.__run(send);
+      await runner.__run(send, params.get("name"));
       send({ type: "done" });
     } else {
       await import(project(params.get("entry")));

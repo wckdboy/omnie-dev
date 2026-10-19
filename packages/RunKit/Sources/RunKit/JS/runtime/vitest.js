@@ -99,8 +99,9 @@ export const vi = {
   },
 };
 
-export async function __run(send) {
+export async function __run(send, only = null) {
   for (const t of tests) {
+    if (only !== null && t.name !== only) continue;
     const start = performance.now();
     try {
       for (const h of hooks(t.suite, "before")) await h();

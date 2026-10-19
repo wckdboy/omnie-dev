@@ -8,7 +8,7 @@ const base = "omnie-run://local/";
 const send = (message) => postMessage(message);
 
 self.onmessage = async (event) => {
-  const { mode, entry, files } = event.data;
+  const { mode, entry, files, name } = event.data;
   const progress = (text) => postMessage({ type: "progress", text });
   try {
     progress("loading Pyodide");
@@ -50,7 +50,10 @@ except BaseException:
 `).catch((e) => send({ type: "error", text: String(e.message || e).split("\n").filter(Boolean).pop() }));
     } else {
       py.globals.set("omnie_files", py.toPy(files));
-      const report = await py.runPythonAsync("import pytest\npytest._omnie_run(omnie_files)");
+      // A sentinel string rather than null: what a JS null becomes on the Python side is not
+      // something to lean on, and "" means "every test".
+      py.globals.set("omnie_only", name || "");
+      const report = await py.runPythonAsync("import pytest\npytest._omnie_run(omnie_files, omnie_only)");
       for (const r of JSON.parse(report)) send({ type: "test", ...r });
     }
   } catch (e) {

@@ -57,6 +57,17 @@ struct JSRunnerTests {
         #expect(result.report.contains("1 failed, 3 passed"))
     }
 
+    @Test func runsOneTestByName() async throws {
+        let result = await (try JSRunner(root: root)).runTests(["tests/math.test.ts"], only: "math > halves")
+        #expect(result.tests.map(\.name) == ["math > halves"])
+        #expect(result.passed)
+    }
+
+    @Test func aNameThatIsNotThereRunsNothing() async throws {
+        let result = await (try JSRunner(root: root)).runTests(["tests/math.test.ts"], only: "math > absent")
+        #expect(result.tests.isEmpty)
+    }
+
     @Test func runsAScriptAndCapturesOutput() async throws {
         let result = await (try JSRunner(root: root)).runScript("scripts/hello.ts")
         #expect(result.output == [.init(stream: .out, text: "hello device"), .init(stream: .err, text: "careful")])
@@ -176,6 +187,15 @@ struct PythonRunnerTests {
         #expect(result.tests.map(\.name) == ["test_total", "test_wrong", "test_raises", "test_cases[1, 1]", "test_cases[2, 3]", "TestApprox.test_float"])
         #expect(result.tests.map(\.passed) == [true, false, true, true, true, true])
         #expect(result.tests[1].error == "assert failed: assert total_up_to(3) == 7\n    assert 6 == 7\n    total_up_to(3) = 6")
+    }
+
+    @Test func runsOnePytestTestByName() async throws {
+        try await warmUp()
+        let result = try await runRetrying {
+            await (try JSRunner(root: root)).runPythonTests(["tests/test_calc.py"], only: "test_cases[2, 3]", timeout: JSRunnerTests.pythonTimeout)
+        }
+        #expect(result.tests.map(\.name) == ["test_cases[2, 3]"], "\(result.report)")
+        #expect(result.passed)
     }
 
     @Test func reportsExceptionsAndStopsLoops() async throws {

@@ -295,7 +295,7 @@ final class AppModel {
         #endif
         let args = ProcessInfo.processInfo.arguments
         // Debug launch arguments open their own folder (fixtures rebuild theirs, so don't reopen it).
-        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmnieUIAgentFixture", "-OmniePRFixture", "-OmnieUIPyFixture"].contains { args.contains($0) }
+        opensFolderAtLaunch = ["-OmnieOpenFolder", "-OmnieClone", "-OmnieUIFixture", "-OmnieUIHistoryFixture", "-OmnieUIAgentFixture", "-OmniePRFixture", "-OmnieUIPyFixture", "-OmnieUITestFixture"].contains { args.contains($0) }
         #if DEBUG
         // Fixtures and launch files set up the editor themselves; an earlier run's tabs would leak in.
         if args.contains(where: { $0.hasPrefix("-OmnieUI") || $0 == "-OmniePRFixture" || $0 == "-OmnieOpenFile" }), !args.contains("-OmnieRestoreSessions") {

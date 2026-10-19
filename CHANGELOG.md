@@ -10,6 +10,9 @@ measured today is in [docs/STATUS.md](docs/STATUS.md).
 - **Java**: tree-sitter-java highlighting and outlines for `.java`, joining Swift/TypeScript/JavaScript/Python/Go/Rust/C/C++ (vendored and hash-pinned by `scripts/vendor-grammars.py`).
 - **Markdown**: `.md` files highlight with tree-sitter-markdown (headings, code fences, links), and a fenced block is highlighted as the language it names (```` ```java ````, ```` ```python ````, …). This is the editor's first use of the engine's injected-language path, so an HTML document's CSS and `<script>` highlight too.
 
+**Tests**
+- **Test explorer**: the Tests panel lists one row per test (pass/fail, duration, the failure's first lines) grouped by file, with **Run all**, **Run failed** (only the files that had a failure, keeping the other files' results), a **failed-only** filter and a per-file ⟳. Tapping a row opens the test's **full output** — the assertion message and stack, not the row's four lines — with **Run again** for that one test and **Open file**. RunKit's vitest subset and its pytest shim both take a test name to run one, so a test can be run again by itself.
+
 **Workspace**
 - **Multi-root workspaces**: **Add folder to workspace…** (File, or the button at the foot of the navigator) puts another folder beside the project. The navigator shows each added folder as its own section under a header that removes it again (the status strip counts them, `+N`); quick open, find in project and replace cover every folder, and a file in an added folder is named by it (`uitest-extra/extra.ts`). Files from added folders open, edit and save as usual; each folder is watched like the project's own, and the set — with the file you had open in it — is remembered per project by bookmark across relaunches. The project's own folder still drives git, tasks, the agent and type-checking; per-folder repositories are a follow-up.
 

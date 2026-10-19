@@ -99,9 +99,10 @@ public final class JSRunner {
         return files.sorted()
     }
 
-    public func runTests(_ files: [String], timeout: Double = 30) async -> RunResult {
+    public func runTests(_ files: [String], only name: String? = nil, timeout: Double = 30) async -> RunResult {
         var query = [URLQueryItem(name: "mode", value: "tests")]
         query += files.map { URLQueryItem(name: "file", value: $0) }
+        if let name { query.append(URLQueryItem(name: "name", value: name)) }
         return await run(query: query, timeout: timeout)
     }
 
@@ -119,18 +120,21 @@ public final class JSRunner {
         await run(query: [URLQueryItem(name: "mode", value: "python"), URLQueryItem(name: "entry", value: entry)], timeout: timeout)
     }
 
-    public func runPythonTests(_ files: [String], timeout: Double = 60) async -> RunResult {
-        await run(query: [URLQueryItem(name: "mode", value: "pytest")] + files.map { URLQueryItem(name: "file", value: $0) }, timeout: timeout)
+    public func runPythonTests(_ files: [String], only name: String? = nil, timeout: Double = 60) async -> RunResult {
+        var query = [URLQueryItem(name: "mode", value: "pytest")] + files.map { URLQueryItem(name: "file", value: $0) }
+        if let name { query.append(URLQueryItem(name: "name", value: name)) }
+        return await run(query: query, timeout: timeout)
     }
 
     /// Every test in the project: JS/TS files with the vitest subset, Python files with the pytest
-    /// subset, in one result. `only` limits it to one file.
-    public func runAllTests(only file: String? = nil) async -> RunResult {
+    /// subset, in one result. `only` limits it to one file; `name` to one test in it (the name the
+    /// result carried, e.g. "math > adds" or "test_cases[2, 3]").
+    public func runAllTests(only file: String? = nil, name: String? = nil) async -> RunResult {
         let js = file.map { $0.hasSuffix(".py") ? [] : [$0] } ?? Self.testFiles(in: root)
         let py = file.map { $0.hasSuffix(".py") ? [$0] : [] } ?? Self.pythonTestFiles(in: root)
         var result = RunResult()
         let start = Date()
-        for part in [js.isEmpty ? nil : await runTests(js), py.isEmpty ? nil : await runPythonTests(py)].compactMap({ $0 }) {
+        for part in [js.isEmpty ? nil : await runTests(js, only: name), py.isEmpty ? nil : await runPythonTests(py, only: name)].compactMap({ $0 }) {
             result.output += part.output
             result.tests += part.tests
             if part.ending != .finished { result.ending = part.ending }

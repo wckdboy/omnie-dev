@@ -123,7 +123,7 @@ def _failure(error, path):
     return f"{type(error).__name__}: {error}"
 
 
-def _omnie_run(files):
+def _omnie_run(files, only=""):
     results = []
     for path in files:
         try:
@@ -144,6 +144,8 @@ def _omnie_run(files):
         for name, fn in tests:
             for args, kwargs in _cases(fn):
                 label = name + (f"[{', '.join(repr(v) for v in kwargs.values())}]" if kwargs else "")
+                if only and label != only:
+                    continue
                 start = time.perf_counter()
                 try:
                     fn(*args, **kwargs)
