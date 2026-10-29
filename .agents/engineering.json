@@ -1,0 +1,54 @@
+{
+  "schema": "eng-config/v1",
+  "project": "omnie-dev",
+  "commands": {
+    "fast": [
+      {
+        "name": "reuse",
+        "run": "reuse lint",
+        "timeout": 300
+      },
+      {
+        "name": "packages",
+        "run": "scripts/test-all.sh",
+        "timeout": 3600
+      }
+    ],
+    "full": [
+      {
+        "name": "reuse",
+        "run": "reuse lint",
+        "timeout": 300
+      },
+      {
+        "name": "all-with-ui",
+        "run": "scripts/test-all.sh --ui",
+        "timeout": 5400
+      }
+    ]
+  },
+  "security": {
+    "required": [
+      "gitleaks",
+      "semgrep"
+    ],
+    "optional": [
+      "osv-scanner",
+      "actionlint"
+    ],
+    "gitleaks_config": ".agents/config/gitleaks.toml",
+    "semgrep_config": ".agents/config/semgrep.yml",
+    "gitleaks_history": false,
+    "timeout": 600
+  },
+  "budgets": {
+    "fast_seconds": 3600,
+    "full_seconds": 7200
+  },
+  "parallel": {
+    "max_worktrees": 4
+  },
+  "impact": {
+    "base": "origin/main"
+  }
+}

@@ -44,12 +44,15 @@ if [ "$UI_ONLY" = 0 ]; then
     if [ -n "$ONLY" ] && [ "$name" != "$ONLY" ]; then continue; fi
     if [ "$name" = "EditorKit" ]; then
       out=$(cd "$dir" && xcodebuild test -scheme EditorKit -destination "id=$SIM" -derivedDataPath "$ROOT/.build/test-all/EditorKit" ${EXTRA[@]+"${EXTRA[@]}"} 2>&1)
+      status=$?
       echo "$out" | grep -a "\[perf\]" | sed 's/^/    /'
     else
       out=$(cd "$dir" && swift test 2>&1)
+      status=$?
     fi
     summary=$(echo "$out" | grep -aE "Test run with [0-9]+ tests" | tail -1 | sed 's/^[^T]*//')
-    if echo "$out" | grep -aqE "✘ Test run|TEST FAILED|error: "; then
+    # A suite that exits non-zero failed even when it printed no failure line (no toolchain, a crash).
+    if [ "$status" -ne 0 ] || echo "$out" | grep -aqE "✘ Test run|TEST FAILED|error: "; then
       report "$name" FAILED "$summary"
       echo "$out" | grep -aE "✘|error:" | head -8 | sed 's/^/    /'
     else
