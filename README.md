@@ -1,10 +1,24 @@
-# Omnie-dev
+# Omnie
 
-A native, offline-first IDE for agent-assisted coding. On iPad it's the full IDE; on iPhone it's an agent-first vibecoding app. See [docs/PLAN.md](docs/PLAN.md) for the architecture and [docs/POSITIONING.md](docs/POSITIONING.md) for the description, brand and audience.
+[omnie.sh](https://omnie.sh) · [omnie.dk](https://omnie.dk) · [WCKD](https://wckd.ai)
+
+**Omnie is becoming an integration hub for professional tools:** one place that connects the tools a
+business already uses, so their data can work together. The first integration is e-conomic: project
+and account data pulled read-only through the Omnie Connect app and used to build reports in Omnie.
+Further integrations follow one at a time. It is in development; nothing here is a released product.
+
+This repository is moving to that direction. What it holds today is the earlier Omnie Dev code, a
+native, offline-first iPad/iPhone IDE for agent-assisted coding. That IDE is no longer developed as
+Omnie. Its code, docs and CI stay here for reference until the hub replaces them.
+
+## The earlier IDE (reference)
+
+See [docs/PLAN.md](docs/PLAN.md) for its architecture and [docs/POSITIONING.md](docs/POSITIONING.md)
+for its former positioning.
 
 Bundle ID: `ai.wckd.omniedev` · iPadOS / iOS 26+
 
-## Layout
+### Layout
 
 Follows PLAN §27.3: one monorepo for the app and every Kit.
 
@@ -24,7 +38,7 @@ Follows PLAN §27.3: one monorepo for the app and every Kit.
 | `CHANGELOG.md` | What shipped in each release |
 | `project.yml` | XcodeGen spec. The `.xcodeproj` is generated and not committed |
 
-## Build
+### Build
 
 ```sh
 brew install xcodegen cmake ninja   # once
